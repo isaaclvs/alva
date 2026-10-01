@@ -1,0 +1,13 @@
+milk:
+  name: Leite
+  category: dairy
+  household: home
+  status: pending
+  position: 1
+
+detergent:
+  name: Detergente
+  household: home
+  status: purchased
+  position: 2
+  purchased_at: <%= 1.day.ago %>
