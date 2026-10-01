@@ -1,0 +1,9 @@
+banana:
+  name: Banana
+  normalized_name: banana
+  category: produce
+
+milk:
+  name: Leite
+  normalized_name: leite
+  category: dairy

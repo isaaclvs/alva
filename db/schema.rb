@@ -10,7 +10,17 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_01_183054) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_01_183113) do
+  create_table "catalog_items", force: :cascade do |t|
+    t.integer "category_id", null: false
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.string "normalized_name", null: false
+    t.datetime "updated_at", null: false
+    t.index ["category_id"], name: "index_catalog_items_on_category_id"
+    t.index ["normalized_name"], name: "index_catalog_items_on_normalized_name", unique: true
+  end
+
   create_table "categories", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "name", null: false
@@ -24,4 +34,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_01_183054) do
     t.string "name", null: false
     t.datetime "updated_at", null: false
   end
+
+  add_foreign_key "catalog_items", "categories"
 end
