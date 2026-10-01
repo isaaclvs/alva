@@ -22,8 +22,8 @@ workflow para o Claude Code.
 ## Convenções de commit
 
 - Commits pequenos e no escopo de uma task por vez.
-- Mensagem de commit em português, no imperativo, referenciando o identificador
-  da task do Linear quando existir (ex.: `Adiciona service de categorização automática (SHO-4)`).
+- Mensagem de commit em inglês, no imperativo, referenciando o identificador
+  da task do Linear quando existir (ex.: `feat: add automatic categorization service (SHO-4)`).
 - Não fazer commit de `config/master.key`, credenciais ou artefatos de build
   (node_modules, cache do PWA, etc.) — confirmar que `.gitignore` cobre isso.
 
