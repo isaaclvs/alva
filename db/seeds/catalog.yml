@@ -1,0 +1,81 @@
+# Category => known items. Key order defines category position in the UI.
+# "Outros" is also the fallback for items with no match in this dictionary.
+Hortifruti:
+  - Banana
+  - Maçã
+  - Laranja
+  - Limão
+  - Mamão
+  - Tomate
+  - Cebola
+  - Alho
+  - Batata
+  - Cenoura
+  - Alface
+  - Abobrinha
+Laticínios:
+  - Leite
+  - Queijo
+  - Manteiga
+  - Iogurte
+  - Requeijão
+  - Creme de leite
+  - Leite condensado
+Mercearia:
+  - Café
+  - Açúcar
+  - Arroz
+  - Feijão
+  - Macarrão
+  - Óleo
+  - Azeite
+  - Sal
+  - Farinha de trigo
+  - Molho de tomate
+  - Achocolatado
+  - Biscoito
+  - Ovos
+Açougue:
+  - Frango
+  - Carne moída
+  - Bife
+  - Costela
+  - Linguiça
+  - Bacon
+  - Peixe
+Padaria:
+  - Pão francês
+  - Pão de forma
+  - Pão de queijo
+  - Torrada
+  - Bolo
+Bebidas:
+  - Água
+  - Refrigerante
+  - Suco
+  - Cerveja
+  - Vinho
+Limpeza:
+  - Detergente
+  - Sabão em pó
+  - Amaciante
+  - Água sanitária
+  - Desinfetante
+  - Multiuso
+  - Esponja
+  - Saco de lixo
+Higiene:
+  - Papel higiênico
+  - Sabonete
+  - Shampoo
+  - Condicionador
+  - Creme dental
+  - Escova de dente
+  - Fio dental
+  - Desodorante
+Outros:
+  - Pilha
+  - Lâmpada
+  - Fósforo
+  - Vela
+  - Carvão
