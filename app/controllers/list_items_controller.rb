@@ -1,7 +1,8 @@
 class ListItemsController < ApplicationController
   def index
+    @household = current_household
     @list_item = ListItem.new
-    @groups = current_household.list_items_by_category
+    @groups = @household.list_items_by_category
   end
 
   def create

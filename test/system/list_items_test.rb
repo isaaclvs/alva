@@ -45,4 +45,27 @@ class ListItemsTest < ApplicationSystemTestCase
     assert_no_selector "##{dom_id(list_items(:milk))} .line-through"
     assert_selector "##{dom_id(list_items(:milk))}", text: "Leite"
   end
+
+  test "changes show up live in another open session" do
+    using_session(:other) do
+      visit root_path
+      connect_turbo_cable_stream_sources
+    end
+
+    visit root_path
+    fill_in "Item", with: "Banana"
+    click_button "Adicionar"
+    assert_selector "#category_#{categories(:produce).id}", text: "Banana"
+
+    using_session(:other) do
+      within("#category_#{categories(:produce).id}") { assert_text "Banana" }
+    end
+
+    click_button "Leite"
+    assert_selector "##{dom_id(list_items(:milk))} .line-through"
+
+    using_session(:other) do
+      assert_selector "##{dom_id(list_items(:milk))} .line-through", text: "Leite"
+    end
+  end
 end

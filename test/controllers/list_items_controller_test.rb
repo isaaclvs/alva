@@ -17,6 +17,17 @@ class ListItemsControllerTest < ActionDispatch::IntegrationTest
     assert_equal households(:home), ListItem.last.household
   end
 
+  test "index subscribes to the household stream" do
+    get root_path
+    assert_select "turbo-cable-stream-source[signed-stream-name]"
+  end
+
+  test "create broadcasts to the household stream" do
+    assert_turbo_stream_broadcasts households(:home), count: 1 do
+      post list_items_path, params: { list_item: { name: "Arroz" } }, as: :turbo_stream
+    end
+  end
+
   test "create with blank name re-renders the form" do
     assert_no_difference "ListItem.count" do
       post list_items_path, params: { list_item: { name: " " } }, as: :turbo_stream
