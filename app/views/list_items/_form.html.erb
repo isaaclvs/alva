@@ -1,0 +1,13 @@
+<%= form_with model: list_item, id: "list_item_form" do |form| %>
+  <div class="flex gap-2">
+    <%= form.label :name, "Item", class: "sr-only" %>
+    <%= form.text_field :name, autofocus: true, required: true, autocomplete: "off",
+          placeholder: "Adicionar item…",
+          class: "min-w-0 flex-1 rounded-lg border border-stone-300 bg-white px-3 py-2 text-base focus:border-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-700/30" %>
+    <%= form.submit "Adicionar", class: "rounded-lg bg-teal-700 px-4 py-2 font-medium text-white active:bg-teal-800" %>
+  </div>
+
+  <% if list_item.errors.any? %>
+    <p class="mt-2 text-sm text-red-700"><%= list_item.errors.full_messages.to_sentence %></p>
+  <% end %>
+<% end %>

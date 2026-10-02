@@ -32,7 +32,8 @@ workflow para o Claude Code.
 ```bash
 bin/rails server        # sobe o servidor Rails local
 bin/rails test           # suíte de testes
-bin/rails test:system    # testes de sistema (Capybara)
+bin/rails test:system    # testes de sistema (Capybara, headless Chrome)
+                         # sem Chrome no sistema: CHROME_BIN=/caminho/do/chrome
 bin/rails db:seed        # popula categorias e dicionário de itens (idempotente)
 ```
 

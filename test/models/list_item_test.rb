@@ -61,4 +61,15 @@ class ListItemTest < ActiveSupport::TestCase
     item = ListItem.create!(name: "Leite", household: households(:home), category: categories(:other))
     assert_equal categories(:other), item.category
   end
+
+  test "toggle_purchased! flips status and purchased_at" do
+    item = list_items(:milk)
+    item.toggle_purchased!
+    assert item.purchased?
+    assert_not_nil item.purchased_at
+
+    item.toggle_purchased!
+    assert item.pending?
+    assert_nil item.purchased_at
+  end
 end
