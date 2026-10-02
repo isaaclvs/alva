@@ -7,7 +7,9 @@
     <%= form.submit "Adicionar", class: "rounded-lg bg-teal-700 px-4 py-2 font-medium text-white active:bg-teal-800" %>
   </div>
 
-  <% if list_item.errors.any? %>
+  <% if local_assigns[:notice] %>
+    <p class="mt-2 text-sm text-amber-700" role="status"><%= notice %></p>
+  <% elsif list_item.errors.any? %>
     <p class="mt-2 text-sm text-red-700"><%= list_item.errors.full_messages.to_sentence %></p>
   <% end %>
 <% end %>

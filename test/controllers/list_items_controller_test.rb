@@ -28,6 +28,16 @@ class ListItemsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "create with a pending duplicate keeps one item and points to it" do
+    assert_no_difference "ListItem.count" do
+      post list_items_path, params: { list_item: { name: "leite" } }, as: :turbo_stream
+    end
+    assert_response :success
+    assert_includes response.body, "Leite já está na lista"
+    assert_includes response.body, %(target="#{ActionView::RecordIdentifier.dom_id(list_items(:milk))}")
+    assert_includes response.body, "animate-highlight"
+  end
+
   test "create with blank name re-renders the form" do
     assert_no_difference "ListItem.count" do
       post list_items_path, params: { list_item: { name: " " } }, as: :turbo_stream
