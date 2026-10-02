@@ -5,6 +5,7 @@ class ListItem < ApplicationRecord
   enum :status, { pending: 0, purchased: 1 }
 
   validates :name, presence: true
+  validate :not_already_pending, on: :create
 
   before_create :assign_category, unless: :category
 
@@ -21,6 +22,14 @@ class ListItem < ApplicationRecord
   end
 
   private
+
+  # No quantities in this app, so a second pending "leite" adds nothing.
+  # Purchased items don't count: buying it again starts a new pending entry.
+  def not_already_pending
+    return if name.blank? || household.nil?
+
+    errors.add(:name, :duplicate_pending, message: "já está na lista") if household.pending_item_named(name)
+  end
 
   def assign_category
     self.category = ItemCategorizer.call(name)
