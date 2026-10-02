@@ -1,0 +1,11 @@
+produce:
+  name: Hortifruti
+  position: 1
+
+dairy:
+  name: Laticínios
+  position: 2
+
+other:
+  name: Outros
+  position: 99
