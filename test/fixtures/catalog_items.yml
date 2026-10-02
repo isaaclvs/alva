@@ -7,3 +7,8 @@ milk:
   name: Leite
   normalized_name: leite
   category: dairy
+
+apple:
+  name: Maçã
+  normalized_name: maca
+  category: produce

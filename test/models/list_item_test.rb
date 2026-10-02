@@ -41,4 +41,24 @@ class ListItemTest < ActiveSupport::TestCase
   test "category has many list items" do
     assert_equal [ list_items(:milk) ], categories(:dairy).list_items.to_a
   end
+
+  test "auto-categorizes on create from dictionary" do
+    item = ListItem.create!(name: "Leite", household: households(:home))
+    assert_equal categories(:dairy), item.category
+  end
+
+  test "auto-categorizes ignoring case and accents" do
+    item = ListItem.create!(name: "MACA", household: households(:home))
+    assert_equal categories(:produce), item.category
+  end
+
+  test "falls back to Outros for unknown names" do
+    item = ListItem.create!(name: "Coisa desconhecida", household: households(:home))
+    assert_equal categories(:other), item.category
+  end
+
+  test "keeps explicitly assigned category" do
+    item = ListItem.create!(name: "Leite", household: households(:home), category: categories(:other))
+    assert_equal categories(:other), item.category
+  end
 end
