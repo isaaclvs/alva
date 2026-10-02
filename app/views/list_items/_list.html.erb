@@ -9,7 +9,7 @@
         <%= category&.name || "Sem categoria" %>
       </h2>
       <ul class="divide-y divide-stone-200 rounded-lg border border-stone-200 bg-white">
-        <%= render partial: "list_item", collection: items %>
+        <%= render partial: "list_items/list_item", collection: items %>
       </ul>
     </section>
   <% end %>
