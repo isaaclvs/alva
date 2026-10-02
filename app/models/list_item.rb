@@ -8,6 +8,10 @@ class ListItem < ApplicationRecord
 
   before_create :assign_category, unless: :category
 
+  # Re-render the whole grouped list for every client on the household stream:
+  # a change can add or empty a category section, not just touch one row.
+  after_commit :broadcast_list
+
   def toggle_purchased!
     if purchased?
       update!(status: :pending, purchased_at: nil)
@@ -20,5 +24,10 @@ class ListItem < ApplicationRecord
 
   def assign_category
     self.category = ItemCategorizer.call(name)
+  end
+
+  def broadcast_list
+    broadcast_replace_to household, target: "list_items", partial: "list_items/list",
+      locals: { groups: household.list_items_by_category }
   end
 end
