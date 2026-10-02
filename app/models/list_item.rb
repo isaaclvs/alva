@@ -8,6 +8,14 @@ class ListItem < ApplicationRecord
 
   before_create :assign_category, unless: :category
 
+  def toggle_purchased!
+    if purchased?
+      update!(status: :pending, purchased_at: nil)
+    else
+      update!(status: :purchased, purchased_at: Time.current)
+    end
+  end
+
   private
 
   def assign_category
