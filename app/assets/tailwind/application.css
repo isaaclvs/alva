@@ -1,1 +1,10 @@
 @import "tailwindcss";
+
+@theme {
+  --animate-highlight: highlight 1.5s ease-out;
+
+  @keyframes highlight {
+    from { background-color: var(--color-amber-200); }
+    to { background-color: transparent; }
+  }
+}

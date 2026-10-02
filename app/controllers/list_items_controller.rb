@@ -14,6 +14,13 @@ class ListItemsController < ApplicationController
         format.turbo_stream
         format.html { redirect_to root_path }
       end
+    elsif @list_item.errors.of_kind?(:name, :duplicate_pending)
+      existing = current_household.pending_item_named(@list_item.name)
+      render turbo_stream: [
+        turbo_stream.replace("list_item_form", partial: "form",
+          locals: { list_item: ListItem.new, notice: "#{existing.name} já está na lista" }),
+        turbo_stream.replace(existing, partial: "list_item", locals: { list_item: existing, highlight: true })
+      ]
     else
       render turbo_stream: turbo_stream.replace("list_item_form", partial: "form", locals: { list_item: @list_item }),
              status: :unprocessable_entity
