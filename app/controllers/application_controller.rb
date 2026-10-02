@@ -4,4 +4,11 @@ class ApplicationController < ActionController::Base
 
   # Changes to the importmap will invalidate the etag for HTML responses
   stale_when_importmap_changes
+
+  private
+
+  # Single shared household until multi-tenancy exists (see AGENTS.md).
+  def current_household
+    @current_household ||= Household.first!
+  end
 end

@@ -1,0 +1,2 @@
+<%= turbo_stream.replace "list_items", partial: "list", locals: { groups: @groups } %>
+<%= turbo_stream.replace "list_item_form", partial: "form", locals: { list_item: ListItem.new } %>

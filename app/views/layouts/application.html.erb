@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title><%= content_for(:title) || "Alva" %></title>
+    <title><%= content_for(:title) || "Lista de Compras" %></title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="application-name" content="Alva">
@@ -24,8 +24,8 @@
     <%= javascript_importmap_tags %>
   </head>
 
-  <body>
-    <main class="container mx-auto mt-28 px-5 flex">
+  <body class="bg-stone-50 text-stone-900 antialiased">
+    <main class="mx-auto min-h-dvh max-w-md">
       <%= yield %>
     </main>
   </body>
