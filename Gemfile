@@ -3,7 +3,7 @@ source "https://rubygems.org"
 # Bundle edge Rails instead: gem "rails", github: "rails/rails", branch: "main"
 # json 3 drops the positional options hash that ActiveSupport::JSON.decode
 # (Rails 8.1) passes to JSON.parse, which breaks session cookie decoding.
-gem "json", "< 3"
+gem "json", "< 4"
 
 gem "rails", "~> 8.1.3", ">= 8.1.3.1"
 # The modern asset pipeline for Rails [https://github.com/rails/propshaft]
