@@ -12,6 +12,7 @@ Rails.application.routes.draw do
   # Defines the root path route ("/")
   resources :list_items, only: :create do
     patch :toggle, on: :member
+    delete :clear_purchased, on: :collection
   end
 
   root "list_items#index"

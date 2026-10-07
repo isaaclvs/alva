@@ -90,4 +90,34 @@ class ListItemsTest < ApplicationSystemTestCase
       assert_selector "##{dom_id(list_items(:milk))} .line-through", text: "Leite"
     end
   end
+
+  test "clearing purchased items removes them everywhere and keeps pending" do
+    using_session(:other) do
+      visit root_path
+      connect_turbo_cable_stream_sources
+      assert_text "Detergente"
+    end
+
+    visit root_path
+    accept_confirm { click_button "Limpar comprados" }
+
+    assert_no_text "Detergente"
+    assert_text "Leite"
+    assert_no_button "Limpar comprados"
+
+    using_session(:other) do
+      assert_no_text "Detergente"
+      assert_text "Leite"
+      assert_no_button "Limpar comprados"
+    end
+  end
+
+  test "clear button appears once an item is purchased" do
+    visit root_path
+    accept_confirm { click_button "Limpar comprados" }
+    assert_no_button "Limpar comprados"
+
+    click_button "Leite"
+    assert_button "Limpar comprados"
+  end
 end
