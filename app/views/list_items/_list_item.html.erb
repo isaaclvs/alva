@@ -1,4 +1,4 @@
-<%= tag.li id: dom_id(list_item) do %>
+<%= tag.li id: dom_id(list_item), class: class_names("animate-highlight": local_assigns[:highlight]) do %>
   <%= button_to toggle_list_item_path(list_item), method: :patch,
         aria: { pressed: list_item.purchased? },
         class: "flex w-full items-center gap-3 px-3 py-3 text-left" do %>

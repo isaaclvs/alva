@@ -43,8 +43,8 @@ class ListItemTest < ActiveSupport::TestCase
   end
 
   test "auto-categorizes on create from dictionary" do
-    item = ListItem.create!(name: "Leite", household: households(:home))
-    assert_equal categories(:dairy), item.category
+    item = ListItem.create!(name: "Banana", household: households(:home))
+    assert_equal categories(:produce), item.category
   end
 
   test "auto-categorizes ignoring case and accents" do
@@ -58,7 +58,7 @@ class ListItemTest < ActiveSupport::TestCase
   end
 
   test "keeps explicitly assigned category" do
-    item = ListItem.create!(name: "Leite", household: households(:home), category: categories(:other))
+    item = ListItem.create!(name: "Banana", household: households(:home), category: categories(:other))
     assert_equal categories(:other), item.category
   end
 
@@ -93,5 +93,28 @@ class ListItemTest < ActiveSupport::TestCase
     assert_turbo_stream_broadcasts households(:home), count: 1 do
       list_items(:milk).destroy!
     end
+  end
+
+  test "rejects a name already pending in the household" do
+    item = ListItem.new(name: "Leite", household: households(:home))
+    assert_not item.valid?
+    assert item.errors.of_kind?(:name, :duplicate_pending)
+  end
+
+  test "treats case, accent and spacing variations as duplicates" do
+    [ "LEITE", "  leite ", "Léite" ].each do |name|
+      assert_not ListItem.new(name: name, household: households(:home)).valid?, "#{name} should be a duplicate"
+    end
+  end
+
+  test "allows re-adding an item that was already purchased" do
+    item = ListItem.new(name: "detergente", household: households(:home))
+    assert item.valid?
+    assert item.save
+  end
+
+  test "allows the same name in another household" do
+    other = Household.create!(name: "Outra casa")
+    assert ListItem.new(name: "Leite", household: other).valid?
   end
 end

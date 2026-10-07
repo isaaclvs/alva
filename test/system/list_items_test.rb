@@ -19,6 +19,28 @@ class ListItemsTest < ApplicationSystemTestCase
     assert_equal "list_item_name", page.evaluate_script("document.activeElement.id")
   end
 
+  test "adding a pending item again shows feedback instead of a duplicate" do
+    visit root_path
+
+    fill_in "Item", with: "LEITE"
+    click_button "Adicionar"
+
+    assert_text "Leite já está na lista"
+    assert_selector "li", text: "Leite", count: 1
+    assert_field "Item", with: ""
+    assert_equal "list_item_name", page.evaluate_script("document.activeElement.id")
+  end
+
+  test "adding a purchased item again creates a new pending entry" do
+    visit root_path
+
+    fill_in "Item", with: "Detergente"
+    click_button "Adicionar"
+
+    assert_selector "li", text: "Detergente", count: 2
+    assert_selector "li .line-through", text: "Detergente", count: 1
+  end
+
   test "unknown item goes to Outros" do
     visit root_path
 
