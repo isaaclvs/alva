@@ -23,9 +23,12 @@ bin/rails db:seed        # populates categories and the item dictionary
 
 ## Testing as a PWA (installing on your phone)
 
-1. Start the server (`bin/rails server`) on a machine reachable from your
-   local network (or already set up with Tailscale — see SHO-9/SHO-10).
-2. Open the URL in your phone's browser (Chrome/Android or Safari/iOS).
+1. Start the server bound to all interfaces so the local network can reach
+   it: `bin/rails server -b 0.0.0.0` (or set up Tailscale — see SHO-9/SHO-10).
+2. Find the machine's LAN IP (`ip -4 addr`) and open
+   `http://<that-ip>:3000` in your phone's browser (Chrome/Android or
+   Safari/iOS), on the same Wi-Fi. Real-time sync works from private LAN IPs
+   (allowed Action Cable origins in `config/environments/development.rb`).
 3. Use "Add to Home Screen" (browser menu). The app opens full-screen, with
    its own icon, like an installed app.
 
