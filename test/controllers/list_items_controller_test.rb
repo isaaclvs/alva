@@ -56,4 +56,25 @@ class ListItemsControllerTest < ActionDispatch::IntegrationTest
     assert item.reload.pending?
     assert_nil item.purchased_at
   end
+
+  test "shows clear button when something was purchased" do
+    get root_path
+    assert_select "form[action='#{clear_purchased_list_items_path}'][data-turbo-confirm*='1 item comprado']"
+  end
+
+  test "hides clear button when nothing was purchased" do
+    list_items(:detergent).destroy!
+    get root_path
+    assert_select "form[action='#{clear_purchased_list_items_path}']", count: 0
+  end
+
+  test "clear_purchased removes only purchased items" do
+    purchased, pending = list_items(:detergent), list_items(:milk)
+    assert_difference "ListItem.count", -1 do
+      delete clear_purchased_list_items_path, as: :turbo_stream
+    end
+    assert_response :success
+    assert ListItem.exists?(pending.id)
+    assert_not ListItem.exists?(purchased.id)
+  end
 end

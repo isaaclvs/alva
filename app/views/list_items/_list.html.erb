@@ -13,4 +13,11 @@
       </ul>
     </section>
   <% end %>
+
+  <% purchased_count = groups.sum { |_, items| items.count(&:purchased?) } %>
+  <% if purchased_count.positive? %>
+    <%= button_to "Limpar comprados", clear_purchased_list_items_path, method: :delete,
+          form: { data: { turbo_confirm: "Remover #{pluralize(purchased_count, "item comprado", plural: "itens comprados")} da lista?" } },
+          class: "w-full rounded-lg border border-stone-300 bg-white px-4 py-3 font-medium text-stone-700 active:bg-stone-100" %>
+  <% end %>
 </div>

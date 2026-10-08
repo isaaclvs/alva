@@ -31,13 +31,27 @@ class ListItemsController < ApplicationController
     @list_item = current_household.list_items.find(params[:id])
     @list_item.toggle_purchased!
 
-    respond_to do |format|
-      format.turbo_stream { render turbo_stream: turbo_stream.replace(@list_item) }
-      format.html { redirect_to root_path }
-    end
+    render_list
+  end
+
+  def clear_purchased
+    current_household.clear_purchased!
+
+    render_list
   end
 
   private
+
+  # Whole list, not one row: the "Limpar comprados" button depends on it.
+  def render_list
+    respond_to do |format|
+      format.turbo_stream do
+        render turbo_stream: turbo_stream.replace("list_items", partial: "list",
+          locals: { groups: current_household.list_items_by_category })
+      end
+      format.html { redirect_to root_path }
+    end
+  end
 
   def list_item_params
     params.expect(list_item: [ :name ])

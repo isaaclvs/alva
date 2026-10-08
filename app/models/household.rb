@@ -9,6 +9,19 @@ class Household < ApplicationRecord
     list_items.pending.find { |item| TextNormalizer.call(item.name) == key }
   end
 
+  # Deletes in one query and broadcasts once, instead of once per item.
+  def clear_purchased!
+    list_items.purchased.delete_all
+    broadcast_list
+  end
+
+  # Re-render the whole grouped list for every client on this household's stream:
+  # a change can add or empty a category section, not just touch one row.
+  def broadcast_list
+    broadcast_replace_to self, target: "list_items", partial: "list_items/list",
+      locals: { groups: list_items_by_category }
+  end
+
   # [[category, items], ...] ordered by category position; uncategorized last.
   # Only categories with at least one item show up.
   def list_items_by_category
