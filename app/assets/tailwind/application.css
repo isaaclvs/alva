@@ -4,7 +4,7 @@
   --animate-highlight: highlight 1.5s ease-out;
 
   @keyframes highlight {
-    from { background-color: var(--color-amber-200); }
+    from { background-color: color-mix(in oklab, var(--color-amber-400) 30%, transparent); }
     to { background-color: transparent; }
   }
 }
