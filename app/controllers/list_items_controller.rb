@@ -1,8 +1,13 @@
 class ListItemsController < ApplicationController
   def index
     @household = current_household
-    @list_item = ListItem.new
     @groups = @household.list_items_by_category
+
+    respond_to do |format|
+      format.html { @list_item = ListItem.new }
+      # Resync when the app comes back to the foreground (list_refresh_controller.js).
+      format.turbo_stream { render partial: "refresh", locals: { groups: @groups } }
+    end
   end
 
   def create

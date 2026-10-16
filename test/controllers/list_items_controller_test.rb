@@ -17,6 +17,13 @@ class ListItemsControllerTest < ActionDispatch::IntegrationTest
     assert_equal households(:home), ListItem.last.household
   end
 
+  test "index as turbo stream refreshes the summary and the list" do
+    get root_path, as: :turbo_stream
+    assert_response :success
+    assert_select "turbo-stream[action=replace][target=list_summary]"
+    assert_select "turbo-stream[action=replace][target=list_items]", text: /Leite/
+  end
+
   test "index subscribes to the household stream" do
     get root_path
     assert_select "turbo-cable-stream-source[signed-stream-name]"

@@ -91,6 +91,19 @@ class ListItemsTest < ApplicationSystemTestCase
     end
   end
 
+  test "catches up on changes missed while the page was in the background" do
+    visit root_path
+    assert_text "Leite"
+
+    # Skips callbacks, so no broadcast: like one lost while the phone was locked.
+    ListItem.insert!({ name: "Banana", household_id: households(:home).id, category_id: categories(:produce).id })
+    assert_no_text "Banana"
+
+    page.execute_script(%(document.dispatchEvent(new Event("visibilitychange"))))
+    within("#category_#{categories(:produce).id}") { assert_text "Banana" }
+    within("#list_summary") { assert_text "2 faltando" }
+  end
+
   test "summary counts update live when marking an item" do
     using_session(:other) do
       visit root_path

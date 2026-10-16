@@ -1,8 +1,10 @@
 <%= turbo_stream_from @household %>
 
-<header class="sticky top-0 z-10 bg-zinc-950/90 px-4 pt-5 pb-3 backdrop-blur">
-  <%= render "summary", groups: @groups %>
-  <%= render "form", list_item: @list_item %>
-</header>
+<%= tag.div data: { controller: "list-refresh", list_refresh_url_value: root_path } do %>
+  <header class="sticky top-0 z-10 bg-zinc-950/90 px-4 pt-5 pb-3 backdrop-blur">
+    <%= render "summary", groups: @groups %>
+    <%= render "form", list_item: @list_item %>
+  </header>
 
-<%= render "list", groups: @groups %>
+  <%= render "list", groups: @groups %>
+<% end %>
