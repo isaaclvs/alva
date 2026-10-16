@@ -141,6 +141,14 @@ class ListItemsTest < ApplicationSystemTestCase
     end
   end
 
+  test "removing an item added by mistake" do
+    visit root_path
+
+    click_button "Remover Leite"
+    assert_no_text "Leite"
+    assert_text "Detergente"
+  end
+
   test "clear button appears once an item is purchased" do
     visit root_path
     accept_confirm { click_button "Limpar comprados" }

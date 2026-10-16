@@ -1,7 +1,8 @@
-<%= tag.li id: dom_id(list_item), class: class_names("animate-highlight": local_assigns[:highlight]) do %>
+<%= tag.li id: dom_id(list_item), class: class_names("flex items-center", "animate-highlight": local_assigns[:highlight]) do %>
   <%= button_to toggle_list_item_path(list_item), method: :patch,
         aria: { pressed: list_item.purchased? },
-        class: "flex w-full items-center gap-3 px-4 py-3.5 text-left active:bg-zinc-800/60" do %>
+        form: { class: "min-w-0 flex-1" },
+        class: "flex w-full items-center gap-3 py-3.5 pl-4 text-left active:bg-zinc-800/60" do %>
     <span class="<%= class_names("flex size-5 shrink-0 items-center justify-center rounded-full border-2",
                      "border-teal-400 bg-teal-400 text-zinc-950": list_item.purchased?,
                      "border-zinc-600": list_item.pending?) %>" aria-hidden="true">
@@ -12,5 +13,12 @@
       <% end %>
     </span>
     <span class="<%= class_names("text-base", "text-zinc-500 line-through decoration-zinc-500": list_item.purchased?) %>"><%= list_item.name %></span>
+  <% end %>
+  <%= button_to list_item_path(list_item), method: :delete,
+        title: "Remover #{list_item.name}", aria: { label: "Remover #{list_item.name}" },
+        class: "grid size-12 place-items-center text-zinc-600 active:text-red-400" do %>
+    <svg class="size-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+      <path d="M4 4l8 8M12 4l-8 8" />
+    </svg>
   <% end %>
 <% end %>
