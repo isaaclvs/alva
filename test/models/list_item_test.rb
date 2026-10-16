@@ -98,8 +98,8 @@ class ListItemTest < ActiveSupport::TestCase
     assert item.errors.of_kind?(:name, :duplicate_pending)
   end
 
-  test "treats case, accent and spacing variations as duplicates" do
-    [ "LEITE", "  leite ", "Léite" ].each do |name|
+  test "treats case, accent, spacing and plural variations as duplicates" do
+    [ "LEITE", "  leite ", "Léite", "Leites" ].each do |name|
       assert_not ListItem.new(name: name, household: households(:home)).valid?, "#{name} should be a duplicate"
     end
   end

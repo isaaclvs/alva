@@ -11,6 +11,11 @@ class ItemCategorizerTest < ActiveSupport::TestCase
     assert_equal categories(:dairy), ItemCategorizer.call("LEITE")
   end
 
+  test "matches plural forms of dictionary names" do
+    assert_equal categories(:produce), ItemCategorizer.call("Bananas")
+    assert_equal categories(:dairy), ItemCategorizer.call("leites")
+  end
+
   test "falls back to Outros for unknown items" do
     assert_equal categories(:other), ItemCategorizer.call("Coisa desconhecida")
   end

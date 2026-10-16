@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_01_183135) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_16_203712) do
   create_table "catalog_items", force: :cascade do |t|
     t.integer "category_id", null: false
     t.datetime "created_at", null: false
