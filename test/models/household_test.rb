@@ -17,6 +17,15 @@ class HouseholdTest < ActiveSupport::TestCase
     assert_equal [ list_items(:milk) ], groups.first.last
   end
 
+  test "lists pending items before purchased ones within a category" do
+    household = households(:home)
+    bread = household.list_items.create!(name: "Pão", category: categories(:dairy))
+    list_items(:milk).toggle_purchased!
+
+    dairy_items = household.list_items_by_category.to_h.fetch(categories(:dairy))
+    assert_equal [ bread, list_items(:milk) ], dairy_items
+  end
+
   test "clear_purchased! deletes purchased items and keeps pending ones" do
     purchased, pending = list_items(:detergent), list_items(:milk)
     households(:home).clear_purchased!

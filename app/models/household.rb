@@ -23,9 +23,10 @@ class Household < ApplicationRecord
   end
 
   # [[category, items], ...] ordered by category position; uncategorized last.
-  # Only categories with at least one item show up.
+  # Only categories with at least one item show up. Within a category, pending
+  # items come first so what is still missing stays at the top.
   def list_items_by_category
-    list_items.includes(:category).order(:created_at, :id)
+    list_items.includes(:category).order(:status, :created_at, :id)
       .group_by(&:category)
       .sort_by { |category, _| category&.position || Float::INFINITY }
   end
