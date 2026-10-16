@@ -39,6 +39,13 @@ class ListItemsController < ApplicationController
     render_list
   end
 
+  # For items added by mistake: no confirmation, re-adding is one tap away.
+  def destroy
+    current_household.list_items.find(params[:id]).destroy!
+
+    render_list
+  end
+
   def clear_purchased
     current_household.clear_purchased!
 

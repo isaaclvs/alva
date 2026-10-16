@@ -24,6 +24,22 @@ class ListItemsControllerTest < ActionDispatch::IntegrationTest
     assert_select "turbo-stream[action=replace][target=list_items]", text: /Leite/
   end
 
+  test "destroy removes the item and refreshes the list" do
+    assert_difference "ListItem.count", -1 do
+      delete list_item_path(list_items(:milk)), as: :turbo_stream
+    end
+    assert_response :success
+    assert_select "turbo-stream[target=list_items]"
+  end
+
+  test "destroy only finds items of the current household" do
+    other = Household.create!(name: "Outra").list_items.create!(name: "Arroz")
+
+    delete list_item_path(other), as: :turbo_stream
+    assert_response :not_found
+    assert ListItem.exists?(other.id)
+  end
+
   test "index subscribes to the household stream" do
     get root_path
     assert_select "turbo-cable-stream-source[signed-stream-name]"

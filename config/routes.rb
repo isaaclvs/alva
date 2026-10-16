@@ -10,7 +10,7 @@ Rails.application.routes.draw do
   get "service-worker" => "rails/pwa#service_worker", as: :pwa_service_worker
 
   # Defines the root path route ("/")
-  resources :list_items, only: :create do
+  resources :list_items, only: [ :create, :destroy ] do
     patch :toggle, on: :member
     delete :clear_purchased, on: :collection
   end
