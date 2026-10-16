@@ -3,10 +3,10 @@
         aria: { pressed: list_item.purchased? },
         class: "flex w-full items-center gap-3 px-3 py-3 text-left" do %>
     <span class="<%= class_names("flex size-5 shrink-0 items-center justify-center rounded border-2",
-                     "border-teal-700 bg-teal-700 text-white": list_item.purchased?,
-                     "border-stone-400": list_item.pending?) %>" aria-hidden="true">
+                     "border-teal-500 bg-teal-500 text-stone-950": list_item.purchased?,
+                     "border-stone-500": list_item.pending?) %>" aria-hidden="true">
       <% if list_item.purchased? %>✓<% end %>
     </span>
-    <span class="<%= class_names("text-base", "text-stone-400 line-through": list_item.purchased?) %>"><%= list_item.name %></span>
+    <span class="<%= class_names("text-base", "text-stone-500 line-through": list_item.purchased?) %>"><%= list_item.name %></span>
   <% end %>
 <% end %>
