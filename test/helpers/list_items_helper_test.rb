@@ -13,4 +13,13 @@ class ListItemsHelperTest < ActionView::TestCase
   test "summary for an empty list" do
     assert_equal "Nada faltando", list_summary_text(0, 0)
   end
+
+  test "category icon uses the category's emoji" do
+    assert_dom_equal %(<span class="grid size-7 place-items-center rounded-lg text-sm bg-emerald-500/15" aria-hidden="true">🥬</span>),
+      category_icon(categories(:produce))
+  end
+
+  test "category icon falls back for uncategorized items" do
+    assert_includes category_icon(nil), "📦"
+  end
 end
