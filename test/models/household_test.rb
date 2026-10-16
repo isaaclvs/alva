@@ -37,7 +37,7 @@ class HouseholdTest < ActiveSupport::TestCase
   test "clear_purchased! broadcasts the list once" do
     ListItem.create!(name: "Arroz", household: households(:home)).toggle_purchased!
 
-    assert_turbo_stream_broadcasts households(:home), count: 1 do
+    assert_list_broadcast households(:home) do
       households(:home).clear_purchased!
     end
   end

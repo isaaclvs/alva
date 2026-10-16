@@ -74,23 +74,20 @@ class ListItemTest < ActiveSupport::TestCase
   end
 
   test "broadcasts the list to the household on create" do
-    assert_turbo_stream_broadcasts households(:home), count: 1 do
+    assert_list_broadcast households(:home) do
       ListItem.create!(name: "Arroz", household: households(:home))
     end
   end
 
   test "broadcasts the list to the household on purchase toggle" do
     item = list_items(:milk)
-    streams = capture_turbo_stream_broadcasts(households(:home)) { item.toggle_purchased! }
+    streams = assert_list_broadcast(households(:home)) { item.toggle_purchased! }
 
-    assert_equal 1, streams.size
-    assert_equal "replace", streams.first["action"]
-    assert_equal "list_items", streams.first["target"]
-    assert_includes streams.first.to_html, "line-through"
+    assert_includes streams.last.to_html, "line-through"
   end
 
   test "broadcasts the list to the household on destroy" do
-    assert_turbo_stream_broadcasts households(:home), count: 1 do
+    assert_list_broadcast households(:home) do
       list_items(:milk).destroy!
     end
   end

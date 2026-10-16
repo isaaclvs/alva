@@ -15,10 +15,11 @@ class Household < ApplicationRecord
     broadcast_list
   end
 
-  # Re-render the whole grouped list for every client on this household's stream:
-  # a change can add or empty a category section, not just touch one row.
+  # Re-render the whole grouped list and its summary for every client on this
+  # household's stream: a change can add or empty a category section, not just
+  # touch one row. Both go in a single broadcast.
   def broadcast_list
-    broadcast_replace_to self, target: "list_items", partial: "list_items/list",
+    Turbo::StreamsChannel.broadcast_render_to self, partial: "list_items/refresh",
       locals: { groups: list_items_by_category }
   end
 
