@@ -15,17 +15,19 @@ class Household < ApplicationRecord
     broadcast_list
   end
 
-  # Re-render the whole grouped list for every client on this household's stream:
-  # a change can add or empty a category section, not just touch one row.
+  # Re-render the whole grouped list and its summary for every client on this
+  # household's stream: a change can add or empty a category section, not just
+  # touch one row. Both go in a single broadcast.
   def broadcast_list
-    broadcast_replace_to self, target: "list_items", partial: "list_items/list",
+    Turbo::StreamsChannel.broadcast_render_to self, partial: "list_items/refresh",
       locals: { groups: list_items_by_category }
   end
 
   # [[category, items], ...] ordered by category position; uncategorized last.
-  # Only categories with at least one item show up.
+  # Only categories with at least one item show up. Within a category, pending
+  # items come first so what is still missing stays at the top.
   def list_items_by_category
-    list_items.includes(:category).order(:created_at, :id)
+    list_items.includes(:category).order(:status, :created_at, :id)
       .group_by(&:category)
       .sort_by { |category, _| category&.position || Float::INFINITY }
   end

@@ -13,7 +13,7 @@
 
     <%# Enable PWA manifest for installable apps (make sure to enable in config/routes.rb too!) %>
     <%= tag.link rel: "manifest", href: pwa_manifest_path(format: :json) %>
-    <meta name="theme-color" content="#0C0A09">
+    <meta name="theme-color" content="#09090B">
 
     <link rel="icon" href="/icon.png" type="image/png">
     <link rel="icon" href="/icon.svg" type="image/svg+xml">
@@ -24,7 +24,7 @@
     <%= javascript_importmap_tags %>
   </head>
 
-  <body class="bg-stone-950 text-stone-100 antialiased">
+  <body class="bg-zinc-950 text-zinc-100 antialiased">
     <main class="mx-auto min-h-dvh max-w-md">
       <%= yield %>
     </main>

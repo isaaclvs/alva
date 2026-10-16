@@ -23,7 +23,7 @@ class ListItemsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "create broadcasts to the household stream" do
-    assert_turbo_stream_broadcasts households(:home), count: 1 do
+    assert_list_broadcast households(:home) do
       post list_items_path, params: { list_item: { name: "Arroz" } }, as: :turbo_stream
     end
   end

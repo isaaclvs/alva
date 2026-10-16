@@ -1,14 +1,22 @@
-<div id="list_items" class="space-y-6 px-4 py-4">
+<div id="list_items" class="space-y-5 px-4 pt-2 pb-8">
   <% if groups.empty? %>
-    <p class="py-12 text-center text-stone-400">Lista vazia. Adicione o primeiro item acima.</p>
+    <div class="py-16 text-center">
+      <p class="text-4xl" aria-hidden="true">🛒</p>
+      <p class="mt-3 text-zinc-400">Lista vazia. Adicione o primeiro item acima.</p>
+    </div>
   <% end %>
 
   <% groups.each do |category, items| %>
     <section id="<%= category ? dom_id(category) : "uncategorized" %>">
-      <h2 class="mb-2 text-xs font-semibold uppercase tracking-wide text-teal-400">
+      <% purchased_in_group = items.count(&:purchased?) %>
+      <h2 class="mb-2 flex items-center gap-2 text-sm font-semibold text-zinc-300">
+        <%= category_icon(category) %>
         <%= category&.name || "Sem categoria" %>
+        <span class="ml-auto text-xs font-medium text-zinc-500" aria-label="<%= purchased_in_group %> de <%= items.size %> no carrinho">
+          <%= purchased_in_group %>/<%= items.size %>
+        </span>
       </h2>
-      <ul class="divide-y divide-stone-800 rounded-lg border border-stone-800 bg-stone-900">
+      <ul class="divide-y divide-zinc-800/80 overflow-hidden rounded-2xl border border-zinc-800/80 bg-zinc-900">
         <%= render partial: "list_items/list_item", collection: items %>
       </ul>
     </section>
@@ -16,8 +24,11 @@
 
   <% purchased_count = groups.sum { |_, items| items.count(&:purchased?) } %>
   <% if purchased_count.positive? %>
-    <%= button_to "Limpar comprados", clear_purchased_list_items_path, method: :delete,
-          form: { data: { turbo_confirm: "Remover #{pluralize(purchased_count, "item comprado", plural: "itens comprados")} da lista?" } },
-          class: "w-full rounded-lg border border-stone-700 bg-stone-900 px-4 py-3 font-medium text-stone-300 active:bg-stone-800" %>
+    <div class="flex items-center justify-center gap-1 text-sm text-zinc-400">
+      <span><%= pluralize(purchased_count, "item", plural: "itens") %> no carrinho ·</span>
+      <%= button_to "Limpar comprados", clear_purchased_list_items_path, method: :delete,
+            form: { data: { turbo_confirm: "Remover #{pluralize(purchased_count, "item comprado", plural: "itens comprados")} da lista?" } },
+            class: "px-1 py-2 font-medium text-red-400 active:text-red-300" %>
+    </div>
   <% end %>
 </div>

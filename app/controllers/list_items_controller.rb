@@ -42,12 +42,12 @@ class ListItemsController < ApplicationController
 
   private
 
-  # Whole list, not one row: the "Limpar comprados" button depends on it.
+  # Whole list and summary, not one row: the counts and the "Limpar comprados"
+  # button depend on every item.
   def render_list
     respond_to do |format|
       format.turbo_stream do
-        render turbo_stream: turbo_stream.replace("list_items", partial: "list",
-          locals: { groups: current_household.list_items_by_category })
+        render partial: "refresh", locals: { groups: current_household.list_items_by_category }
       end
       format.html { redirect_to root_path }
     end

@@ -1,12 +1,16 @@
 <%= tag.li id: dom_id(list_item), class: class_names("animate-highlight": local_assigns[:highlight]) do %>
   <%= button_to toggle_list_item_path(list_item), method: :patch,
         aria: { pressed: list_item.purchased? },
-        class: "flex w-full items-center gap-3 px-3 py-3 text-left" do %>
-    <span class="<%= class_names("flex size-5 shrink-0 items-center justify-center rounded border-2",
-                     "border-teal-500 bg-teal-500 text-stone-950": list_item.purchased?,
-                     "border-stone-500": list_item.pending?) %>" aria-hidden="true">
-      <% if list_item.purchased? %>✓<% end %>
+        class: "flex w-full items-center gap-3 px-4 py-3.5 text-left active:bg-zinc-800/60" do %>
+    <span class="<%= class_names("flex size-5 shrink-0 items-center justify-center rounded-full border-2",
+                     "border-teal-400 bg-teal-400 text-zinc-950": list_item.purchased?,
+                     "border-zinc-600": list_item.pending?) %>" aria-hidden="true">
+      <% if list_item.purchased? %>
+        <svg class="size-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2.5 6.5l2.5 2.5 4.5-5" />
+        </svg>
+      <% end %>
     </span>
-    <span class="<%= class_names("text-base", "text-stone-500 line-through": list_item.purchased?) %>"><%= list_item.name %></span>
+    <span class="<%= class_names("text-base", "text-zinc-500 line-through decoration-zinc-500": list_item.purchased?) %>"><%= list_item.name %></span>
   <% end %>
 <% end %>

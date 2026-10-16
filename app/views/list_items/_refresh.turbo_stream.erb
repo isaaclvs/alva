@@ -1,0 +1,2 @@
+<%= turbo_stream.replace "list_summary", partial: "list_items/summary", locals: { groups: groups } %>
+<%= turbo_stream.replace "list_items", partial: "list_items/list", locals: { groups: groups } %>

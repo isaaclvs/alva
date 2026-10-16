@@ -91,6 +91,22 @@ class ListItemsTest < ApplicationSystemTestCase
     end
   end
 
+  test "summary counts update live when marking an item" do
+    using_session(:other) do
+      visit root_path
+      connect_turbo_cable_stream_sources
+      within("#list_summary") { assert_text "1 faltando · 1 no carrinho" }
+    end
+
+    visit root_path
+    click_button "Leite"
+    within("#list_summary") { assert_text "2 no carrinho" }
+
+    using_session(:other) do
+      within("#list_summary") { assert_text "2 no carrinho" }
+    end
+  end
+
   test "clearing purchased items removes them everywhere and keeps pending" do
     using_session(:other) do
       visit root_path
