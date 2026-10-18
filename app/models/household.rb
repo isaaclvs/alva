@@ -2,6 +2,10 @@ class Household < ApplicationRecord
   has_many :list_items
   has_many :shopping_trips
 
+  # Key in ActiveSupport::IsolatedExecutionState: { household_id => changed? }
+  # for each household currently inside batch_list_broadcasts.
+  BATCHES_KEY = :household_list_broadcast_batches
+
   validates :name, presence: true
 
   # Pending item whose name matches after normalization ("Leite" == " leite ").
@@ -65,6 +69,34 @@ class Household < ApplicationRecord
   def broadcast_list
     Turbo::StreamsChannel.broadcast_render_to self, partial: "list_items/refresh",
       locals: { groups: list_items_by_category }
+  end
+
+  # A list item changed (called by ListItem's after_commit). Broadcasts right
+  # away, unless inside batch_list_broadcasts, which defers it to the end.
+  def list_changed
+    batches = ActiveSupport::IsolatedExecutionState[BATCHES_KEY]
+    if batches&.key?(id)
+      batches[id] = true
+    else
+      broadcast_list
+    end
+  end
+
+  # Runs the block with per-item broadcasts held back, then broadcasts the list
+  # once if anything changed (also when the block raises after partial changes).
+  # Per household and per thread/fiber, so other requests are unaffected;
+  # nested calls join the outer batch. Returns the block's value.
+  def batch_list_broadcasts
+    batches = (ActiveSupport::IsolatedExecutionState[BATCHES_KEY] ||= {})
+    return yield if batches.key?(id)
+
+    batches[id] = false
+    begin
+      yield
+    ensure
+      changed = batches.delete(id)
+      broadcast_list if changed
+    end
   end
 
   # [[category, items], ...] ordered by category position; uncategorized last.

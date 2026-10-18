@@ -173,6 +173,63 @@ class HouseholdTest < ActiveSupport::TestCase
     assert older.reload.purchased?
   end
 
+  test "batch_list_broadcasts holds back per-item broadcasts and broadcasts once at the end" do
+    household = households(:home)
+
+    assert_list_broadcast household do
+      household.batch_list_broadcasts do
+        household.list_items.create!(name: "Arroz")
+        household.list_items.create!(name: "Feijão")
+        list_items(:milk).destroy!
+      end
+    end
+  end
+
+  test "batch_list_broadcasts doesn't broadcast when nothing changed" do
+    household = households(:home)
+
+    streams = capture_turbo_stream_broadcasts(household) do
+      household.batch_list_broadcasts { household.add_item("Leite") }
+    end
+
+    assert_empty streams
+  end
+
+  test "batch_list_broadcasts still broadcasts the changes made before an error" do
+    household = households(:home)
+
+    assert_list_broadcast household do
+      assert_raises(RuntimeError) do
+        household.batch_list_broadcasts do
+          household.list_items.create!(name: "Arroz")
+          raise "boom"
+        end
+      end
+    end
+  end
+
+  test "broadcasts resume after a batch raised" do
+    household = households(:home)
+    assert_raises(RuntimeError) { household.batch_list_broadcasts { raise "boom" } }
+
+    assert_list_broadcast(household) { household.list_items.create!(name: "Feijão") }
+  end
+
+  test "nested batch_list_broadcasts join the outer one" do
+    household = households(:home)
+
+    assert_list_broadcast household do
+      household.batch_list_broadcasts do
+        household.list_items.create!(name: "Arroz")
+        household.batch_list_broadcasts { household.list_items.create!(name: "Feijão") }
+      end
+    end
+  end
+
+  test "batch_list_broadcasts returns the block's value" do
+    assert_equal 42, households(:home).batch_list_broadcasts { 42 }
+  end
+
   test "add_item broadcasts the list once when reviving" do
     assert_list_broadcast households(:home) do
       households(:home).add_item("Detergente")
