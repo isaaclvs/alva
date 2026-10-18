@@ -414,6 +414,19 @@ class HouseholdTest < ActiveSupport::TestCase
     assert list_items(:milk).pending?
   end
 
+  test "undo_shopping! does not duplicate an item added again after the trip" do
+    household = households(:home)
+    archived_id = list_items(:detergent).id
+    trip = household.finish_shopping!
+    readded = household.add_item("detergente").item
+
+    assert household.undo_shopping!(trip)
+
+    assert_equal [ readded ], household.list_items.on_list.where(name: [ "Detergente", "detergente" ]).to_a
+    assert readded.reload.pending?
+    assert_not ListItem.exists?(archived_id)
+  end
+
   test "undo_shopping! only undoes the most recent trip" do
     household = households(:home)
     older = household.finish_shopping!

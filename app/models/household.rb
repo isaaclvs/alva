@@ -75,11 +75,16 @@ class Household < ApplicationRecord
   # Undo of "Compra feita": puts the trip's items back on the list as they were
   # (still purchased) and deletes the trip, in one transaction and with one
   # broadcast. Only the most recent trip can be undone; returns false (and
-  # changes nothing) for any other.
+  # changes nothing) for any other. Items already back on the list are not
+  # duplicated.
   def undo_shopping!(trip)
     undone = transaction do
       next false unless trip.household_id == id && trip == latest_shopping_trip
 
+      # An item put on the list again after the trip ("Leite" typed meanwhile)
+      # keeps its entry and the archived copy goes away, so it never shows up
+      # twice; same idea as typing a bought item bringing it back.
+      trip.list_items.select { |item| item_named(list_items.on_list, item.name) }.each(&:delete)
       trip.list_items.update_all(shopping_trip_id: nil, updated_at: Time.current)
       trip.destroy!
       true
