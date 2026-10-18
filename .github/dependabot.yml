@@ -5,6 +5,14 @@ updates:
   schedule:
     interval: weekly
   open-pull-requests-limit: 10
+  ignore:
+    # json 3 breaks ActiveSupport::JSON.decode (see the pin in the Gemfile);
+    # revisit when Rails supports it.
+    - dependency-name: json
+      update-types: [ "version-update:semver-major" ]
+    # Unused by the app (no image uploads); only kept from the Rails skeleton.
+    - dependency-name: image_processing
+      update-types: [ "version-update:semver-major" ]
 - package-ecosystem: github-actions
   directory: "/"
   schedule:
