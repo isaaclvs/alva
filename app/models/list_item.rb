@@ -1,6 +1,7 @@
 class ListItem < ApplicationRecord
   belongs_to :household
   belongs_to :category, optional: true
+  belongs_to :shopping_trip, optional: true
 
   enum :status, { pending: 0, purchased: 1 }
 

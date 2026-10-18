@@ -1,5 +1,6 @@
 class Household < ApplicationRecord
   has_many :list_items
+  has_many :shopping_trips
 
   validates :name, presence: true
 

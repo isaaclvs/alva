@@ -16,4 +16,14 @@ class ShoppingTripTest < ActiveSupport::TestCase
     assert_not trip.valid?
     assert_includes trip.errors[:household], "must exist"
   end
+
+  test "groups the list items bought on the trip" do
+    trip = households(:home).shopping_trips.create!(finished_at: Time.current)
+    item = list_items(:detergent)
+    item.update_columns(shopping_trip_id: trip.id)
+
+    assert_equal [ item ], trip.list_items.to_a
+    assert_equal trip, item.reload.shopping_trip
+    assert_equal [ trip ], households(:home).shopping_trips.to_a
+  end
 end
