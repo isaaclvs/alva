@@ -16,6 +16,12 @@ class ShoppingTripsControllerTest < ActionDispatch::IntegrationTest
     assert_select "turbo-stream[target=list_items]", text: /Detergente/, count: 0
   end
 
+  test "create offers the archived items to buy again" do
+    post shopping_trips_path, as: :turbo_stream
+
+    assert_select "turbo-stream[action=replace][target=buy_again] button", text: /Detergente/
+  end
+
   test "create broadcasts the list to the household stream" do
     assert_list_broadcast households(:home) do
       post shopping_trips_path, as: :turbo_stream

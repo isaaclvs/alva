@@ -54,6 +54,31 @@ class ListItemsControllerTest < ActionDispatch::IntegrationTest
     assert_select "turbo-stream[action=replace][target=list_items]", text: /Leite/
   end
 
+  test "index offers archived items to buy again and nothing without history" do
+    get root_path
+    assert_select "header #buy_again", count: 1
+    assert_select "#buy_again button", count: 0
+
+    list_items(:detergent).update_columns(shopping_trip_id: households(:home).shopping_trips.create!(finished_at: 1.day.ago).id)
+    get root_path
+    assert_select "header #buy_again form[action='#{list_items_path}'] button", text: /Detergente/
+    assert_select "header #buy_again input[name='list_item[name]'][value=Detergente]"
+  end
+
+  test "index as turbo stream refreshes the buy again chips" do
+    get root_path, as: :turbo_stream
+    assert_select "turbo-stream[action=replace][target=buy_again]"
+  end
+
+  test "create drops the added name from the buy again chips" do
+    list_items(:detergent).update_columns(shopping_trip_id: households(:home).shopping_trips.create!(finished_at: 1.day.ago).id)
+
+    post list_items_path, params: { list_item: { name: "Detergente" } }, as: :turbo_stream
+
+    assert_select "turbo-stream[action=replace][target=buy_again]"
+    assert_select "turbo-stream[target=buy_again] button", count: 0
+  end
+
   test "destroy removes the item and refreshes the list" do
     assert_difference "ListItem.count", -1 do
       delete list_item_path(list_items(:milk)), as: :turbo_stream
