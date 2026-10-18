@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# Smoke test of a running production server, reached the way the phones reach
+# the Atlas: through `tailscale serve`, which forwards HTTPS as plain HTTP with
+# X-Forwarded-Proto/Host headers.
+#
+# Usage: script/smoke_test [base_url]   (default http://127.0.0.1:3000)
+set -euo pipefail
+
+base="${1:-http://127.0.0.1:3000}"
+host="atlas.example.ts.net"
+agent="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36"
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+
+fail() { echo "FAIL: $*" >&2; exit 1; }
+
+get() {
+  echo "GET $1"
+  curl -fsS -A "$agent" -b "$tmp/cookies" -c "$tmp/cookies" \
+    -H "Host: $host" -H "X-Forwarded-Host: $host" -H "X-Forwarded-Proto: https" \
+    "$base$1" -o "$2"
+}
+
+echo "Waiting for $base/up"
+for _ in $(seq 1 30); do
+  curl -fsS "$base/up" > /dev/null 2>&1 && break
+  sleep 1
+done
+curl -fsS "$base/up" > /dev/null || fail "server did not come up"
+
+get / "$tmp/index.html"
+grep -q "O que acabou?" "$tmp/index.html" || fail "list page without the add field"
+grep -q 'rel="manifest"' "$tmp/index.html" || fail "manifest not linked"
+
+stylesheet="$(grep -o 'href="/assets/application-[^"]*\.css"' "$tmp/index.html" | head -1 | cut -d'"' -f2)"
+[ -n "$stylesheet" ] || fail "no compiled stylesheet linked"
+get "$stylesheet" "$tmp/application.css"
+
+get /manifest.json "$tmp/manifest.json"
+ruby -rjson -e '
+  manifest = JSON.parse(File.read(ARGV[0]))
+  abort "manifest: display is not standalone" unless manifest["display"] == "standalone"
+  abort "manifest: no 192px icon" unless manifest["icons"].any? { |icon| icon["sizes"] == "192x192" }
+' "$tmp/manifest.json"
+get /icon-192.png "$tmp/icon.png"
+get /service-worker.js "$tmp/service-worker.js"
+
+get /lista.pdf "$tmp/lista.pdf"
+[ "$(head -c 4 "$tmp/lista.pdf")" = "%PDF" ] || fail "lista.pdf is not a PDF"
+
+echo "POST /list_items (a form sent from the https origin)"
+token="$(grep -o 'name="csrf-token" content="[^"]*"' "$tmp/index.html" | cut -d'"' -f4)"
+[ -n "$token" ] || fail "no CSRF token on the page"
+curl -fsS -A "$agent" -b "$tmp/cookies" -c "$tmp/cookies" \
+  -H "Host: $host" -H "X-Forwarded-Host: $host" -H "X-Forwarded-Proto: https" \
+  -H "Origin: https://$host" -H "Accept: text/vnd.turbo-stream.html" \
+  --data-urlencode "authenticity_token=$token" --data-urlencode "list_item[name]=Item do smoke test" \
+  "$base/list_items" -o "$tmp/create.html" || fail "adding an item was rejected"
+
+get / "$tmp/after.html"
+grep -q "Item do smoke test" "$tmp/after.html" || fail "the added item is not on the list"
+
+echo "OK"
