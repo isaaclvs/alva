@@ -2,6 +2,10 @@ class Household < ApplicationRecord
   has_many :list_items
   has_many :shopping_trips
 
+  # Key in ActiveSupport::IsolatedExecutionState: { household_id => changed? }
+  # for each household currently inside batch_list_broadcasts.
+  BATCHES_KEY = :household_list_broadcast_batches
+
   validates :name, presence: true
 
   # Pending item whose name matches after normalization ("Leite" == " leite ").
@@ -40,6 +44,15 @@ class Household < ApplicationRecord
     AddResult.new(item, item.save ? :created : :invalid)
   end
 
+  # Adds every name typed in the add field (see ItemNameSplitter for the
+  # separators and limits), each one through add_item, and returns their
+  # AddResults in order. The list is broadcast once for the whole batch.
+  # Text with no names in it counts as one invalid attempt, like a blank name.
+  def add_items(text)
+    names = ItemNameSplitter.call(text).presence || [ "" ]
+    batch_list_broadcasts { names.map { |name| add_item(name) } }
+  end
+
   # "Compra feita": records a ShoppingTrip and archives the purchased items on
   # the list into it, keeping them as history. Pending items stay on the list.
   # Returns the new trip, or nil (and creates nothing) if nothing was purchased.
@@ -65,6 +78,34 @@ class Household < ApplicationRecord
   def broadcast_list
     Turbo::StreamsChannel.broadcast_render_to self, partial: "list_items/refresh",
       locals: { groups: list_items_by_category }
+  end
+
+  # A list item changed (called by ListItem's after_commit). Broadcasts right
+  # away, unless inside batch_list_broadcasts, which defers it to the end.
+  def list_changed
+    batches = ActiveSupport::IsolatedExecutionState[BATCHES_KEY]
+    if batches&.key?(id)
+      batches[id] = true
+    else
+      broadcast_list
+    end
+  end
+
+  # Runs the block with per-item broadcasts held back, then broadcasts the list
+  # once if anything changed (also when the block raises after partial changes).
+  # Per household and per thread/fiber, so other requests are unaffected;
+  # nested calls join the outer batch. Returns the block's value.
+  def batch_list_broadcasts
+    batches = (ActiveSupport::IsolatedExecutionState[BATCHES_KEY] ||= {})
+    return yield if batches.key?(id)
+
+    batches[id] = false
+    begin
+      yield
+    ensure
+      changed = batches.delete(id)
+      broadcast_list if changed
+    end
   end
 
   # [[category, items], ...] ordered by category position; uncategorized last.

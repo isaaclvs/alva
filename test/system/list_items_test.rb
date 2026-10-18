@@ -65,6 +65,58 @@ class ListItemsTest < ApplicationSystemTestCase
     end
   end
 
+  test "typing several names adds them all to their categories and summarizes" do
+    visit root_path
+
+    fill_in "Item", with: "Banana, Maçã; Coisa nova"
+    click_button "Adicionar"
+
+    within("#category_#{categories(:produce).id}") do
+      assert_text "Banana"
+      assert_text "Maçã"
+    end
+    within("#category_#{categories(:other).id}") { assert_text "Coisa nova" }
+    assert_text "3 itens adicionados"
+    assert_selector "li.animate-highlight", count: 3
+    assert_field "Item", with: ""
+    assert_equal "list_item_name", page.evaluate_script("document.activeElement.id")
+  end
+
+  test "adding several names mentions the ones already on the list" do
+    visit root_path
+
+    fill_in "Item", with: "Banana, Maçã"
+    click_button "Adicionar"
+    assert_text "2 itens adicionados"
+
+    fill_in "Item", with: "banana; Leite; Arroz"
+    click_button "Adicionar"
+
+    assert_text "1 item adicionado · Banana e Leite já estavam na lista"
+    assert_selector "li", text: "Banana", count: 1
+    assert_selector "li", text: "Leite", count: 1
+    assert_selector "li", text: "Arroz", count: 1
+  end
+
+  test "several names show up in another open session" do
+    using_session(:other) do
+      visit root_path
+      connect_turbo_cable_stream_sources
+    end
+
+    visit root_path
+    fill_in "Item", with: "Banana, Maçã"
+    click_button "Adicionar"
+    assert_text "2 itens adicionados"
+
+    using_session(:other) do
+      within("#category_#{categories(:produce).id}") do
+        assert_text "Banana"
+        assert_text "Maçã"
+      end
+    end
+  end
+
   test "unknown item goes to Outros" do
     visit root_path
 

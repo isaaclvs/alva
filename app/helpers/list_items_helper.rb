@@ -33,4 +33,23 @@ module ListItemsHelper
       safe_join(NameSuggestions.call(current_household).map { |name| tag.option(value: name) })
     end
   end
+
+  PT_LIST_CONNECTORS = { words_connector: ", ", two_words_connector: " e ", last_word_connector: " e " }.freeze
+
+  # Feedback for adding several names at once, from the Household#add_items
+  # results: "3 itens adicionados", "2 itens adicionados · Leite já estava na
+  # lista" or "Nada adicionado · Leite e Pão já estavam na lista". Revived items
+  # count as added.
+  def add_items_notice(results)
+    added = results.count { |result| result.outcome.in?(%i[created revived]) }
+    already = results.select { |result| result.outcome == :duplicate }.map { |result| result.item.name }
+
+    parts = []
+    parts << (added.zero? ? "Nada adicionado" : "#{added} #{added == 1 ? 'item adicionado' : 'itens adicionados'}")
+    if already.any?
+      verb = already.one? ? "já estava" : "já estavam"
+      parts << "#{already.to_sentence(**PT_LIST_CONNECTORS)} #{verb} na lista"
+    end
+    parts.join(" · ")
+  end
 end

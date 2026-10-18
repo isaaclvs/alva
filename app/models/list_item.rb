@@ -17,7 +17,7 @@ class ListItem < ApplicationRecord
 
   before_create :assign_category, unless: :category
 
-  after_commit -> { household.broadcast_list }
+  after_commit -> { household.list_changed }
 
   def toggle_purchased!
     if purchased?

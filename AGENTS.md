@@ -76,6 +76,13 @@ query, faz um único broadcast e devolve a `ShoppingTrip` (ou `nil`, sem criar
 nada, se não havia itens comprados). Nome, categoria e `purchased_at` dos
 arquivados ficam intactos.
 
+**Vários itens de uma vez:** o campo de adicionar aceita nomes separados por
+vírgula, ponto e vírgula ou quebra de linha (`ItemNameSplitter`, máx. 30,
+sem repetidos). `Household#add_items(texto)` passa cada nome por `add_item` e
+devolve os `AddResult`s. Todo `ListItem` salvo chama `Household#list_changed`
+(não `broadcast_list` direto); dentro de `Household#batch_list_broadcasts { }`
+isso só marca a mudança e a lista é transmitida uma única vez no fim do bloco.
+
 `CatalogItem` (o que o sistema "sabe") é separado de `ListItem` (o que está na
 lista agora). Essa separação é o que permite categorização automática sem
 acoplar o dicionário à lista viva.
