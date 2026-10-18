@@ -17,6 +17,36 @@ class ListItemsControllerTest < ActionDispatch::IntegrationTest
     assert_equal households(:home), ListItem.last.household
   end
 
+  test "index offers catalog and household names in a datalist linked to the add field" do
+    get root_path
+    assert_select "input#list_item_name[list=list_item_name_suggestions]"
+    assert_select "datalist#list_item_name_suggestions option[value=Leite]", count: 1
+    assert_select "datalist#list_item_name_suggestions option[value=Banana]", count: 1
+    assert_select "datalist#list_item_name_suggestions option[value=Detergente]", count: 1
+  end
+
+  test "create refreshes the datalist with the new name, once" do
+    post list_items_path, params: { list_item: { name: "Coisa nova" } }, as: :turbo_stream
+
+    assert_select "turbo-stream[action=replace][target=list_item_form] datalist#list_item_name_suggestions" do
+      assert_select "option[value='Coisa nova']", count: 1
+      assert_select "option[value=Leite]", count: 1
+    end
+  end
+
+  test "the form keeps its datalist when the item is a duplicate" do
+    post list_items_path, params: { list_item: { name: "leite" } }, as: :turbo_stream
+
+    assert_select "turbo-stream[target=list_item_form] datalist#list_item_name_suggestions option[value=Leite]", count: 1
+  end
+
+  test "the form keeps its datalist when the item is invalid" do
+    post list_items_path, params: { list_item: { name: "" } }, as: :turbo_stream
+
+    assert_response :unprocessable_entity
+    assert_select "turbo-stream[target=list_item_form] datalist#list_item_name_suggestions option[value=Leite]", count: 1
+  end
+
   test "index as turbo stream refreshes the summary and the list" do
     get root_path, as: :turbo_stream
     assert_response :success
