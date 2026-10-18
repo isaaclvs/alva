@@ -1,51 +1,59 @@
 require "test_helper"
 
 class ListPdfTest < ActiveSupport::TestCase
-  setup { @household = households(:home) }
+  setup do
+    @household = households(:home)
+    @now = Time.zone.local(2026, 3, 7, 18, 42) # a Saturday
+  end
 
-  test "renders a PDF with title, date and pending items only" do
-    text = extract_text(ListPdf.call(@household, date: Date.new(2026, 3, 7)))
+  test "renders the header, the pending items and the footer" do
+    text = extract_text(ListPdf.call(@household, now: @now))
 
     assert_includes text, "Lista de compras"
-    assert_includes text, "07/03/2026"
+    assert_includes text, "sábado, 7 de março"
+    assert_includes text, "1 item · 1 categoria"
+    assert_includes text, "LATICÍNIOS"
     assert_includes text, "Leite"
     assert_not_includes text, "Detergente"
-    assert_not_includes text, "Nada faltando"
+    assert_includes text, "LEMBREI AGORA"
+    assert_includes text, "gerada em 07/03/2026 às 18:42 · página 1 de 1"
   end
 
   test "output is a PDF document" do
     assert ListPdf.call(@household).start_with?("%PDF")
   end
 
-  test "groups items under category headings in app order, the Outros category last" do
+  test "counts items and categories in the plural" do
+    @household.list_items.create!(name: "Banana")
+
+    assert_includes extract_text(ListPdf.call(@household)), "2 itens · 2 categorias"
+  end
+
+  test "lays the cards out in app order, the Outros category last" do
     @household.list_items.create!(name: "Coisa nova")
     @household.list_items.create!(name: "Banana")
 
-    text = extract_text(ListPdf.call(@household))
+    pieces = ListPdf.new(@household, @now).pages.flatten
 
-    assert_operator text.index("Hortifruti"), :<, text.index("Banana")
-    assert_operator text.index("Banana"), :<, text.index("Laticínios")
-    assert_operator text.index("Laticínios"), :<, text.index("Leite")
-    assert_operator text.index("Leite"), :<, text.index("Outros")
-    assert_operator text.index("Outros"), :<, text.index("Coisa nova")
+    assert_equal %w[Hortifruti Laticínios Outros], pieces.map(&:label)
+    assert_equal [ %w[Banana], %w[Leite], [ "Coisa nova" ] ], pieces.map(&:items)
   end
 
-  test "items without a category get their own heading, not a second Outros" do
+  test "items without a category get their own card, not a second Outros" do
     @household.list_items.create!(name: "Coisa nova")
     ListItem.insert!({ name: "Item antigo", household_id: @household.id, category_id: nil,
       status: ListItem.statuses[:pending], created_at: Time.current, updated_at: Time.current })
 
-    text = extract_text(ListPdf.call(@household))
+    pieces = ListPdf.new(@household, @now).pages.flatten
 
-    assert_equal 1, text.scan("Outros").size
-    assert_operator text.index("Coisa nova"), :<, text.index("Sem categoria")
-    assert_operator text.index("Sem categoria"), :<, text.index("Item antigo")
+    assert_equal [ "Laticínios", "Outros", "Sem categoria" ], pieces.map(&:label)
+    assert_equal 1, extract_text(ListPdf.call(@household)).scan("OUTROS").size
   end
 
   test "skips categories without pending items" do
     @household.list_items.create!(name: "Banana", status: :purchased)
 
-    assert_not_includes extract_text(ListPdf.call(@household)), "Hortifruti"
+    assert_not_includes extract_text(ListPdf.call(@household)), "HORTIFRUTI"
   end
 
   test "says nothing is missing when there are no pending items" do
@@ -54,38 +62,36 @@ class ListPdfTest < ActiveSupport::TestCase
     text = extract_text(ListPdf.call(@household))
 
     assert_includes text, "Nada faltando"
-    assert_not_includes text, "Laticínios"
+    assert_not_includes text, "LATICÍNIOS"
   end
 
-  test "renders Portuguese accents" do
+  test "renders Portuguese accents with the embedded font" do
     @household.list_items.create!(name: "Pão francês")
-    @household.list_items.create!(name: "Açougue de ração")
+    @household.list_items.create!(name: "Feijão")
 
     text = extract_text(ListPdf.call(@household))
 
     assert_includes text, "Pão francês"
-    assert_includes text, "Laticínios"
-    assert_includes text, "Açougue de ração"
+    assert_includes text, "Feijão"
+    assert_includes text, "LATICÍNIOS"
   end
 
-  test "does not fail on characters Helvetica cannot draw" do
+  test "drops characters the font cannot draw, like emoji" do
     @household.list_items.create!(name: "Pizza 🍕")
 
-    assert_includes extract_text(ListPdf.call(@household)), "Pizza ?"
+    text = extract_text(ListPdf.call(@household))
+    assert_includes text, "Pizza"
+    assert_not_includes text, "🍕"
   end
 
-  test "draws one empty checkbox per pending item" do
-    @household.list_items.create!(name: "Banana")
+  test "flows long lists onto more pages, numbering them" do
+    100.times { |i| @household.list_items.create!(name: "Item #{i}") }
 
-    # Each box is a stroked rectangle ("re ... S"); the list has Leite and Banana.
-    content = PDF::Reader.new(StringIO.new(ListPdf.call(@household))).pages.first.raw_content
-    assert_equal 2, content.scan(/\bre\b/).size
-  end
+    pdf = ListPdf.call(@household, now: @now)
 
-  test "flows long lists onto more pages" do
-    40.times { |i| @household.list_items.create!(name: "Item #{i}") }
-
-    assert_operator PDF::Reader.new(StringIO.new(ListPdf.call(@household))).page_count, :>, 1
+    assert_operator PDF::Reader.new(StringIO.new(pdf)).page_count, :>, 1
+    assert_includes extract_text(pdf), "(CONT.)"
+    assert_includes extract_text(pdf), "página 2 de 2"
   end
 
   private
