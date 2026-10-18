@@ -1,0 +1,26 @@
+<%= turbo_frame_tag dom_id(@list_item, :row), class: "flex min-w-0 flex-1 items-center" do %>
+  <%# namespace: field ids must not clash with the add field (list_item_name). %>
+  <%= form_with model: @list_item, namespace: dom_id(@list_item, :edit), class: "flex w-full flex-col gap-2 p-3" do |form| %>
+    <%= form.label :name, "Nome", class: "sr-only" %>
+    <%= form.text_field :name, autofocus: true, required: true, autocomplete: "off",
+          class: "w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-base focus:border-teal-400/60 focus:outline-none" %>
+
+    <%= form.label :category_id, "Categoria", class: "sr-only" %>
+    <%= form.collection_select :category_id, Category.order(:position), :id, :name,
+          { include_blank: (Category::NONE_LABEL if @list_item.category.nil?) },
+          class: "w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-base focus:border-teal-400/60 focus:outline-none" %>
+
+    <% if @list_item.errors.of_kind?(:name, :duplicate_pending) %>
+      <p class="px-1 text-sm text-amber-400" role="status"><%= @list_item.name %> já está na lista</p>
+    <% elsif @list_item.errors.of_kind?(:name, :blank) %>
+      <p class="px-1 text-sm text-red-400" role="status">Digite um nome</p>
+    <% end %>
+
+    <div class="flex justify-end gap-2">
+      <%= link_to "Cancelar", list_item_path(@list_item),
+            class: "rounded-xl px-4 py-2 text-sm font-medium text-zinc-400 active:bg-zinc-800" %>
+      <%= form.submit "Salvar",
+            class: "rounded-xl bg-teal-400 px-4 py-2 text-sm font-semibold text-zinc-950 active:bg-teal-500" %>
+    </div>
+  <% end %>
+<% end %>

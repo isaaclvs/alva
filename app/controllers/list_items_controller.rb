@@ -38,6 +38,30 @@ class ListItemsController < ApplicationController
     end
   end
 
+  # The row again, for "Cancelar" in the edit form. Both only make sense inside
+  # the row's frame; opened directly they go back to the list.
+  def show
+    @list_item = current_household.list_items.on_list.find(params[:id])
+    redirect_to root_path unless turbo_frame_request?
+  end
+
+  # Fix a typo or a wrong category, in place of the row.
+  def edit
+    @list_item = current_household.list_items.on_list.find(params[:id])
+    redirect_to root_path unless turbo_frame_request?
+  end
+
+  def update
+    @list_item = current_household.list_items.on_list.find(params[:id])
+    correction = params.expect(list_item: [ :name, :category_id ])
+
+    if @list_item.correct(name: correction[:name], category_id: correction[:category_id])
+      render_list
+    else
+      render :edit, status: :unprocessable_entity
+    end
+  end
+
   def toggle
     @list_item = current_household.list_items.on_list.find(params[:id])
     @list_item.toggle_purchased!

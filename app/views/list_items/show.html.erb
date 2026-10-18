@@ -1,0 +1,4 @@
+<%# "Cancelar" in the edit form: the row comes back as it was. %>
+<%= turbo_frame_tag dom_id(@list_item, :row), class: "flex min-w-0 flex-1 items-center" do %>
+  <%= render "list_items/row", list_item: @list_item %>
+<% end %>
