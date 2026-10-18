@@ -38,7 +38,13 @@ técnicas — leia a task correspondente antes de implementar.
   não são afetados.
 - **Categorização automática sem IA.** Matching por nome normalizado contra um
   dicionário pré-cadastrado (`CatalogItem`). Sem match → categoria "Outros".
-- **Categorias fixas no MVP** (editar dicionário/categorias é backlog futuro).
+- **Categorias fixas** (criar/renomear categorias não existe). O dicionário
+  aprende: corrigir a categoria de um item à mão (lápis na linha) grava a
+  entrada em `CatalogItem` com `learned: true` via `ItemCategorizer.learn`, e o
+  `db:seed` (que roda a cada deploy) não sobrescreve entradas aprendidas.
+- **Corrigir item no lugar:** o lápis troca a linha, dentro de um Turbo Frame
+  (`dom_id(item, :row)`), por nome + categoria (`ListItem#correct`). Nome novo
+  sem categoria escolhida é recategorizado como se fosse digitado de novo.
 - **Deploy self-hosted**, não é para publicar na Play Store agora — distribuição
   é via PWA (acesso remoto via Tailscale). App nativo/APK fica em aberto para o
   futuro, se fizer sentido depois do teste com o usuário real.
@@ -130,7 +136,7 @@ acoplar o dicionário à lista viva.
 - Múltiplas famílias/contas, login
 - Quantidade por item
 - Categorização com IA/fuzzy matching avançado
-- Edição de categorias via UI
+- Criar, renomear ou reordenar categorias via UI
 - Tela de histórico de compras, notificações, integração com receitas
 - Publicação na Play Store / app nativo
 - Modo offline
