@@ -5,6 +5,13 @@ class ListItem < ApplicationRecord
 
   enum :status, { pending: 0, purchased: 1 }
 
+  # An item with a shopping_trip is archived history: it left the live list when
+  # that trip was finished. Every query behind the live list (rendering, counts,
+  # duplicate detection, finding an item to toggle or remove) must go through
+  # on_list; archived is the history, read by "buy again" and undo.
+  scope :on_list, -> { where(shopping_trip_id: nil) }
+  scope :archived, -> { where.not(shopping_trip_id: nil) }
+
   validates :name, presence: true
   validate :not_already_pending, on: :create
 

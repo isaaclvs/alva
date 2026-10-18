@@ -7,7 +7,7 @@ class Household < ApplicationRecord
   # Pending item whose name matches after normalization ("Leite" == " leite ").
   def pending_item_named(name)
     key = TextNormalizer.call(name)
-    list_items.pending.find { |item| TextNormalizer.call(item.name) == key }
+    list_items.on_list.pending.find { |item| TextNormalizer.call(item.name) == key }
   end
 
   # Deletes in one query and broadcasts once, instead of once per item.
@@ -28,7 +28,7 @@ class Household < ApplicationRecord
   # Only categories with at least one item show up. Within a category, pending
   # items come first so what is still missing stays at the top.
   def list_items_by_category
-    list_items.includes(:category).order(:status, :created_at, :id)
+    list_items.on_list.includes(:category).order(:status, :created_at, :id)
       .group_by(&:category)
       .sort_by { |category, _| category&.position || Float::INFINITY }
   end

@@ -41,4 +41,12 @@ class HouseholdTest < ActiveSupport::TestCase
       households(:home).clear_purchased!
     end
   end
+
+  test "list_items_by_category leaves out archived items" do
+    household = households(:home)
+    trip = household.shopping_trips.create!(finished_at: Time.current)
+    list_items(:detergent).update_columns(shopping_trip_id: trip.id)
+
+    assert_equal [ list_items(:milk) ], household.list_items_by_category.flat_map(&:last)
+  end
 end
