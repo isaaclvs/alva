@@ -189,4 +189,65 @@ class HouseholdTest < ActiveSupport::TestCase
     assert_equal :duplicate, result.outcome
     assert_equal list_items(:milk), result.item
   end
+
+  def removed_snapshot(item)
+    ListItemSnapshot.load(ListItemSnapshot.dump(item)).tap { item.destroy! }
+  end
+
+  test "restore_item brings a removed item back exactly as it was" do
+    household = households(:home)
+    original = household.list_items.create!(name: "Pão", category: categories(:dairy), status: :purchased,
+      purchased_at: 2.hours.ago, created_at: 3.days.ago)
+    attributes = original.reload.attributes.except("updated_at")
+
+    restored = household.restore_item(removed_snapshot(original))
+
+    assert_equal attributes, restored.reload.attributes.except("updated_at")
+  end
+
+  test "restore_item puts the item back in its original position" do
+    household = households(:home)
+    first = household.list_items.create!(name: "Queijo", category: categories(:dairy), created_at: 2.days.ago)
+    household.list_items.create!(name: "Iogurte", category: categories(:dairy))
+
+    household.restore_item(removed_snapshot(first))
+
+    names = household.list_items_by_category.to_h.fetch(categories(:dairy)).map(&:name)
+    assert_equal %w[Queijo Leite Iogurte], names
+  end
+
+  test "restore_item broadcasts the list once" do
+    snapshot = removed_snapshot(list_items(:milk))
+
+    assert_list_broadcast(households(:home)) { households(:home).restore_item(snapshot) }
+  end
+
+  test "restore_item does nothing when a pending item with the same name is on the list" do
+    household = households(:home)
+    snapshot = removed_snapshot(list_items(:milk))
+    readded = household.list_items.create!(name: "leite")
+
+    assert_no_difference "ListItem.count" do
+      assert_nil household.restore_item(snapshot)
+    end
+    assert_equal [ readded ], household.list_items.on_list.pending.to_a
+  end
+
+  test "restore_item does nothing when the item is already back" do
+    household = households(:home)
+    snapshot = ListItemSnapshot.load(ListItemSnapshot.dump(list_items(:milk)))
+
+    assert_no_difference "ListItem.count" do
+      assert_nil household.restore_item(snapshot)
+    end
+  end
+
+  test "restore_item ignores a snapshot from another household" do
+    other = Household.create!(name: "Outra")
+    snapshot = removed_snapshot(list_items(:milk))
+
+    assert_no_difference "ListItem.count" do
+      assert_nil other.restore_item(snapshot)
+    end
+  end
 end

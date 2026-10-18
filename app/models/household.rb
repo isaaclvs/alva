@@ -59,6 +59,18 @@ class Household < ApplicationRecord
     trip
   end
 
+  # Undo of a removal: puts the item described by a ListItemSnapshot back with
+  # its original attributes (id and created_at included, so it returns to the
+  # same place). Returns the restored item, or nil when there is nothing to do:
+  # the snapshot is from another household, the item is already back, or a
+  # pending item with the same name was added meanwhile.
+  def restore_item(snapshot)
+    return unless snapshot["household_id"] == id
+    return if ListItem.exists?(snapshot["id"]) || pending_item_named(snapshot["name"])
+
+    list_items.create!(snapshot.slice(*ListItemSnapshot::ATTRIBUTES - %w[household_id]))
+  end
+
   # Re-render the whole grouped list and its summary for every client on this
   # household's stream: a change can add or empty a category section, not just
   # touch one row. Both go in a single broadcast.
