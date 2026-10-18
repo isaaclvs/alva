@@ -230,6 +230,72 @@ class HouseholdTest < ActiveSupport::TestCase
     assert_equal 42, households(:home).batch_list_broadcasts { 42 }
   end
 
+  test "add_items adds each name with its category and keeps the order" do
+    household = households(:home)
+
+    results = household.add_items("Banana, pão; Coisa nova")
+
+    assert_equal %i[created created created], results.map(&:outcome)
+    assert_equal [ "Banana", "pão", "Coisa nova" ], results.map { |result| result.item.name }
+    assert_equal categories(:produce), results.first.item.category
+    assert_equal 3, household.list_items.pending.where(name: [ "Banana", "pão", "Coisa nova" ]).count
+  end
+
+  test "add_items reports a duplicate and a revived item next to a new one" do
+    household = households(:home)
+
+    results = household.add_items("leite, detergente, arroz")
+
+    assert_equal %i[duplicate revived created], results.map(&:outcome)
+    assert_equal list_items(:milk), results.first.item
+    assert_equal list_items(:detergent), results.second.item
+    assert list_items(:detergent).reload.pending?
+  end
+
+  test "add_items adds a name repeated in the text only once" do
+    assert_difference -> { households(:home).list_items.count }, 1 do
+      results = households(:home).add_items("Banana, banana, Bananas")
+      assert_equal [ :created ], results.map(&:outcome)
+    end
+  end
+
+  test "add_items treats a single name like add_item" do
+    results = households(:home).add_items("  Banana ")
+
+    assert_equal [ :created ], results.map(&:outcome)
+    assert_equal "Banana", results.first.item.name
+  end
+
+  test "add_items with nothing typed is one invalid attempt" do
+    [ "", "  ", " , ; " ].each do |text|
+      results = households(:home).add_items(text)
+
+      assert_equal [ :invalid ], results.map(&:outcome), text.inspect
+      assert results.first.item.errors.of_kind?(:name, :blank)
+    end
+    assert_equal 2, households(:home).list_items.count
+  end
+
+  test "add_items broadcasts the list once for the whole batch" do
+    assert_list_broadcast households(:home) do
+      households(:home).add_items("Banana, Leite, Detergente, Arroz, Feijão")
+    end
+  end
+
+  test "add_items doesn't broadcast when every name is a duplicate" do
+    streams = capture_turbo_stream_broadcasts(households(:home)) do
+      households(:home).add_items("Leite")
+    end
+
+    assert_empty streams
+  end
+
+  test "add_items keeps at most 30 names" do
+    results = households(:home).add_items((1..40).map { |n| "item #{n}" }.join(","))
+
+    assert_equal 30, results.size
+  end
+
   test "add_item broadcasts the list once when reviving" do
     assert_list_broadcast households(:home) do
       households(:home).add_item("Detergente")

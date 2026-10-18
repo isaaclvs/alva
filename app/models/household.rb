@@ -44,6 +44,15 @@ class Household < ApplicationRecord
     AddResult.new(item, item.save ? :created : :invalid)
   end
 
+  # Adds every name typed in the add field (see ItemNameSplitter for the
+  # separators and limits), each one through add_item, and returns their
+  # AddResults in order. The list is broadcast once for the whole batch.
+  # Text with no names in it counts as one invalid attempt, like a blank name.
+  def add_items(text)
+    names = ItemNameSplitter.call(text).presence || [ "" ]
+    batch_list_broadcasts { names.map { |name| add_item(name) } }
+  end
+
   # "Compra feita": records a ShoppingTrip and archives the purchased items on
   # the list into it, keeping them as history. Pending items stay on the list.
   # Returns the new trip, or nil (and creates nothing) if nothing was purchased.
