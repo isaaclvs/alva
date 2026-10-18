@@ -226,7 +226,7 @@ class ListItemsControllerTest < ActionDispatch::IntegrationTest
 
   test "shows the finish shopping button when something was purchased" do
     get root_path
-    assert_select "form[action='#{shopping_trips_path}'][data-turbo-confirm='Registrar a compra e começar uma nova lista?']" do
+    assert_select "form[action='#{shopping_trips_path}']:not([data-turbo-confirm])" do
       assert_select "button", text: "Compra feita"
     end
   end
