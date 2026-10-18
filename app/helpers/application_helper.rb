@@ -9,7 +9,7 @@ module ApplicationHelper
   # dark, which stays the default. Broadcast renders have no request (and so
   # no cookie); they are only used for the list markup, never the <html> tag.
   def theme_name
-    saved = cookies[THEME_COOKIE] if respond_to?(:cookies)
+    saved = cookies[THEME_COOKIE]
     THEMES.include?(saved) ? saved : DEFAULT_THEME
   end
 
