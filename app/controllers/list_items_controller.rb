@@ -2,11 +2,12 @@ class ListItemsController < ApplicationController
   def index
     @household = current_household
     @groups = @household.list_items_by_category
+    @suggestions = BuyAgainSuggestions.call(@household)
 
     respond_to do |format|
       format.html { @list_item = ListItem.new }
       # Resync when the app comes back to the foreground (list_refresh_controller.js).
-      format.turbo_stream { render partial: "refresh", locals: { groups: @groups } }
+      format.turbo_stream { render partial: "refresh", locals: { groups: @groups, suggestions: @suggestions } }
     end
   end
 
@@ -18,6 +19,7 @@ class ListItemsController < ApplicationController
     case result.outcome
     when :created, :revived
       @groups = current_household.list_items_by_category
+      @suggestions = BuyAgainSuggestions.call(current_household)
       @revived_item = result.item if result.outcome == :revived
       respond_to do |format|
         format.turbo_stream
@@ -56,6 +58,7 @@ class ListItemsController < ApplicationController
   # highlight on every row that was added, revived or already there.
   def create_many(results)
     @groups = current_household.list_items_by_category
+    @suggestions = BuyAgainSuggestions.call(current_household)
     @results = results.reject { |result| result.outcome == :invalid }
     @notice = helpers.add_items_notice(@results)
 
@@ -70,7 +73,10 @@ class ListItemsController < ApplicationController
   def render_list
     respond_to do |format|
       format.turbo_stream do
-        render partial: "refresh", locals: { groups: current_household.list_items_by_category }
+        render partial: "refresh", locals: {
+          groups: current_household.list_items_by_category,
+          suggestions: BuyAgainSuggestions.call(current_household)
+        }
       end
       format.html { redirect_to root_path }
     end

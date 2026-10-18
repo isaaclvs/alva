@@ -83,7 +83,7 @@ class ListItemTest < ActiveSupport::TestCase
     item = list_items(:milk)
     streams = assert_list_broadcast(households(:home)) { item.toggle_purchased! }
 
-    assert_includes streams.last.to_html, "line-through"
+    assert_includes streams[1].to_html, "line-through"
   end
 
   test "broadcasts the list to the household on destroy" do

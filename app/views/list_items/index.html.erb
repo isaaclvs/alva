@@ -4,6 +4,7 @@
   <header class="sticky top-0 z-10 bg-zinc-950/90 px-4 pt-5 pb-3 backdrop-blur">
     <%= render "summary", groups: @groups %>
     <%= render "form", list_item: @list_item %>
+    <%= render "buy_again", suggestions: @suggestions %>
   </header>
 
   <%= render "list", groups: @groups %>

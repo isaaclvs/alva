@@ -83,6 +83,12 @@ devolve os `AddResult`s. Todo `ListItem` salvo chama `Household#list_changed`
 (não `broadcast_list` direto); dentro de `Household#batch_list_broadcasts { }`
 isso só marca a mudança e a lista é transmitida uma única vez no fim do bloco.
 
+**Comprar de novo:** abaixo do campo de adicionar, até 8 atalhos (`#buy_again`,
+`BuyAgainSuggestions`) vêm do histórico arquivado, agrupados por nome normalizado
+e ordenados por nº de compras e recência; nomes que estão na lista viva (pendentes
+ou comprados) ficam de fora. Tocar num atalho passa por `ListItemsController#create`.
+Os atalhos são atualizados junto com a lista em `list_items/_refresh`.
+
 `CatalogItem` (o que o sistema "sabe") é separado de `ListItem` (o que está na
 lista agora). Essa separação é o que permite categorização automática sem
 acoplar o dicionário à lista viva.

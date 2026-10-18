@@ -221,13 +221,14 @@ class ListItemsTest < ApplicationSystemTestCase
     visit root_path
     accept_confirm("Registrar a compra e começar uma nova lista?") { click_on "Compra feita" }
 
-    assert_no_text "Detergente"
+    # Archived, so gone from the list (it now shows as a buy again chip).
+    assert_no_selector "#list_items", text: "Detergente"
     assert_text "Leite"
     assert_no_button "Compra feita"
     within("#list_summary") { assert_text "1 faltando" }
 
     using_session(:other) do
-      assert_no_text "Detergente"
+      assert_no_selector "#list_items", text: "Detergente"
       assert_text "Leite"
       assert_no_button "Compra feita"
     end
@@ -238,7 +239,7 @@ class ListItemsTest < ApplicationSystemTestCase
   test "an item bought on a finished trip can be added again as a new pending item" do
     visit root_path
     accept_confirm { click_on "Compra feita" }
-    assert_no_text "Detergente"
+    assert_no_selector "#list_items", text: "Detergente"
 
     fill_in "Item", with: "Detergente"
     click_button "Adicionar"

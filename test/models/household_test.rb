@@ -97,8 +97,17 @@ class HouseholdTest < ActiveSupport::TestCase
       households(:home).finish_shopping!
     end
 
-    assert_not_includes streams.last.to_html, "Detergente"
-    assert_includes streams.last.to_html, "Leite"
+    assert_not_includes streams[1].to_html, "Detergente"
+    assert_includes streams[1].to_html, "Leite"
+  end
+
+  test "finish_shopping! broadcasts the new buy again suggestion" do
+    streams = assert_list_broadcast households(:home) do
+      households(:home).finish_shopping!
+    end
+
+    assert_includes streams.last.to_html, "Detergente"
+    assert_includes streams.last.to_html, "Comprar de novo"
   end
 
   test "finish_shopping! doesn't broadcast when nothing was purchased" do

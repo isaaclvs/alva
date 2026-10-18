@@ -1,0 +1,15 @@
+<%# Always rendered, so live updates have a target to fill; empty when there is nothing to suggest. %>
+<div id="buy_again">
+  <% if suggestions.any? %>
+    <div class="mt-2 flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="group" aria-label="Comprar de novo">
+      <span class="shrink-0 text-xs font-medium text-zinc-500">Comprar de novo</span>
+      <% suggestions.each do |suggestion| %>
+        <%= button_to list_items_path, params: { list_item: { name: suggestion.name } }, form: { class: "shrink-0" },
+              class: "flex items-center gap-1.5 whitespace-nowrap rounded-full border border-zinc-800 bg-zinc-900 py-0.5 pr-3 pl-0.5 text-sm text-zinc-300 active:bg-zinc-800" do %>
+          <%= category_icon(suggestion.category) %>
+          <%= suggestion.name %>
+        <% end %>
+      <% end %>
+    </div>
+  <% end %>
+</div>

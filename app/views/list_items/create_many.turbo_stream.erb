@@ -1,4 +1,4 @@
-<%= render "refresh", groups: @groups %>
+<%= render "refresh", groups: @groups, suggestions: @suggestions %>
 <%= turbo_stream.replace "list_item_form", partial: "form", locals: { list_item: ListItem.new, notice: @notice } %>
 <% @results.each do |result| %>
   <%= turbo_stream.replace result.item, partial: "list_item", locals: { list_item: result.item, highlight: true } %>
