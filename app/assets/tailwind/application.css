@@ -35,9 +35,12 @@ html[data-theme="light"] {
   --color-zinc-900: #ffffff;
   --color-zinc-950: #f4f4f5;
 
-  /* Accents: the 400 shades are tuned for dark backgrounds. */
+  /* Accents: the 400 shades are tuned for dark backgrounds. The 300 shades are
+     the pressed state (lighter on dark), so on white they go darker instead. */
+  --color-teal-300: #115e59;
   --color-teal-400: #0d9488;
   --color-teal-500: #0f766e;
+  --color-emerald-300: #047857;
   --color-emerald-400: #059669;
   --color-amber-400: #b45309;
   --color-red-300: #ef4444;
