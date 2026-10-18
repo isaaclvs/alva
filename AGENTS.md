@@ -76,6 +76,12 @@ query, faz um único broadcast e devolve a `ShoppingTrip` (ou `nil`, sem criar
 nada, se não havia itens comprados). Nome, categoria e `purchased_at` dos
 arquivados ficam intactos.
 
+**Comprar de novo:** abaixo do campo de adicionar, até 8 atalhos (`#buy_again`,
+`BuyAgainSuggestions`) vêm do histórico arquivado, agrupados por nome normalizado
+e ordenados por nº de compras e recência; nomes que estão na lista viva (pendentes
+ou comprados) ficam de fora. Tocar num atalho passa por `ListItemsController#create`.
+Os atalhos são atualizados junto com a lista em `list_items/_refresh`.
+
 `CatalogItem` (o que o sistema "sabe") é separado de `ListItem` (o que está na
 lista agora). Essa separação é o que permite categorização automática sem
 acoplar o dicionário à lista viva.
