@@ -2,6 +2,7 @@ class ListItemsController < ApplicationController
   def index
     @household = current_household
     @groups = @household.list_items_by_category
+    @suggestions = BuyAgainSuggestions.call(@household)
 
     respond_to do |format|
       format.html { @list_item = ListItem.new }
