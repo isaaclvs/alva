@@ -24,4 +24,24 @@ class ItemCategorizerTest < ActiveSupport::TestCase
     categories(:other).destroy!
     assert_nil ItemCategorizer.call("Coisa desconhecida")
   end
+
+  test "learn adds a dictionary entry used by the next lookup" do
+    entry = ItemCategorizer.learn("Ração do gato", categories(:produce))
+
+    assert entry.learned?
+    assert_equal "Ração do gato", entry.name
+    assert_equal categories(:produce), ItemCategorizer.call("ração do gato")
+    assert_equal categories(:produce), ItemCategorizer.call("Rações do gato")
+  end
+
+  test "learn moves an existing entry to the new category" do
+    assert_no_difference "CatalogItem.count" do
+      ItemCategorizer.learn("leites", categories(:produce))
+    end
+
+    entry = CatalogItem.find_by!(normalized_name: TextNormalizer.call("Leite"))
+    assert_equal categories(:produce), entry.category
+    assert entry.learned?
+    assert_equal "Leite", entry.name
+  end
 end
