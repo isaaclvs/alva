@@ -21,7 +21,9 @@ module Alva
     # These settings can be overridden in specific environments using the files
     # in config/environments, which are processed later.
     #
-    # config.time_zone = "Central Time (US & Canada)"
+    # Dates shown to the user (e.g. the PDF filename and header) follow the
+    # household's clock, not UTC.
+    config.time_zone = "America/Sao_Paulo"
     # config.eager_load_paths << Rails.root.join("extras")
   end
 end
