@@ -73,4 +73,6 @@ group :test do
   gem "capybara"
   gem "selenium-webdriver"
   gem "pdf-reader"
+  # Line and branch coverage, enforced in CI (COVERAGE=1, see test/test_helper.rb)
+  gem "simplecov", require: false
 end
