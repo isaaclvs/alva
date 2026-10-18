@@ -5,6 +5,11 @@ class ListItem < ApplicationRecord
 
   enum :status, { pending: 0, purchased: 1 }
 
+  # How long a row that just became pending keeps flashing. Long enough that
+  # the broadcast arriving right after this device's own response doesn't
+  # render the row again without the flash.
+  JUST_LISTED_FOR = 3.seconds
+
   # An item with a shopping_trip is archived history: it left the live list when
   # that trip was finished. Every query behind the live list (rendering, counts,
   # duplicate detection, finding an item to toggle or remove) must go through
@@ -18,6 +23,12 @@ class ListItem < ApplicationRecord
   before_create :assign_category, unless: :category
 
   after_commit -> { household.list_changed }
+
+  # Just became pending (added, brought back or unticked): every device that
+  # renders the row in the next few seconds shows it highlighted.
+  def just_listed?
+    pending? && updated_at.present? && updated_at > JUST_LISTED_FOR.ago
+  end
 
   def toggle_purchased!
     if purchased?

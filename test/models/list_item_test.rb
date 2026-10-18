@@ -145,4 +145,31 @@ class ListItemTest < ActiveSupport::TestCase
     assert_equal purchased_at, item.purchased_at
     assert item.purchased?
   end
+
+  test "a newly added item is just listed for a few seconds" do
+    item = households(:home).list_items.create!(name: "Banana")
+
+    assert item.just_listed?
+    travel ListItem::JUST_LISTED_FOR + 1.second do
+      assert_not item.just_listed?
+    end
+  end
+
+  test "an item ticked as purchased is not just listed, unticking it is" do
+    item = list_items(:milk)
+    assert_not item.just_listed?
+
+    item.toggle_purchased!
+    assert_not item.just_listed?
+
+    item.toggle_purchased!
+    assert item.just_listed?
+  end
+
+  test "the broadcast highlights a just added item so it survives the second render" do
+    household = households(:home)
+    streams = assert_list_broadcast(household) { household.add_item("Banana") }
+
+    assert_includes streams[1].to_html, "animate-highlight"
+  end
 end

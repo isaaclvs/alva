@@ -1,4 +1,4 @@
-<%= tag.li id: dom_id(list_item), class: class_names("flex items-center", "animate-highlight": local_assigns[:highlight]) do %>
+<%= tag.li id: dom_id(list_item), class: class_names("flex items-center", "animate-highlight": local_assigns[:highlight] || list_item.just_listed?) do %>
   <%= button_to toggle_list_item_path(list_item), method: :patch,
         aria: { pressed: list_item.purchased? },
         form: { class: "min-w-0 flex-1" },
