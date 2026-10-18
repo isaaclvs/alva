@@ -11,7 +11,7 @@
       <% purchased_in_group = items.count(&:purchased?) %>
       <h2 class="mb-2 flex items-center gap-2 text-sm font-semibold text-zinc-300">
         <%= category_icon(category) %>
-        <%= category&.name || "Sem categoria" %>
+        <%= Category.label_for(category) %>
         <span class="ml-auto text-xs font-medium text-zinc-500" aria-label="<%= purchased_in_group %> de <%= items.size %> no carrinho">
           <%= purchased_in_group %>/<%= items.size %>
         </span>

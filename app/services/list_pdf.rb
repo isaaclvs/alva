@@ -8,7 +8,6 @@ Prawn::Fonts::AFM.hide_m17n_warning = true
 # Returns the PDF as a binary string.
 class ListPdf
   TITLE = "Lista de compras".freeze
-  UNCATEGORIZED = "Outros".freeze
   EMPTY_TEXT = "Nada faltando".freeze
 
   ITEM_SIZE = 14
@@ -41,7 +40,7 @@ class ListPdf
   def pending_groups(household)
     household.list_items_by_category.filter_map do |category, items|
       pending = items.select(&:pending?)
-      [ category&.name || UNCATEGORIZED, pending ] if pending.any?
+      [ Category.label_for(category), pending ] if pending.any?
     end
   end
 

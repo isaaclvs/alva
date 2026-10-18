@@ -17,7 +17,7 @@ class ListPdfTest < ActiveSupport::TestCase
     assert ListPdf.call(@household).start_with?("%PDF")
   end
 
-  test "groups items under category headings in app order, uncategorized as Outros" do
+  test "groups items under category headings in app order, the Outros category last" do
     @household.list_items.create!(name: "Coisa nova")
     @household.list_items.create!(name: "Banana")
 
@@ -28,6 +28,18 @@ class ListPdfTest < ActiveSupport::TestCase
     assert_operator text.index("Laticínios"), :<, text.index("Leite")
     assert_operator text.index("Leite"), :<, text.index("Outros")
     assert_operator text.index("Outros"), :<, text.index("Coisa nova")
+  end
+
+  test "items without a category get their own heading, not a second Outros" do
+    @household.list_items.create!(name: "Coisa nova")
+    ListItem.insert!({ name: "Item antigo", household_id: @household.id, category_id: nil,
+      status: ListItem.statuses[:pending], created_at: Time.current, updated_at: Time.current })
+
+    text = extract_text(ListPdf.call(@household))
+
+    assert_equal 1, text.scan("Outros").size
+    assert_operator text.index("Coisa nova"), :<, text.index("Sem categoria")
+    assert_operator text.index("Sem categoria"), :<, text.index("Item antigo")
   end
 
   test "skips categories without pending items" do
