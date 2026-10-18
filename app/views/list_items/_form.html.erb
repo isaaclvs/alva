@@ -2,8 +2,10 @@
   <div class="flex items-center gap-2 rounded-2xl border border-zinc-800 bg-zinc-900 py-1.5 pr-1.5 pl-4 focus-within:border-teal-400/60 focus-within:ring-4 focus-within:ring-teal-400/15">
     <%= form.label :name, "Item", class: "sr-only" %>
     <%= form.text_field :name, autofocus: true, required: true, autocomplete: "off",
+          list: "list_item_name_suggestions",
           placeholder: "O que acabou?",
           class: "min-w-0 flex-1 bg-transparent py-1.5 text-base placeholder:text-zinc-500 focus:outline-none" %>
+    <%= name_suggestions_datalist("list_item_name_suggestions") %>
     <%= form.button type: "submit", title: "Adicionar", aria: { label: "Adicionar" },
           class: "grid size-10 shrink-0 place-items-center rounded-xl bg-teal-400 text-zinc-950 active:bg-teal-500" do %>
       <svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">

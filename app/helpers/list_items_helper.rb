@@ -25,4 +25,12 @@ module ListItemsHelper
     parts << "#{purchased_count} no carrinho" if purchased_count.positive?
     parts.any? ? parts.join(" · ") : "Nada faltando"
   end
+
+  # Options for the add field's <datalist>, rendered together with the form so
+  # every re-render of the form (after an add) also refreshes the suggestions.
+  def name_suggestions_datalist(id)
+    tag.datalist(id: id) do
+      safe_join(NameSuggestions.call(current_household).map { |name| tag.option(value: name) })
+    end
+  end
 end
