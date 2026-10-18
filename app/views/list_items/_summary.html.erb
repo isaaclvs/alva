@@ -1,9 +1,12 @@
 <% items = groups.flat_map(&:last) %>
 <% purchased_count = items.count(&:purchased?) %>
 <div id="list_summary" class="mb-3">
-  <div class="flex items-baseline justify-between gap-3">
+  <div class="flex items-center justify-between gap-3">
     <h1 class="text-2xl font-bold tracking-tight">Lista</h1>
-    <p class="text-sm text-zinc-400"><%= list_summary_text(items.size - purchased_count, purchased_count) %></p>
+    <div class="flex items-center gap-1">
+      <p class="mr-1 text-sm text-zinc-400"><%= list_summary_text(items.size - purchased_count, purchased_count) %></p>
+      <%= render "list_items/theme_toggle" %>
+    </div>
   </div>
   <%= tag.div class: "mt-3 h-1 overflow-hidden rounded-full bg-zinc-800", role: "progressbar",
         aria: { label: "Itens no carrinho", valuemin: 0, valuemax: items.size, valuenow: purchased_count } do %>

@@ -1,0 +1,13 @@
+<%# Shows the sun in the dark theme (switches to light) and the moon in the light one. %>
+<%= tag.button type: "button", title: "Alternar tema", aria: { label: "Alternar tema" },
+      class: "grid size-9 shrink-0 place-items-center rounded-full text-zinc-400 active:bg-zinc-800",
+      data: { controller: "theme", action: "theme#toggle",
+              theme_dark_color_value: theme_color("dark"), theme_light_color_value: theme_color("light") } do %>
+  <svg class="size-5 in-data-[theme=light]:hidden" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true">
+    <circle cx="10" cy="10" r="3.5" />
+    <path d="M10 2.5v1.5M10 16v1.5M2.5 10H4M16 10h1.5M4.7 4.7l1.05 1.05M14.25 14.25l1.05 1.05M4.7 15.3l1.05-1.05M14.25 5.75l1.05-1.05" />
+  </svg>
+  <svg class="hidden size-5 in-data-[theme=light]:block" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M16.5 11.5A6.5 6.5 0 0 1 8.5 3.5a6.5 6.5 0 1 0 8 8z" />
+  </svg>
+<% end %>
