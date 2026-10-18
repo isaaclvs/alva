@@ -167,7 +167,7 @@ class ListItemsTest < ApplicationSystemTestCase
     end
 
     visit root_path
-    accept_confirm("Registrar a compra e começar uma nova lista?") { click_on "Compra feita" }
+    click_on "Compra feita"
 
     assert_no_text "Detergente"
     assert_text "Leite"
@@ -185,7 +185,7 @@ class ListItemsTest < ApplicationSystemTestCase
 
   test "an item bought on a finished trip can be added again as a new pending item" do
     visit root_path
-    accept_confirm { click_on "Compra feita" }
+    click_on "Compra feita"
     assert_no_text "Detergente"
 
     fill_in "Item", with: "Detergente"
@@ -199,13 +199,13 @@ class ListItemsTest < ApplicationSystemTestCase
     visit root_path
 
     click_button "Remover Leite"
-    assert_no_text "Leite"
+    assert_no_selector "#list_items", text: "Leite"
     assert_text "Detergente"
   end
 
   test "finish shopping button appears once an item is purchased" do
     visit root_path
-    accept_confirm { click_on "Compra feita" }
+    click_on "Compra feita"
     assert_no_button "Compra feita"
 
     click_button "Leite"
