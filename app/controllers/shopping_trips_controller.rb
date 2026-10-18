@@ -7,7 +7,7 @@ class ShoppingTripsController < ApplicationController
 
     respond_to do |format|
       format.turbo_stream do
-        render partial: "list_items/refresh", locals: { groups: current_household.list_items_by_category }
+        render partial: "list_items/refresh", locals: { groups: current_household.list_items_by_category, suggestions: BuyAgainSuggestions.call(current_household) }
       end
       format.html { redirect_to root_path }
     end

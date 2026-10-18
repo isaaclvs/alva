@@ -59,12 +59,13 @@ class Household < ApplicationRecord
     trip
   end
 
-  # Re-render the whole grouped list and its summary for every client on this
-  # household's stream: a change can add or empty a category section, not just
-  # touch one row. Both go in a single broadcast.
+  # Re-render the whole grouped list, its summary and the "buy again" chips for
+  # every client on this household's stream: a change can add or empty a
+  # category section, not just touch one row, and any change can alter what is
+  # worth suggesting. All of it goes in a single broadcast.
   def broadcast_list
     Turbo::StreamsChannel.broadcast_render_to self, partial: "list_items/refresh",
-      locals: { groups: list_items_by_category }
+      locals: { groups: list_items_by_category, suggestions: BuyAgainSuggestions.call(self) }
   end
 
   # [[category, items], ...] ordered by category position; uncategorized last.
