@@ -41,4 +41,30 @@ class HouseholdTest < ActiveSupport::TestCase
       households(:home).clear_purchased!
     end
   end
+
+  test "add_item creates a pending item" do
+    household = households(:home)
+
+    result = assert_difference("ListItem.count", 1) { household.add_item("Banana") }
+
+    assert_equal :created, result.outcome
+    assert result.item.persisted?
+    assert_equal "Banana", result.item.name
+    assert result.item.pending?
+  end
+
+  test "add_item reports a pending duplicate and returns the existing item" do
+    result = assert_no_difference("ListItem.count") { households(:home).add_item("  LEITE ") }
+
+    assert_equal :duplicate, result.outcome
+    assert_equal list_items(:milk), result.item
+  end
+
+  test "add_item reports a blank name as invalid" do
+    result = assert_no_difference("ListItem.count") { households(:home).add_item(" ") }
+
+    assert_equal :invalid, result.outcome
+    assert_not result.item.persisted?
+    assert result.item.errors[:name].any?
+  end
 end

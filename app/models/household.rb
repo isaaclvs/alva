@@ -9,6 +9,23 @@ class Household < ApplicationRecord
     list_items.pending.find { |item| TextNormalizer.call(item.name) == key }
   end
 
+  # What add_item did: `item` is the affected ListItem (the new, revived or
+  # already pending one; unsaved with errors when invalid) and `outcome` is
+  # one of :created, :duplicate or :invalid.
+  AddResult = Struct.new(:item, :outcome)
+
+  # The single entry point for putting a name on the list. Returns an AddResult:
+  # - :created   a new pending item was saved;
+  # - :duplicate the name is already pending; `item` is that existing item;
+  # - :invalid   nothing saved; `item.errors` says why (e.g. blank name).
+  def add_item(name)
+    existing = pending_item_named(name)
+    return AddResult.new(existing, :duplicate) if existing
+
+    item = list_items.new(name: name)
+    AddResult.new(item, item.save ? :created : :invalid)
+  end
+
   # Deletes in one query and broadcasts once, instead of once per item.
   def clear_purchased!
     list_items.purchased.delete_all
