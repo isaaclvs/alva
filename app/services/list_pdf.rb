@@ -70,7 +70,7 @@ class ListPdf
     pdf.start_new_page if pdf.cursor < LINE_HEIGHT
 
     top = pdf.cursor
-    pdf.stroke_rectangle [ 0, top - 4 ], BOX_SIZE, BOX_SIZE
+    pdf.stroke_rectangle [ 0, top - 2 ], BOX_SIZE, BOX_SIZE
     pdf.font("Helvetica", size: ITEM_SIZE) do
       pdf.text_box printable(item.name), at: [ BOX_SIZE + 12, top ], width: pdf.bounds.width - BOX_SIZE - 12,
         height: LINE_HEIGHT, overflow: :shrink_to_fit
