@@ -120,7 +120,7 @@ class ListItemsTest < ApplicationSystemTestCase
     end
   end
 
-  test "clearing purchased items removes them everywhere and keeps pending" do
+  test "finishing the shopping archives purchased items everywhere and keeps pending" do
     using_session(:other) do
       visit root_path
       connect_turbo_cable_stream_sources
@@ -128,17 +128,32 @@ class ListItemsTest < ApplicationSystemTestCase
     end
 
     visit root_path
-    accept_confirm { click_button "Limpar comprados" }
+    accept_confirm("Registrar a compra e começar uma nova lista?") { click_on "Compra feita" }
 
     assert_no_text "Detergente"
     assert_text "Leite"
-    assert_no_button "Limpar comprados"
+    assert_no_button "Compra feita"
+    within("#list_summary") { assert_text "1 faltando" }
 
     using_session(:other) do
       assert_no_text "Detergente"
       assert_text "Leite"
-      assert_no_button "Limpar comprados"
+      assert_no_button "Compra feita"
     end
+
+    assert_equal 1, ShoppingTrip.count
+  end
+
+  test "an item bought on a finished trip can be added again as a new pending item" do
+    visit root_path
+    accept_confirm { click_on "Compra feita" }
+    assert_no_text "Detergente"
+
+    fill_in "Item", with: "Detergente"
+    click_button "Adicionar"
+
+    assert_selector "li", text: "Detergente", count: 1
+    assert_no_selector "li .line-through", text: "Detergente"
   end
 
   test "removing an item added by mistake" do
@@ -149,12 +164,12 @@ class ListItemsTest < ApplicationSystemTestCase
     assert_text "Detergente"
   end
 
-  test "clear button appears once an item is purchased" do
+  test "finish shopping button appears once an item is purchased" do
     visit root_path
-    accept_confirm { click_button "Limpar comprados" }
-    assert_no_button "Limpar comprados"
+    accept_confirm { click_on "Compra feita" }
+    assert_no_button "Compra feita"
 
     click_button "Leite"
-    assert_button "Limpar comprados"
+    assert_button "Compra feita"
   end
 end

@@ -46,15 +46,9 @@ class ListItemsController < ApplicationController
     render_list
   end
 
-  def clear_purchased
-    current_household.clear_purchased!
-
-    render_list
-  end
-
   private
 
-  # Whole list and summary, not one row: the counts and the "Limpar comprados"
+  # Whole list and summary, not one row: the counts and the "Compra feita"
   # button depend on every item.
   def render_list
     respond_to do |format|

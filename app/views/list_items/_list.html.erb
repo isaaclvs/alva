@@ -26,9 +26,9 @@
   <% if purchased_count.positive? %>
     <div class="flex items-center justify-center gap-1 text-sm text-zinc-400">
       <span><%= pluralize(purchased_count, "item", plural: "itens") %> no carrinho ·</span>
-      <%= button_to "Limpar comprados", clear_purchased_list_items_path, method: :delete,
-            form: { data: { turbo_confirm: "Remover #{pluralize(purchased_count, "item comprado", plural: "itens comprados")} da lista?" } },
-            class: "px-1 py-2 font-medium text-red-400 active:text-red-300" %>
+      <%= button_to "Compra feita", shopping_trips_path,
+            form: { data: { turbo_confirm: "Registrar a compra e começar uma nova lista?" } },
+            class: "px-1 py-2 font-medium text-emerald-400 active:text-emerald-300" %>
     </div>
   <% end %>
 </div>
