@@ -11,8 +11,10 @@ class ListItemsController < ApplicationController
   end
 
   def create
-    result = current_household.add_item(list_item_params[:name])
+    results = current_household.add_items(list_item_params[:name])
+    return create_many(results) if results.many?
 
+    result = results.first
     case result.outcome
     when :created, :revived
       @groups = current_household.list_items_by_category
@@ -49,6 +51,19 @@ class ListItemsController < ApplicationController
   end
 
   private
+
+  # Several names typed at once: the whole list, a summary in the form and a
+  # highlight on every row that was added, revived or already there.
+  def create_many(results)
+    @groups = current_household.list_items_by_category
+    @results = results.reject { |result| result.outcome == :invalid }
+    @notice = helpers.add_items_notice(@results)
+
+    respond_to do |format|
+      format.turbo_stream { render :create_many }
+      format.html { redirect_to root_path }
+    end
+  end
 
   # Whole list and summary, not one row: the counts and the "Compra feita"
   # button depend on every item.
