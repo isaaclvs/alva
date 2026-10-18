@@ -1,0 +1,11 @@
+<%# One toast, shown only to whoever did the action (it comes in the HTTP
+    response, never in the broadcast). `undo` is the "Desfazer" button_to
+    options: { path:, method:, params: }. %>
+<%= tag.div role: "status", data: { controller: "toast", turbo_temporary: true },
+      class: "pointer-events-auto flex items-center gap-1 rounded-2xl bg-zinc-800 py-1 pr-1 pl-4 text-sm text-zinc-100 shadow-lg shadow-black/40" do %>
+  <span class="min-w-0 truncate"><%= message %></span>
+  <span class="text-zinc-500" aria-hidden="true">·</span>
+  <%= button_to "Desfazer", undo.fetch(:path), method: undo.fetch(:method, :post), params: undo.fetch(:params, {}),
+        form: { class: "shrink-0" },
+        class: "px-3 py-2.5 font-semibold text-teal-400 active:text-teal-300" %>
+<% end %>

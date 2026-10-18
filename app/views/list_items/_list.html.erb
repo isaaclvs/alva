@@ -27,7 +27,6 @@
     <div class="flex items-center justify-center gap-1 text-sm text-zinc-400">
       <span><%= pluralize(purchased_count, "item", plural: "itens") %> no carrinho ·</span>
       <%= button_to "Compra feita", shopping_trips_path,
-            form: { data: { turbo_confirm: "Registrar a compra e começar uma nova lista?" } },
             class: "px-1 py-2 font-medium text-emerald-400 active:text-emerald-300" %>
     </div>
   <% end %>

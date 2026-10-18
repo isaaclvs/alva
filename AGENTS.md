@@ -89,6 +89,15 @@ e ordenados por nº de compras e recência; nomes que estão na lista viva (pend
 ou comprados) ficam de fora. Tocar num atalho passa por `ListItemsController#create`.
 Os atalhos são atualizados junto com a lista em `list_items/_refresh`.
 
+**Desfazer:** remover um item e "Compra feita" não pedem confirmação; em vez disso
+a resposta HTTP (nunca o broadcast, então só o aparelho que agiu) preenche o
+`#toast` por ~5 s com "Desfazer". Remoção: o toast leva um `ListItemSnapshot`
+assinado (`message_verifier(:undo)`, expira em 1 minuto) que `POST
+/list_items/restore` reinsere com os atributos originais (`Household#restore_item`,
+ignora se já há um pendente com o mesmo nome). Compra: `DELETE /shopping_trips/:id`
+(`Household#undo_shopping!`, só a viagem mais recente) devolve os itens à lista e
+apaga a viagem. Cada ação e cada desfazer fazem um único broadcast.
+
 `CatalogItem` (o que o sistema "sabe") é separado de `ListItem` (o que está na
 lista agora). Essa separação é o que permite categorização automática sem
 acoplar o dicionário à lista viva.

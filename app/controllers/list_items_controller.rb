@@ -45,11 +45,26 @@ class ListItemsController < ApplicationController
     render_list
   end
 
-  # For items added by mistake: no confirmation, re-adding is one tap away.
+  # For items added by mistake: no confirmation. The toast in the response
+  # (only for whoever removed it) carries a signed snapshot to undo with.
   def destroy
-    current_household.list_items.on_list.find(params[:id]).destroy!
+    item = current_household.list_items.on_list.find(params[:id])
+    item.destroy!
 
-    render_list
+    render_list toast: { message: "#{item.name} removido",
+      undo: { path: restore_list_items_path, params: { token: ListItemSnapshot.dump(item) } } }
+  end
+
+  # "Desfazer" on the toast. The token must be a valid, unexpired snapshot of
+  # this household's item; if the item is already back (or its name was added
+  # again meanwhile) there is nothing to restore and the list is just resynced.
+  def restore
+    snapshot = ListItemSnapshot.load(params[:token])
+    return head :not_found unless snapshot && snapshot["household_id"] == current_household.id
+
+    current_household.restore_item(snapshot)
+
+    render_list toast: :clear
   end
 
   private
@@ -69,17 +84,23 @@ class ListItemsController < ApplicationController
   end
 
   # Whole list and summary, not one row: the counts and the "Compra feita"
-  # button depend on every item.
-  def render_list
+  # button depend on every item. `toast` (locals for _toast, or :clear) also
+  # fills or empties the toast, but only in this response: it is not broadcast.
+  def render_list(toast: nil)
     respond_to do |format|
       format.turbo_stream do
-        render partial: "refresh", locals: {
-          groups: current_household.list_items_by_category,
-          suggestions: BuyAgainSuggestions.call(current_household)
-        }
+        streams = [ list_refresh_stream ]
+        streams << toast_stream(toast) if toast
+        render turbo_stream: streams
       end
       format.html { redirect_to root_path }
     end
+  end
+
+  def toast_stream(toast)
+    return turbo_stream.update("toast", "") if toast == :clear
+
+    turbo_stream.update "toast", partial: "list_items/toast", locals: toast
   end
 
   def list_item_params

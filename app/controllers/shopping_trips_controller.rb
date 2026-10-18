@@ -1,13 +1,35 @@
 class ShoppingTripsController < ApplicationController
   # "Compra feita": archives the purchased items, pending ones carry over.
   # The household broadcasts to every client; the response also renders the list
-  # so this client is right even without the cable.
+  # so this client is right even without the cable, plus a toast (only here, not
+  # in the broadcast) to undo a mis-tap.
   def create
-    current_household.finish_shopping!
+    trip = current_household.finish_shopping!
 
     respond_to do |format|
       format.turbo_stream do
-        render partial: "list_items/refresh", locals: { groups: current_household.list_items_by_category, suggestions: BuyAgainSuggestions.call(current_household) }
+        streams = [ list_refresh_stream ]
+        streams << turbo_stream.update("toast", partial: "list_items/toast",
+          locals: { message: "Compra registrada", undo: { path: shopping_trip_path(trip), method: :delete } }) if trip
+        render turbo_stream: streams
+      end
+      format.html { redirect_to root_path }
+    end
+  end
+
+  # "Desfazer" on the toast: the items come back to the list and the trip goes
+  # away. 404 for a trip of another household or one that is no longer the
+  # latest (or is already undone).
+  def destroy
+    trip = current_household.shopping_trips.find(params[:id])
+    return head :not_found unless current_household.undo_shopping!(trip)
+
+    respond_to do |format|
+      format.turbo_stream do
+        render turbo_stream: [
+          list_refresh_stream,
+          turbo_stream.update("toast", "")
+        ]
       end
       format.html { redirect_to root_path }
     end

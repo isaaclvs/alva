@@ -72,6 +72,39 @@ class Household < ApplicationRecord
     trip
   end
 
+  # Undo of "Compra feita": puts the trip's items back on the list as they were
+  # (still purchased) and deletes the trip, in one transaction and with one
+  # broadcast. Only the most recent trip can be undone; returns false (and
+  # changes nothing) for any other.
+  def undo_shopping!(trip)
+    undone = transaction do
+      next false unless trip.household_id == id && trip == latest_shopping_trip
+
+      trip.list_items.update_all(shopping_trip_id: nil, updated_at: Time.current)
+      trip.destroy!
+      true
+    end
+
+    broadcast_list if undone
+    undone
+  end
+
+  def latest_shopping_trip
+    shopping_trips.order(finished_at: :desc, id: :desc).first
+  end
+
+  # Undo of a removal: puts the item described by a ListItemSnapshot back with
+  # its original attributes (id and created_at included, so it returns to the
+  # same place). Returns the restored item, or nil when there is nothing to do:
+  # the snapshot is from another household, the item is already back, or a
+  # pending item with the same name was added meanwhile.
+  def restore_item(snapshot)
+    return unless snapshot["household_id"] == id
+    return if ListItem.exists?(snapshot["id"]) || pending_item_named(snapshot["name"])
+
+    list_items.create!(snapshot.slice(*ListItemSnapshot::ATTRIBUTES - %w[household_id]))
+  end
+
   # Re-render the whole grouped list, its summary and the "buy again" chips for
   # every client on this household's stream: a change can add or empty a
   # category section, not just touch one row, and any change can alter what is

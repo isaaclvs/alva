@@ -42,4 +42,74 @@ class ShoppingTripsControllerTest < ActionDispatch::IntegrationTest
     post shopping_trips_path
     assert_redirected_to root_path
   end
+
+  test "create answers with an undo toast, not in the broadcast" do
+    streams = assert_list_broadcast households(:home) do
+      post shopping_trips_path, as: :turbo_stream
+    end
+
+    trip = ShoppingTrip.last
+    assert_select "turbo-stream[action=update][target=toast]" do
+      assert_select "[role=status]", text: /Compra registrada/
+      assert_select "form[action='#{shopping_trip_path(trip)}'] input[name=_method][value=delete]"
+      assert_select "form[action='#{shopping_trip_path(trip)}'] button", text: "Desfazer"
+    end
+    assert_empty streams.select { |stream| stream["target"] == "toast" }
+  end
+
+  test "create with nothing purchased shows no toast" do
+    list_items(:detergent).destroy!
+
+    post shopping_trips_path, as: :turbo_stream
+    assert_select "turbo-stream[target=toast]", count: 0
+  end
+
+  test "destroy puts the purchased items back and deletes the trip" do
+    purchased = list_items(:detergent)
+    post shopping_trips_path, as: :turbo_stream
+    trip = ShoppingTrip.last
+
+    assert_list_broadcast households(:home) do
+      assert_difference "ShoppingTrip.count", -1 do
+        delete shopping_trip_path(trip), as: :turbo_stream
+      end
+    end
+
+    assert_response :success
+    assert_nil purchased.reload.shopping_trip_id
+    assert_select "turbo-stream[target=list_items]", text: /Detergente/
+    assert_select "turbo-stream[action=update][target=toast]"
+    assert_select "[role=status]", count: 0
+  end
+
+  test "destroy from a plain html request redirects to the list" do
+    post shopping_trips_path, as: :turbo_stream
+
+    delete shopping_trip_path(ShoppingTrip.last)
+    assert_redirected_to root_path
+  end
+
+  test "destroy is a 404 for a trip that is not the latest" do
+    older = households(:home).finish_shopping!
+    households(:home).list_items.create!(name: "Arroz", status: :purchased, purchased_at: Time.current)
+    households(:home).finish_shopping!
+
+    assert_no_difference [ "ShoppingTrip.count", "ListItem.on_list.count" ] do
+      delete shopping_trip_path(older), as: :turbo_stream
+    end
+    assert_response :not_found
+  end
+
+  test "destroy is a 404 for a trip of another household or one already undone" do
+    other = Household.create!(name: "Outra").shopping_trips.create!(finished_at: Time.current)
+    delete shopping_trip_path(other), as: :turbo_stream
+    assert_response :not_found
+    assert ShoppingTrip.exists?(other.id)
+
+    trip = households(:home).finish_shopping!
+    delete shopping_trip_path(trip), as: :turbo_stream
+    assert_response :success
+    delete shopping_trip_path(trip), as: :turbo_stream
+    assert_response :not_found
+  end
 end

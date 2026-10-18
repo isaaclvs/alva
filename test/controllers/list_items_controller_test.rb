@@ -87,6 +87,86 @@ class ListItemsControllerTest < ActionDispatch::IntegrationTest
     assert_select "turbo-stream[target=list_items]"
   end
 
+  test "destroy answers with an undo toast, not in the broadcast" do
+    streams = assert_list_broadcast(households(:home)) do
+      delete list_item_path(list_items(:milk)), as: :turbo_stream
+    end
+
+    assert_select "turbo-stream[action=update][target=toast]" do
+      assert_select "[role=status][data-controller=toast]", text: /Leite removido/
+      assert_select "form[action='#{restore_list_items_path}'] button", text: "Desfazer"
+      assert_select "form[action='#{restore_list_items_path}'] input[name=token]"
+    end
+    assert_empty streams.select { |stream| stream["target"] == "toast" }
+  end
+
+  test "restore puts the removed item back exactly where it was" do
+    milk = list_items(:milk)
+    attributes = milk.attributes.except("updated_at")
+    delete list_item_path(milk), as: :turbo_stream
+    token = css_select("form[action='#{restore_list_items_path}'] input[name=token]").first["value"]
+
+    assert_list_broadcast households(:home) do
+      assert_difference "ListItem.count", 1 do
+        post restore_list_items_path, params: { token: token }, as: :turbo_stream
+      end
+    end
+
+    assert_response :success
+    assert_equal attributes, ListItem.find(milk.id).attributes.except("updated_at")
+    assert_select "turbo-stream[target=list_items]", text: /Leite/
+    assert_select "turbo-stream[action=update][target=toast]"
+    assert_select "[role=status]", count: 0
+  end
+
+  test "restore twice, or after the name was added again, adds nothing" do
+    token = ListItemSnapshot.dump(list_items(:milk))
+    list_items(:milk).destroy!
+
+    post restore_list_items_path, params: { token: token }, as: :turbo_stream
+    assert_no_difference "ListItem.count" do
+      post restore_list_items_path, params: { token: token }, as: :turbo_stream
+    end
+    assert_response :success
+
+    ListItem.find(list_items(:milk).id).destroy!
+    households(:home).list_items.create!(name: "leite")
+    assert_no_difference "ListItem.count" do
+      post restore_list_items_path, params: { token: token }, as: :turbo_stream
+    end
+    assert_response :success
+  end
+
+  test "restore rejects tampered, expired and missing tokens" do
+    token = ListItemSnapshot.dump(list_items(:milk))
+    list_items(:milk).destroy!
+
+    assert_no_difference "ListItem.count" do
+      post restore_list_items_path, params: { token: token.sub(/.\z/) { |c| c == "a" ? "b" : "a" } }, as: :turbo_stream
+      assert_response :not_found
+      post restore_list_items_path, params: { token: "nonsense" }, as: :turbo_stream
+      assert_response :not_found
+      post restore_list_items_path, as: :turbo_stream
+      assert_response :not_found
+      post restore_list_items_path, params: { token: { name: "Leite" } }, as: :turbo_stream
+      assert_response :not_found
+      travel(ListItemSnapshot::EXPIRES_IN + 1.second) do
+        post restore_list_items_path, params: { token: token }, as: :turbo_stream
+        assert_response :not_found
+      end
+    end
+  end
+
+  test "restore rejects a snapshot of another household" do
+    other = Household.create!(name: "Outra")
+    token = ListItemSnapshot.dump(other.list_items.create!(name: "Arroz").tap(&:destroy!))
+
+    assert_no_difference "ListItem.count" do
+      post restore_list_items_path, params: { token: token }, as: :turbo_stream
+    end
+    assert_response :not_found
+  end
+
   test "destroy only finds items of the current household" do
     other = Household.create!(name: "Outra").list_items.create!(name: "Arroz")
 
@@ -230,7 +310,7 @@ class ListItemsControllerTest < ActionDispatch::IntegrationTest
 
   test "shows the finish shopping button when something was purchased" do
     get root_path
-    assert_select "form[action='#{shopping_trips_path}'][data-turbo-confirm='Registrar a compra e começar uma nova lista?']" do
+    assert_select "form[action='#{shopping_trips_path}']:not([data-turbo-confirm])" do
       assert_select "button", text: "Compra feita"
     end
   end

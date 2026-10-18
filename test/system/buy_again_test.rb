@@ -13,7 +13,7 @@ class BuyAgainTest < ApplicationSystemTestCase
     click_button "Leite"
     assert_selector "##{dom_id(list_items(:milk))} .line-through"
 
-    accept_confirm { click_on "Compra feita" }
+    click_on "Compra feita"
 
     within("#buy_again") do
       assert_text "Comprar de novo"
@@ -36,7 +36,7 @@ class BuyAgainTest < ApplicationSystemTestCase
     end
 
     visit root_path
-    accept_confirm { click_on "Compra feita" }
+    click_on "Compra feita"
     within("#buy_again") { assert_button "Detergente" }
 
     using_session(:other) do
