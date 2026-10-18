@@ -15,5 +15,8 @@ Rails.application.routes.draw do
     delete :clear_purchased, on: :collection
   end
 
+  # GET /lista.pdf: shopping list download for printing.
+  get "lista.pdf", to: "list_exports#show", as: :list_export, format: false
+
   root "list_items#index"
 end
