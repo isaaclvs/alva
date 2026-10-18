@@ -2,13 +2,22 @@ name: CI
 
 on:
   pull_request:
+  # Every branch, so staging and feature branches are checked before main.
   push:
-    branches: [ main ]
+    branches: [ "**" ]
+
+# A newer push to the same branch cancels the older run, except on main, where
+# every commit keeps its own result.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
 
 jobs:
   scan_ruby:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -20,13 +29,12 @@ jobs:
 
       - name: Scan for common Rails security vulnerabilities using static analysis
         run: bin/brakeman --no-pager
-      
+
       - name: Scan for known security vulnerabilities in gems used
         run: bin/bundler-audit
-      
+
   scan_js:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -66,14 +74,18 @@ jobs:
         run: bin/rubocop -f github
 
   test:
+    name: test (Ruby ${{ matrix.ruby }})
     runs-on: ubuntu-latest
-
-    # services:
-    #  redis:
-    #    image: valkey/valkey:8
-    #    ports:
-    #      - 6379:6379
-    #    options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The version used in development, with coverage enforced.
+          - ruby: .ruby-version
+            coverage: "1"
+          # Latest 3.3.x, like Debian's ruby package on the Atlas.
+          - ruby: "3.3"
+            coverage: "0"
     steps:
       - name: Install packages
         run: sudo apt-get update && sudo apt-get install --no-install-recommends -y libvips
@@ -84,24 +96,25 @@ jobs:
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
+          ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
 
       - name: Run tests
         env:
           RAILS_ENV: test
-          # RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
-          # REDIS_URL: redis://localhost:6379/0
+          COVERAGE: ${{ matrix.coverage }}
         run: bin/rails db:test:prepare test
+
+      - name: Keep the coverage report
+        uses: actions/upload-artifact@v4
+        if: always() && matrix.coverage == '1'
+        with:
+          name: coverage
+          path: ${{ github.workspace }}/coverage
+          if-no-files-found: ignore
 
   system-test:
     runs-on: ubuntu-latest
-
-    # services:
-    #  redis:
-    #    image: valkey/valkey:8
-    #    ports:
-    #      - 6379:6379
-    #    options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
       - name: Install packages
         run: sudo apt-get update && sudo apt-get install --no-install-recommends -y libvips
@@ -117,8 +130,6 @@ jobs:
       - name: Run System Tests
         env:
           RAILS_ENV: test
-          # RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
-          # REDIS_URL: redis://localhost:6379/0
         run: bin/rails db:test:prepare test:system
 
       - name: Keep screenshots from failed system tests
@@ -128,3 +139,63 @@ jobs:
           name: screenshots
           path: ${{ github.workspace }}/tmp/screenshots
           if-no-files-found: ignore
+
+  database:
+    name: migrations, seeds and autoloading
+    runs-on: ubuntu-latest
+    env:
+      RAILS_ENV: development
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+
+      - name: Migrate an empty database and compare with db/schema.rb
+        run: |
+          bin/rails db:create db:migrate
+          git diff --exit-code db/schema.rb
+
+      # alva-update seeds on every deploy, so seeding again must change nothing.
+      - name: Seed twice
+        run: |
+          bin/rails db:seed
+          bin/rails db:seed
+
+      - name: Check that every file autoloads under its constant name
+        run: bin/rails zeitwerk:check
+
+  production:
+    name: production boot (like the Atlas)
+    runs-on: ubuntu-latest
+    env:
+      RAILS_ENV: production
+      BUNDLE_WITHOUT: development:test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+
+      - name: Use a throwaway secret key base
+        run: echo "SECRET_KEY_BASE=$(openssl rand -hex 64)" >> "$GITHUB_ENV"
+
+      # The same steps as alva-update on the Atlas.
+      - name: Prepare databases, seed and compile assets
+        run: bin/rails db:prepare db:seed assets:precompile
+
+      - name: Start Puma
+        run: nohup bin/rails server -p 3000 > tmp/server.log 2>&1 &
+
+      - name: Smoke test through a simulated tailscale serve
+        run: script/smoke_test http://127.0.0.1:3000
+
+      - name: Show the server log
+        if: failure()
+        run: cat tmp/server.log

@@ -2,7 +2,7 @@ ENV["RAILS_ENV"] ||= "test"
 
 # COVERAGE=1 bin/rails test measures coverage and fails under the minimum.
 # Only for the unit suite: system tests alone cover less on purpose.
-if ENV["COVERAGE"]
+if ENV["COVERAGE"] == "1"
   require "simplecov"
   SimpleCov.start "rails" do
     enable_coverage :branch
@@ -20,7 +20,7 @@ module ActiveSupport
     # Run tests in parallel with specified workers
     parallelize(workers: :number_of_processors)
 
-    if ENV["COVERAGE"]
+    if ENV["COVERAGE"] == "1"
       # Each worker writes its own result; SimpleCov merges them at the end.
       parallelize_setup { |worker| SimpleCov.command_name "#{SimpleCov.command_name}-#{worker}" }
       parallelize_teardown { SimpleCov.result }
