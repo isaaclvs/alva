@@ -10,6 +10,9 @@ catalog.each.with_index(1) do |(category_name, item_names), position|
 
   item_names.each do |item_name|
     item = CatalogItem.find_or_initialize_by(normalized_name: TextNormalizer.call(item_name))
+    # A category picked by hand in the app wins over the catalog.
+    next if item.learned?
+
     item.update!(name: item_name, category: category)
   end
 end
