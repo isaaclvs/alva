@@ -41,4 +41,76 @@ class HouseholdTest < ActiveSupport::TestCase
       households(:home).clear_purchased!
     end
   end
+
+  test "add_item creates a pending item" do
+    household = households(:home)
+
+    result = assert_difference("ListItem.count", 1) { household.add_item("Banana") }
+
+    assert_equal :created, result.outcome
+    assert result.item.persisted?
+    assert_equal "Banana", result.item.name
+    assert result.item.pending?
+  end
+
+  test "add_item reports a pending duplicate and returns the existing item" do
+    result = assert_no_difference("ListItem.count") { households(:home).add_item("  LEITE ") }
+
+    assert_equal :duplicate, result.outcome
+    assert_equal list_items(:milk), result.item
+  end
+
+  test "add_item reports a blank name as invalid" do
+    result = assert_no_difference("ListItem.count") { households(:home).add_item(" ") }
+
+    assert_equal :invalid, result.outcome
+    assert_not result.item.persisted?
+    assert result.item.errors[:name].any?
+  end
+
+  test "add_item revives a purchased item instead of creating a row" do
+    purchased = list_items(:detergent)
+
+    result = assert_no_difference("ListItem.count") { households(:home).add_item("detergentes") }
+
+    assert_equal :revived, result.outcome
+    assert_equal purchased, result.item
+    assert purchased.reload.pending?
+    assert_nil purchased.purchased_at
+  end
+
+  test "add_item keeps the original name when reviving" do
+    households(:home).add_item("DETERGENTE")
+
+    assert_equal "Detergente", list_items(:detergent).reload.name
+  end
+
+  test "add_item revives the most recently purchased match" do
+    household = households(:home)
+    older = household.list_items.create!(name: "Arroz", status: :purchased, purchased_at: 3.days.ago)
+    newer = household.list_items.create!(name: "arroz", status: :purchased, purchased_at: 1.hour.ago)
+
+    result = household.add_item("Arroz")
+
+    assert_equal newer, result.item
+    assert newer.reload.pending?
+    assert older.reload.purchased?
+  end
+
+  test "add_item broadcasts the list once when reviving" do
+    assert_list_broadcast households(:home) do
+      households(:home).add_item("Detergente")
+    end
+  end
+
+  test "add_item prefers the pending duplicate over a purchased match" do
+    household = households(:home)
+    # insert! skips the pending-duplicate validation, which doesn't look at the new item's status.
+    ListItem.insert!({ name: "Leite", household_id: household.id, status: 1, purchased_at: 1.hour.ago })
+
+    result = household.add_item("Leite")
+
+    assert_equal :duplicate, result.outcome
+    assert_equal list_items(:milk), result.item
+  end
 end

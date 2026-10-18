@@ -91,6 +91,28 @@ class ListItemsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "animate-highlight"
   end
 
+  test "create with a purchased name revives that item instead of adding a row" do
+    purchased = list_items(:detergent)
+
+    assert_no_difference "ListItem.count" do
+      post list_items_path, params: { list_item: { name: "detergente" } }, as: :turbo_stream
+    end
+
+    assert_response :success
+    assert purchased.reload.pending?
+    assert_nil purchased.purchased_at
+    assert_equal "text/vnd.turbo-stream.html", response.media_type
+    assert_select "turbo-stream[action=replace][target=list_item_form]"
+    assert_select "turbo-stream[action=replace][target=#{ActionView::RecordIdentifier.dom_id(purchased)}]"
+    assert_includes response.body, "animate-highlight"
+  end
+
+  test "create with a purchased name broadcasts the list" do
+    assert_list_broadcast households(:home) do
+      post list_items_path, params: { list_item: { name: "Detergente" } }, as: :turbo_stream
+    end
+  end
+
   test "create with blank name re-renders the form" do
     assert_no_difference "ListItem.count" do
       post list_items_path, params: { list_item: { name: " " } }, as: :turbo_stream
