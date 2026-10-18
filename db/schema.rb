@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_16_203712) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_18_010324) do
   create_table "catalog_items", force: :cascade do |t|
     t.integer "category_id", null: false
     t.datetime "created_at", null: false
@@ -48,7 +48,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_203712) do
     t.index ["household_id"], name: "index_list_items_on_household_id"
   end
 
+  create_table "shopping_trips", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "finished_at", null: false
+    t.integer "household_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["household_id"], name: "index_shopping_trips_on_household_id"
+  end
+
   add_foreign_key "catalog_items", "categories"
   add_foreign_key "list_items", "categories"
   add_foreign_key "list_items", "households"
+  add_foreign_key "shopping_trips", "households"
 end
