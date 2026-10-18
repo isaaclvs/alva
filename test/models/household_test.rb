@@ -250,4 +250,63 @@ class HouseholdTest < ActiveSupport::TestCase
       assert_nil other.restore_item(snapshot)
     end
   end
+
+  test "undo_shopping! puts the trip's items back as they were and deletes the trip" do
+    household = households(:home)
+    purchased = list_items(:detergent)
+    purchased_at = purchased.purchased_at
+    trip = household.finish_shopping!
+
+    assert_difference "ShoppingTrip.count", -1 do
+      assert household.undo_shopping!(trip)
+    end
+
+    purchased.reload
+    assert_nil purchased.shopping_trip_id
+    assert purchased.purchased?
+    assert_equal purchased_at, purchased.purchased_at
+    assert_not ShoppingTrip.exists?(trip.id)
+    assert_includes household.list_items.on_list, purchased
+  end
+
+  test "undo_shopping! leaves pending items and older trips alone" do
+    household = households(:home)
+    older = household.shopping_trips.create!(finished_at: 1.week.ago)
+    old_item = household.list_items.create!(name: "Sabão", status: :purchased, purchased_at: 1.week.ago, shopping_trip: older)
+    trip = household.finish_shopping!
+
+    assert household.undo_shopping!(trip)
+
+    assert_equal older, old_item.reload.shopping_trip
+    assert_nil list_items(:milk).reload.shopping_trip_id
+    assert list_items(:milk).pending?
+  end
+
+  test "undo_shopping! only undoes the most recent trip" do
+    household = households(:home)
+    older = household.finish_shopping!
+    household.list_items.create!(name: "Arroz", status: :purchased, purchased_at: Time.current)
+    latest = household.finish_shopping!
+
+    assert_no_difference "ShoppingTrip.count" do
+      assert_not household.undo_shopping!(older)
+    end
+    assert_equal older, list_items(:detergent).reload.shopping_trip
+    assert household.undo_shopping!(latest)
+    assert household.undo_shopping!(older)
+  end
+
+  test "undo_shopping! ignores a trip of another household" do
+    other = Household.create!(name: "Outra")
+    trip = other.shopping_trips.create!(finished_at: Time.current)
+
+    assert_not households(:home).undo_shopping!(trip)
+    assert ShoppingTrip.exists?(trip.id)
+  end
+
+  test "undo_shopping! broadcasts the list once" do
+    trip = households(:home).finish_shopping!
+
+    assert_list_broadcast(households(:home)) { households(:home).undo_shopping!(trip) }
+  end
 end
