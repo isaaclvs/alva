@@ -19,6 +19,7 @@ class ListItem < ApplicationRecord
 
   validates :name, presence: true
   validate :not_already_pending, on: :create
+  validate :not_renamed_to_a_pending_item, on: :update, if: :will_save_change_to_name?
 
   before_create :assign_category, unless: :category
 
@@ -38,6 +39,29 @@ class ListItem < ApplicationRecord
     end
   end
 
+  # Fixes what was typed. A category picked by hand is applied and learned, so
+  # the next item with this name lands there; a new name with the category
+  # left as it was is recategorized like a freshly typed one. Returns false,
+  # with errors, when the name is blank or already pending on the list.
+  def correct(name:, category_id:)
+    self.name = name.to_s.squish
+    picked = Category.find_by(id: category_id) if category_id.present? && category_id.to_i != self.category_id
+
+    if picked
+      self.category = picked
+    elsif will_save_change_to_name?
+      self.category = ItemCategorizer.call(self.name)
+    end
+
+    saved = transaction do
+      raise ActiveRecord::Rollback unless save
+
+      ItemCategorizer.learn(self.name, picked) if picked
+      true
+    end
+    saved.present?
+  end
+
   private
 
   # No quantities in this app, so a second pending "leite" adds nothing.
@@ -46,6 +70,11 @@ class ListItem < ApplicationRecord
     return if name.blank? || household.nil?
 
     errors.add(:name, :duplicate_pending, message: "já está na lista") if household.pending_item_named(name)
+  end
+
+  def not_renamed_to_a_pending_item
+    other = household.pending_item_named(name)
+    errors.add(:name, :duplicate_pending, message: "já está na lista") if other && other != self
   end
 
   def assign_category

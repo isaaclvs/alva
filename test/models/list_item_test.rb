@@ -172,4 +172,73 @@ class ListItemTest < ActiveSupport::TestCase
 
     assert_includes streams[1].to_html, "animate-highlight"
   end
+
+  test "correct renames and recategorizes like a freshly typed name" do
+    item = households(:home).list_items.create!(name: "Bananna")
+    assert_equal categories(:other), item.category
+
+    assert item.correct(name: " Banana ", category_id: item.category_id)
+
+    item.reload
+    assert_equal "Banana", item.name
+    assert_equal categories(:produce), item.category
+  end
+
+  test "correct applies a category picked by hand and learns it" do
+    item = households(:home).list_items.create!(name: "Ração")
+
+    assert item.correct(name: "Ração", category_id: categories(:produce).id)
+
+    assert_equal categories(:produce), item.reload.category
+    assert_equal categories(:produce), ItemCategorizer.call("ração")
+    assert CatalogItem.find_by!(normalized_name: TextNormalizer.call("Ração")).learned?
+  end
+
+  test "correct keeps the picked category even when the name changes too" do
+    item = households(:home).list_items.create!(name: "Bananna")
+
+    assert item.correct(name: "Banana", category_id: categories(:dairy).id)
+
+    assert_equal categories(:dairy), item.reload.category
+  end
+
+  test "correct does not learn when the category was left as it was" do
+    item = list_items(:milk)
+
+    assert_no_difference -> { CatalogItem.where(learned: true).count } do
+      assert item.correct(name: "Leite", category_id: item.category_id)
+    end
+  end
+
+  test "correct refuses a blank name and changes nothing" do
+    item = list_items(:milk)
+
+    assert_not item.correct(name: "  ", category_id: categories(:produce).id)
+
+    assert item.errors.of_kind?(:name, :blank)
+    assert_equal "Leite", item.reload.name
+    assert_not CatalogItem.where(learned: true).exists?
+  end
+
+  test "correct refuses a name that is already pending" do
+    item = households(:home).list_items.create!(name: "Banana")
+
+    assert_not item.correct(name: "leite", category_id: item.category_id)
+
+    assert item.errors.of_kind?(:name, :duplicate_pending)
+    assert_equal "Banana", item.reload.name
+  end
+
+  test "correct allows changing only the spelling of the same item" do
+    assert list_items(:milk).correct(name: "LEITE", category_id: categories(:dairy).id)
+    assert_equal "LEITE", list_items(:milk).reload.name
+  end
+
+  test "correct broadcasts the list once" do
+    item = list_items(:milk)
+
+    assert_list_broadcast(households(:home)) do
+      item.correct(name: "Leite", category_id: categories(:produce).id)
+    end
+  end
 end
