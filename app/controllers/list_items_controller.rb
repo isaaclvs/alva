@@ -16,6 +16,7 @@ class ListItemsController < ApplicationController
     case result.outcome
     when :created, :revived
       @groups = current_household.list_items_by_category
+      @revived_item = result.item if result.outcome == :revived
       respond_to do |format|
         format.turbo_stream
         format.html { redirect_to root_path }
