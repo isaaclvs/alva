@@ -18,6 +18,6 @@ class NameSuggestions
 
     (household_names + catalog_names)
       .uniq { |name| TextNormalizer.call(name) }
-      .sort_by { |name| [ I18n.transliterate(name).downcase, name ] }
+      .sort_by { |name| [ TextNormalizer.plain(name), name ] }
   end
 end

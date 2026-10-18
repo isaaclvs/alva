@@ -27,4 +27,9 @@ class TextNormalizerTest < ActiveSupport::TestCase
   test "handles nil" do
     assert_equal "", TextNormalizer.call(nil)
   end
+
+  test "plain removes accents, case and extra spaces without stemming" do
+    assert_equal "pao frances", TextNormalizer.plain("  Pão   Francês ")
+    assert_equal "bananas", TextNormalizer.plain("Bananas")
+  end
 end

@@ -20,8 +20,13 @@ class TextNormalizer
   MIN_STEM_LENGTH = 4
 
   def self.call(text)
+    plain(text).split(" ").map { |word| stem(word) }.join(" ")
+  end
+
+  # The same text without accents, case or extra spaces, but not stemmed:
+  # what to sort names by so "Água" sits with "agua" and before "Banana".
+  def self.plain(text)
     I18n.transliterate(text.to_s).downcase.squish
-      .split(" ").map { |word| stem(word) }.join(" ")
   end
 
   def self.stem(word)
