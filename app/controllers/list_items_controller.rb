@@ -14,7 +14,7 @@ class ListItemsController < ApplicationController
     result = current_household.add_item(list_item_params[:name])
 
     case result.outcome
-    when :created
+    when :created, :revived
       @groups = current_household.list_items_by_category
       respond_to do |format|
         format.turbo_stream
