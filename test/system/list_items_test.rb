@@ -50,6 +50,21 @@ class ListItemsTest < ApplicationSystemTestCase
     within("#category_#{categories(:other).id}") { assert_text "Coisa nova" }
   end
 
+  test "suggestions list catalog names and gain items the household adds, without duplicates" do
+    visit root_path
+
+    assert_selector "input#list_item_name[list=list_item_name_suggestions]"
+    assert_selector "datalist#list_item_name_suggestions option[value=Leite]", visible: :all, count: 1
+
+    fill_in "Item", with: "Coisa nova"
+    click_button "Adicionar"
+
+    assert_selector "li", text: "Coisa nova"
+    assert_selector "datalist", visible: :all, count: 1
+    assert_selector "datalist#list_item_name_suggestions option[value='Coisa nova']", visible: :all, count: 1
+    assert_selector "datalist#list_item_name_suggestions option[value=Leite]", visible: :all, count: 1
+  end
+
   test "hides empty categories" do
     visit root_path
 
