@@ -12,8 +12,8 @@ Rails.application.routes.draw do
   # Defines the root path route ("/")
   resources :list_items, only: [ :create, :destroy ] do
     patch :toggle, on: :member
-    delete :clear_purchased, on: :collection
   end
+  resources :shopping_trips, only: :create
 
   # GET /lista.pdf: shopping list download for printing.
   get "lista.pdf", to: "list_exports#show", as: :list_export, format: false

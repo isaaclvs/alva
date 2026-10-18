@@ -114,4 +114,35 @@ class ListItemTest < ActiveSupport::TestCase
     other = Household.create!(name: "Outra casa")
     assert ListItem.new(name: "Leite", household: other).valid?
   end
+
+  test "on_list and archived split items by shopping trip" do
+    household = households(:home)
+    trip = household.shopping_trips.create!(finished_at: Time.current)
+    list_items(:detergent).update_columns(shopping_trip_id: trip.id)
+
+    assert_equal [ list_items(:milk) ], household.list_items.on_list.to_a
+    assert_equal [ list_items(:detergent) ], household.list_items.archived.to_a
+  end
+
+  test "archived items don't count as duplicates of a pending item" do
+    household = households(:home)
+    trip = household.shopping_trips.create!(finished_at: Time.current)
+    list_items(:milk).update_columns(shopping_trip_id: trip.id)
+
+    assert_nil household.pending_item_named("Leite")
+    assert ListItem.new(name: "Leite", household: household).valid?
+  end
+
+  test "archiving keeps the item's name, category and purchased_at" do
+    household = households(:home)
+    trip = household.shopping_trips.create!(finished_at: Time.current)
+    item = list_items(:detergent)
+    purchased_at = item.purchased_at
+    item.update_columns(shopping_trip_id: trip.id)
+
+    item.reload
+    assert_equal "Detergente", item.name
+    assert_equal purchased_at, item.purchased_at
+    assert item.purchased?
+  end
 end

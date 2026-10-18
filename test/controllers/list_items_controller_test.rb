@@ -70,6 +70,18 @@ class ListItemsControllerTest < ActionDispatch::IntegrationTest
     assert ListItem.exists?(other.id)
   end
 
+  test "toggle and destroy don't find archived items" do
+    trip = households(:home).shopping_trips.create!(finished_at: Time.current)
+    archived = list_items(:detergent)
+    archived.update_columns(shopping_trip_id: trip.id)
+
+    patch toggle_list_item_path(archived), as: :turbo_stream
+    assert_response :not_found
+    delete list_item_path(archived), as: :turbo_stream
+    assert_response :not_found
+    assert ListItem.exists?(archived.id)
+  end
+
   test "index subscribes to the household stream" do
     get root_path
     assert_select "turbo-cable-stream-source[signed-stream-name]"
@@ -132,24 +144,16 @@ class ListItemsControllerTest < ActionDispatch::IntegrationTest
     assert_nil item.purchased_at
   end
 
-  test "shows clear button when something was purchased" do
+  test "shows the finish shopping button when something was purchased" do
     get root_path
-    assert_select "form[action='#{clear_purchased_list_items_path}'][data-turbo-confirm*='1 item comprado']"
+    assert_select "form[action='#{shopping_trips_path}'][data-turbo-confirm='Registrar a compra e começar uma nova lista?']" do
+      assert_select "button", text: "Compra feita"
+    end
   end
 
-  test "hides clear button when nothing was purchased" do
+  test "hides the finish shopping button when nothing was purchased" do
     list_items(:detergent).destroy!
     get root_path
-    assert_select "form[action='#{clear_purchased_list_items_path}']", count: 0
-  end
-
-  test "clear_purchased removes only purchased items" do
-    purchased, pending = list_items(:detergent), list_items(:milk)
-    assert_difference "ListItem.count", -1 do
-      delete clear_purchased_list_items_path, as: :turbo_stream
-    end
-    assert_response :success
-    assert ListItem.exists?(pending.id)
-    assert_not ListItem.exists?(purchased.id)
+    assert_select "form[action='#{shopping_trips_path}']", count: 0
   end
 end

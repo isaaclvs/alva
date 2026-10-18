@@ -35,7 +35,7 @@ class ListItemsController < ApplicationController
   end
 
   def toggle
-    @list_item = current_household.list_items.find(params[:id])
+    @list_item = current_household.list_items.on_list.find(params[:id])
     @list_item.toggle_purchased!
 
     render_list
@@ -43,20 +43,14 @@ class ListItemsController < ApplicationController
 
   # For items added by mistake: no confirmation, re-adding is one tap away.
   def destroy
-    current_household.list_items.find(params[:id]).destroy!
-
-    render_list
-  end
-
-  def clear_purchased
-    current_household.clear_purchased!
+    current_household.list_items.on_list.find(params[:id]).destroy!
 
     render_list
   end
 
   private
 
-  # Whole list and summary, not one row: the counts and the "Limpar comprados"
+  # Whole list and summary, not one row: the counts and the "Compra feita"
   # button depend on every item.
   def render_list
     respond_to do |format|
