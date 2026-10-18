@@ -14,7 +14,7 @@ Rails.application.routes.draw do
     patch :toggle, on: :member
     post :restore, on: :collection
   end
-  resources :shopping_trips, only: :create
+  resources :shopping_trips, only: [ :create, :destroy ]
 
   # GET /lista.pdf: shopping list download for printing.
   get "lista.pdf", to: "list_exports#show", as: :list_export, format: false
