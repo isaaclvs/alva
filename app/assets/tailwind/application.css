@@ -8,3 +8,38 @@
     to { background-color: transparent; }
   }
 }
+
+/*
+ * Light theme. The markup is written against the dark zinc scale; the light
+ * theme re-points those color variables, so every utility (and any markup
+ * added later) follows the theme without dark: variants. The zinc scale is
+ * inverted and the accents that would wash out on white are darkened.
+ * html[data-theme] is rendered from the theme cookie (see ApplicationHelper).
+ */
+html {
+  color-scheme: dark;
+}
+
+html[data-theme="light"] {
+  color-scheme: light;
+
+  --color-zinc-50: #09090b;
+  --color-zinc-100: #18181b;
+  --color-zinc-200: #27272a;
+  --color-zinc-300: #3f3f46;
+  --color-zinc-400: #52525b;
+  --color-zinc-500: #71717a;
+  --color-zinc-600: #8b8b94;
+  --color-zinc-700: #c4c4cb;
+  --color-zinc-800: #e0e0e4;
+  --color-zinc-900: #ffffff;
+  --color-zinc-950: #f4f4f5;
+
+  /* Accents: the 400 shades are tuned for dark backgrounds. */
+  --color-teal-400: #0d9488;
+  --color-teal-500: #0f766e;
+  --color-emerald-400: #059669;
+  --color-amber-400: #b45309;
+  --color-red-300: #ef4444;
+  --color-red-400: #dc2626;
+}

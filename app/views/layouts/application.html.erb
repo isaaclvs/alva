@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html class="scheme-dark">
+<html data-theme="<%= theme_name %>">
   <head>
     <title><%= content_for(:title) || "Lista de Compras" %></title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -13,7 +13,7 @@
 
     <%# Enable PWA manifest for installable apps (make sure to enable in config/routes.rb too!) %>
     <%= tag.link rel: "manifest", href: pwa_manifest_path(format: :json) %>
-    <meta name="theme-color" content="#09090B">
+    <meta name="theme-color" content="<%= theme_color %>">
 
     <link rel="icon" href="/icon.png" type="image/png">
     <link rel="icon" href="/icon.svg" type="image/svg+xml">
