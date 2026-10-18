@@ -40,6 +40,18 @@ class ListItemsControllerTest < ActionDispatch::IntegrationTest
     assert ListItem.exists?(other.id)
   end
 
+  test "toggle and destroy don't find archived items" do
+    trip = households(:home).shopping_trips.create!(finished_at: Time.current)
+    archived = list_items(:detergent)
+    archived.update_columns(shopping_trip_id: trip.id)
+
+    patch toggle_list_item_path(archived), as: :turbo_stream
+    assert_response :not_found
+    delete list_item_path(archived), as: :turbo_stream
+    assert_response :not_found
+    assert ListItem.exists?(archived.id)
+  end
+
   test "index subscribes to the household stream" do
     get root_path
     assert_select "turbo-cable-stream-source[signed-stream-name]"
