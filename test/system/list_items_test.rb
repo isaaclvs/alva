@@ -31,14 +31,38 @@ class ListItemsTest < ApplicationSystemTestCase
     assert_equal "list_item_name", page.evaluate_script("document.activeElement.id")
   end
 
-  test "adding a purchased item again creates a new pending entry" do
+  test "adding a purchased item again brings it back instead of duplicating" do
     visit root_path
 
-    fill_in "Item", with: "Detergente"
+    click_button "Leite"
+    assert_selector "##{dom_id(list_items(:milk))} .line-through", text: "Leite"
+
+    fill_in "Item", with: "leite"
     click_button "Adicionar"
 
-    assert_selector "li", text: "Detergente", count: 2
-    assert_selector "li .line-through", text: "Detergente", count: 1
+    assert_selector "li", text: "Leite", count: 1
+    assert_no_selector "##{dom_id(list_items(:milk))} .line-through"
+    assert_selector "##{dom_id(list_items(:milk))}.animate-highlight", text: "Leite"
+    assert_field "Item", with: ""
+    assert_equal "list_item_name", page.evaluate_script("document.activeElement.id")
+  end
+
+  test "reviving a purchased item shows up in another open session" do
+    using_session(:other) do
+      visit root_path
+      connect_turbo_cable_stream_sources
+      assert_selector "##{dom_id(list_items(:detergent))} .line-through"
+    end
+
+    visit root_path
+    fill_in "Item", with: "detergente"
+    click_button "Adicionar"
+    assert_no_selector "##{dom_id(list_items(:detergent))} .line-through"
+
+    using_session(:other) do
+      assert_selector "li", text: "Detergente", count: 1
+      assert_no_selector "##{dom_id(list_items(:detergent))} .line-through"
+    end
   end
 
   test "unknown item goes to Outros" do
