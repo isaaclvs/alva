@@ -125,6 +125,65 @@ class ListItemsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "create with several names adds them all and summarizes in the form" do
+    assert_difference "ListItem.count", 2 do
+      post list_items_path, params: { list_item: { name: "Banana, Arroz" } }, as: :turbo_stream
+    end
+
+    assert_response :success
+    assert_equal "text/vnd.turbo-stream.html", response.media_type
+    assert_select "turbo-stream[action=replace][target=list_items]"
+    assert_select "turbo-stream[action=replace][target=list_item_form]" do
+      assert_select "p[role=status]", text: "2 itens adicionados"
+      assert_select "datalist#list_item_name_suggestions option[value=Banana]", count: 1
+      assert_select "input#list_item_name[value]", count: 0
+    end
+    ListItem.where(name: %w[Banana Arroz]).each do |item|
+      assert_select "turbo-stream[action=replace][target=#{ActionView::RecordIdentifier.dom_id(item)}] li.animate-highlight"
+    end
+  end
+
+  test "create with several names mentions the ones already on the list and highlights them" do
+    purchased = list_items(:detergent)
+
+    assert_difference "ListItem.count", 1 do
+      post list_items_path, params: { list_item: { name: "leite; detergente\nBanana" } }, as: :turbo_stream
+    end
+
+    assert purchased.reload.pending?
+    assert_select "p[role=status]", text: "2 itens adicionados · Leite já estava na lista"
+    [ list_items(:milk), purchased, ListItem.find_by!(name: "Banana") ].each do |item|
+      assert_select "turbo-stream[action=replace][target=#{ActionView::RecordIdentifier.dom_id(item)}] li.animate-highlight"
+    end
+  end
+
+  test "create with several names counts revived items as added and says when nothing was added" do
+    assert_no_difference "ListItem.count" do
+      post list_items_path, params: { list_item: { name: "Leite, leite, Detergente" } }, as: :turbo_stream
+    end
+
+    assert_select "p[role=status]", text: "1 item adicionado · Leite já estava na lista"
+
+    assert_no_difference "ListItem.count" do
+      post list_items_path, params: { list_item: { name: "Leite, Detergente" } }, as: :turbo_stream
+    end
+
+    assert_select "p[role=status]", text: "Nada adicionado · Leite e Detergente já estavam na lista"
+  end
+
+  test "create with several names broadcasts the list once" do
+    assert_list_broadcast households(:home) do
+      post list_items_path, params: { list_item: { name: "Arroz, Feijão, Banana, Leite" } }, as: :turbo_stream
+    end
+  end
+
+  test "create with several names redirects for html" do
+    post list_items_path, params: { list_item: { name: "Arroz, Feijão" } }
+
+    assert_redirected_to root_path
+    assert_equal 2, ListItem.where(name: %w[Arroz Feijão]).count
+  end
+
   test "create with blank name re-renders the form" do
     assert_no_difference "ListItem.count" do
       post list_items_path, params: { list_item: { name: " " } }, as: :turbo_stream
