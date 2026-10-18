@@ -10,12 +10,6 @@ class Household < ApplicationRecord
     list_items.on_list.pending.find { |item| TextNormalizer.call(item.name) == key }
   end
 
-  # Deletes in one query and broadcasts once, instead of once per item.
-  def clear_purchased!
-    list_items.purchased.delete_all
-    broadcast_list
-  end
-
   # "Compra feita": records a ShoppingTrip and archives the purchased items on
   # the list into it, keeping them as history. Pending items stay on the list.
   # Returns the new trip, or nil (and creates nothing) if nothing was purchased.

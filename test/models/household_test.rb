@@ -26,22 +26,6 @@ class HouseholdTest < ActiveSupport::TestCase
     assert_equal [ bread, list_items(:milk) ], dairy_items
   end
 
-  test "clear_purchased! deletes purchased items and keeps pending ones" do
-    purchased, pending = list_items(:detergent), list_items(:milk)
-    households(:home).clear_purchased!
-
-    assert_not ListItem.exists?(purchased.id)
-    assert ListItem.exists?(pending.id)
-  end
-
-  test "clear_purchased! broadcasts the list once" do
-    ListItem.create!(name: "Arroz", household: households(:home)).toggle_purchased!
-
-    assert_list_broadcast households(:home) do
-      households(:home).clear_purchased!
-    end
-  end
-
   test "finish_shopping! archives purchased items into a trip and keeps pending ones" do
     household = households(:home)
     purchased, pending = list_items(:detergent), list_items(:milk)
