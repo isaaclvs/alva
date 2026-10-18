@@ -16,6 +16,25 @@ class Household < ApplicationRecord
     broadcast_list
   end
 
+  # "Compra feita": records a ShoppingTrip and archives the purchased items on
+  # the list into it, keeping them as history. Pending items stay on the list.
+  # Returns the new trip, or nil (and creates nothing) if nothing was purchased.
+  # One UPDATE and one broadcast, instead of one per item (update_all skips the
+  # per-item callbacks).
+  def finish_shopping!
+    now = Time.current
+    trip = transaction do
+      trip = shopping_trips.create!(finished_at: now)
+      archived = list_items.on_list.purchased.update_all(shopping_trip_id: trip.id, updated_at: now)
+      raise ActiveRecord::Rollback if archived.zero?
+
+      trip
+    end
+
+    broadcast_list if trip
+    trip
+  end
+
   # Re-render the whole grouped list and its summary for every client on this
   # household's stream: a change can add or empty a category section, not just
   # touch one row. Both go in a single broadcast.
