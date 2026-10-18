@@ -30,8 +30,12 @@ técnicas — leia a task correspondente antes de implementar.
 - **Sem autenticação.** App doméstico, self-hosted, uso restrito a 2 pessoas.
 - **Sem modo offline.** Uso majoritariamente em casa via wifi.
 - **Sem quantidade nos itens.** Só o nome (ex.: "Leite", não "2x Leite").
-- **Lista contínua**, não por "compra fechada". Item comprado fica riscado mas
-  visível, não some e não vai para tela separada.
+- **Lista contínua.** Item comprado fica riscado mas visível, não vai para tela
+  separada, e os itens pendentes sempre continuam na lista. O usuário pode
+  registrar uma compra finalizada ("Compra feita", no rodapé da lista, só
+  aparece com itens comprados): isso cria uma `ShoppingTrip` e **arquiva** os
+  itens comprados (saem da lista viva, ficam no banco como histórico). Pendentes
+  não são afetados.
 - **Categorização automática sem IA.** Matching por nome normalizado contra um
   dicionário pré-cadastrado (`CatalogItem`). Sem match → categoria "Outros".
 - **Categorias fixas no MVP** (editar dicionário/categorias é backlog futuro).
@@ -46,6 +50,7 @@ técnicas — leia a task correspondente antes de implementar.
 ```
 Household
   └── has_many :list_items
+  └── has_many :shopping_trips
 Category
   └── has_many :catalog_items
   └── has_many :list_items
@@ -54,8 +59,22 @@ CatalogItem   # dicionário: nome conhecido → categoria
 ListItem      # item real na lista de compras atual
   belongs_to :category (opcional — cai em "Outros")
   belongs_to :household
+  belongs_to :shopping_trip (opcional — presente = item arquivado)
   status: pending | purchased
+ShoppingTrip  # uma compra finalizada ("Compra feita")
+  belongs_to :household
+  has_many :list_items   # o que foi comprado nela
+  finished_at (não nulo)
 ```
+
+**Arquivados:** um `ListItem` com `shopping_trip_id` é histórico e não faz parte
+da lista viva. Toda query da lista viva (renderização, contadores, resumo,
+detecção de duplicados, localizar item para marcar/remover) deve usar
+`ListItem.on_list` (`shopping_trip_id` nulo); `ListItem.archived` é o histórico.
+`Household#finish_shopping!` cria a viagem e arquiva os itens comprados numa só
+query, faz um único broadcast e devolve a `ShoppingTrip` (ou `nil`, sem criar
+nada, se não havia itens comprados). Nome, categoria e `purchased_at` dos
+arquivados ficam intactos.
 
 `CatalogItem` (o que o sistema "sabe") é separado de `ListItem` (o que está na
 lista agora). Essa separação é o que permite categorização automática sem
@@ -90,6 +109,6 @@ acoplar o dicionário à lista viva.
 - Quantidade por item
 - Categorização com IA/fuzzy matching avançado
 - Edição de categorias via UI
-- Histórico de compras, notificações, integração com receitas
+- Tela de histórico de compras, notificações, integração com receitas
 - Publicação na Play Store / app nativo
 - Modo offline
