@@ -6,6 +6,7 @@ class UndoTest < ApplicationSystemTestCase
     households(:home).list_items.create!(name: "Iogurte", category: categories(:dairy))
     visit root_path
     dairy = "#category_#{categories(:dairy).id} li"
+    assert_selector dairy, count: 2
     assert_equal %w[Leite Iogurte], all(dairy).map { |li| li.text.strip }
 
     click_button "Remover Leite"
@@ -19,6 +20,7 @@ class UndoTest < ApplicationSystemTestCase
     within("#toast") { click_button "Desfazer" }
 
     assert_selector "##{dom_id(milk)}", text: "Leite"
+    assert_selector dairy, count: 2
     assert_equal %w[Leite Iogurte], all(dairy).map { |li| li.text.strip }
     assert_no_selector "#toast [role=status]"
     assert_equal 1, ListItem.where(name: "Leite").count
