@@ -187,7 +187,8 @@ class ListItemsTest < ApplicationSystemTestCase
     assert_text "Leite"
 
     # Skips callbacks, so no broadcast: like one lost while the phone was locked.
-    ListItem.insert!({ name: "Banana", household_id: households(:home).id, category_id: categories(:produce).id })
+    ListItem.insert!({ name: "Banana", normalized_name: "banana", household_id: households(:home).id,
+      category_id: categories(:produce).id })
     assert_no_text "Banana"
 
     page.execute_script(%(document.dispatchEvent(new Event("visibilitychange"))))

@@ -22,4 +22,17 @@ class ApplicationController < ActionController::Base
       suggestions: BuyAgainSuggestions.call(current_household)
     }
   end
+
+  def stale_list_action
+    notice = "A lista mudou em outro aparelho. Confira a versão atualizada."
+    respond_to do |format|
+      format.turbo_stream do
+        render turbo_stream: [
+          list_refresh_stream,
+          turbo_stream.update("toast", partial: "list_items/stale_notice", locals: { message: notice })
+        ], status: :conflict
+      end
+      format.html { redirect_to root_path, alert: notice, status: :see_other }
+    end
+  end
 end

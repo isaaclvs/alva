@@ -1,6 +1,7 @@
 <%= turbo_frame_tag dom_id(@list_item, :row), class: "flex min-w-0 flex-1 items-center" do %>
   <%# namespace: field ids must not clash with the add field (list_item_name). %>
   <%= form_with model: @list_item, namespace: dom_id(@list_item, :edit), class: "flex w-full flex-col gap-2 p-3" do |form| %>
+    <%= form.hidden_field :lock_version %>
     <%= form.label :name, "Nome", class: "sr-only" %>
     <%= form.text_field :name, autofocus: true, required: true, autocomplete: "off",
           class: "w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-base focus:border-teal-400/60 focus:outline-none" %>

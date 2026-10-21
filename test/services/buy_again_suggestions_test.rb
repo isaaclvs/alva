@@ -11,7 +11,8 @@ class BuyAgainSuggestionsTest < ActiveSupport::TestCase
     purchased_at = ago || (@clock += 1.hour)
     trip ||= @household.shopping_trips.create!(finished_at: purchased_at)
     # Built directly: archived history can legitimately repeat a name that is pending now.
-    @household.list_items.new(name: name, category: category, status: :purchased, purchased_at: purchased_at, shopping_trip: trip)
+    @household.list_items.new(name: name, normalized_name: TextNormalizer.call(name), category: category,
+      status: :purchased, purchased_at: purchased_at, shopping_trip: trip)
       .tap { |item| item.save!(validate: false) }
   end
 

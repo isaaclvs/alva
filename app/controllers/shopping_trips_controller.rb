@@ -18,11 +18,13 @@ class ShoppingTripsController < ApplicationController
   end
 
   # "Desfazer" on the toast: the items come back to the list and the trip goes
-  # away. 404 for a trip of another household or one that is no longer the
-  # latest (or is already undone).
+  # away. 404 for another household; stale trips return a conflict and a list
+  # refresh so the client can continue from the current state.
   def destroy
-    trip = current_household.shopping_trips.find(params[:id])
-    return head :not_found unless current_household.undo_shopping!(trip)
+    trip = current_household.shopping_trips.find_by(id: params[:id])
+    return head :not_found if !trip && ShoppingTrip.exists?(params[:id])
+    return stale_list_action unless trip
+    return stale_list_action unless current_household.undo_shopping!(trip)
 
     respond_to do |format|
       format.turbo_stream do

@@ -175,16 +175,47 @@ class ListItemsControllerTest < ActionDispatch::IntegrationTest
     assert ListItem.exists?(other.id)
   end
 
-  test "toggle and destroy don't find archived items" do
+  test "toggle and destroy resync with a notice for archived items" do
     trip = households(:home).shopping_trips.create!(finished_at: Time.current)
     archived = list_items(:detergent)
     archived.update_columns(shopping_trip_id: trip.id)
 
     patch toggle_list_item_path(archived), as: :turbo_stream
-    assert_response :not_found
+    assert_response :conflict
+    assert_includes response.media_type, "turbo-stream"
+    assert_includes response.body, "A lista mudou em outro aparelho"
     delete list_item_path(archived), as: :turbo_stream
-    assert_response :not_found
+    assert_response :conflict
+    assert_includes response.body, "A lista mudou em outro aparelho"
     assert ListItem.exists?(archived.id)
+  end
+
+  test "a mutation from a stale row version resyncs without changing the item" do
+    item = list_items(:milk)
+    stale_version = item.lock_version
+    item.toggle_purchased!
+
+    patch toggle_list_item_path(item), params: { lock_version: stale_version }, as: :turbo_stream
+
+    assert_response :conflict
+    assert_includes response.body, "A lista mudou em outro aparelho"
+    assert item.reload.purchased?
+  end
+
+  test "a stale correction and removal do not overwrite or delete a changed row" do
+    item = households(:home).list_items.create!(name: "Bananna")
+    stale_version = item.lock_version
+    item.update!(name: "Banana nova")
+
+    patch list_item_path(item), params: {
+      list_item: { name: "Banana antiga", category_id: item.category_id, lock_version: stale_version }
+    }, as: :turbo_stream
+    assert_response :conflict
+    assert_equal "Banana nova", item.reload.name
+
+    delete list_item_path(item), params: { lock_version: stale_version }, as: :turbo_stream
+    assert_response :conflict
+    assert ListItem.exists?(item.id)
   end
 
   test "index subscribes to the household stream" do

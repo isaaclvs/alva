@@ -41,7 +41,7 @@ class ListPdfTest < ActiveSupport::TestCase
 
   test "items without a category get their own card, not a second Outros" do
     @household.list_items.create!(name: "Coisa nova")
-    ListItem.insert!({ name: "Item antigo", household_id: @household.id, category_id: nil,
+    ListItem.insert!({ name: "Item antigo", normalized_name: "item antigo", household_id: @household.id, category_id: nil,
       status: ListItem.statuses[:pending], created_at: Time.current, updated_at: Time.current })
 
     pieces = ListPdf.new(@household, @now).pages.flatten

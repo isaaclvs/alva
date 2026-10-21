@@ -1,4 +1,6 @@
 class ListItem < ApplicationRecord
+  class StaleAction < StandardError; end
+
   belongs_to :household
   belongs_to :category, optional: true
   belongs_to :shopping_trip, optional: true
@@ -22,6 +24,7 @@ class ListItem < ApplicationRecord
   validate :not_renamed_to_a_pending_item, on: :update, if: :will_save_change_to_name?
 
   before_create :assign_category, unless: :category
+  before_validation :normalize_name
 
   after_commit -> { household.list_changed }
 
@@ -32,10 +35,23 @@ class ListItem < ApplicationRecord
   end
 
   def toggle_purchased!
-    if purchased?
-      update!(status: :pending, purchased_at: nil)
-    else
-      update!(status: :purchased, purchased_at: Time.current)
+    expected_version = lock_version
+    household.with_list_lock do
+      reload
+      raise StaleAction unless lock_version == expected_version
+      raise StaleAction unless shopping_trip_id.nil?
+
+      if purchased?
+        if household.pending_item_named(name)
+          errors.add(:name, :duplicate_pending, message: "já está na lista")
+          next false
+        end
+
+        update!(status: :pending, purchased_at: nil)
+      else
+        update!(status: :purchased, purchased_at: Time.current)
+      end
+      true
     end
   end
 
@@ -44,22 +60,29 @@ class ListItem < ApplicationRecord
   # left as it was is recategorized like a freshly typed one. Returns false,
   # with errors, when the name is blank or already pending on the list.
   def correct(name:, category_id:)
-    self.name = name.to_s.squish
-    picked = Category.find_by(id: category_id) if category_id.present? && category_id.to_i != self.category_id
+    expected_version = lock_version
+    household.with_list_lock do
+      reload
+      raise StaleAction unless lock_version == expected_version
+      raise StaleAction unless shopping_trip_id.nil?
 
-    if picked
-      self.category = picked
-    elsif will_save_change_to_name?
-      self.category = ItemCategorizer.call(self.name)
+      self.name = name.to_s.squish
+      picked = Category.find_by(id: category_id) if category_id.present? && category_id.to_i != self.category_id
+
+      if picked
+        self.category = picked
+      elsif will_save_change_to_name?
+        self.category = ItemCategorizer.call(self.name)
+      end
+
+      saved = transaction do
+        raise ActiveRecord::Rollback unless save
+
+        ItemCategorizer.learn(self.name, picked) if picked
+        true
+      end
+      saved.present?
     end
-
-    saved = transaction do
-      raise ActiveRecord::Rollback unless save
-
-      ItemCategorizer.learn(self.name, picked) if picked
-      true
-    end
-    saved.present?
   end
 
   private
@@ -79,5 +102,9 @@ class ListItem < ApplicationRecord
 
   def assign_category
     self.category = ItemCategorizer.call(name)
+  end
+
+  def normalize_name
+    self.normalized_name = TextNormalizer.call(name)
   end
 end

@@ -89,7 +89,7 @@ class ShoppingTripsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to root_path
   end
 
-  test "destroy is a 404 for a trip that is not the latest" do
+  test "destroy resyncs when a trip is no longer the latest" do
     older = households(:home).finish_shopping!
     households(:home).list_items.create!(name: "Arroz", status: :purchased, purchased_at: Time.current)
     households(:home).finish_shopping!
@@ -97,10 +97,11 @@ class ShoppingTripsControllerTest < ActionDispatch::IntegrationTest
     assert_no_difference [ "ShoppingTrip.count", "ListItem.on_list.count" ] do
       delete shopping_trip_path(older), as: :turbo_stream
     end
-    assert_response :not_found
+    assert_response :conflict
+    assert_includes response.body, "A lista mudou em outro aparelho"
   end
 
-  test "destroy is a 404 for a trip of another household or one already undone" do
+  test "destroy is a 404 for another household and a conflict after undo" do
     other = Household.create!(name: "Outra").shopping_trips.create!(finished_at: Time.current)
     delete shopping_trip_path(other), as: :turbo_stream
     assert_response :not_found
@@ -110,6 +111,7 @@ class ShoppingTripsControllerTest < ActionDispatch::IntegrationTest
     delete shopping_trip_path(trip), as: :turbo_stream
     assert_response :success
     delete shopping_trip_path(trip), as: :turbo_stream
-    assert_response :not_found
+    assert_response :conflict
+    assert_includes response.body, "A lista mudou em outro aparelho"
   end
 end
