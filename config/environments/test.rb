@@ -50,4 +50,7 @@ Rails.application.configure do
 
   # Raise error when a before_action's only/except options reference missing actions.
   config.action_controller.raise_on_missing_callback_actions = true
+
+  require_relative "../../test/support/injected_server_error"
+  config.middleware.insert_before 0, InjectedServerError
 end
