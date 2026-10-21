@@ -296,6 +296,49 @@ class ListItemsTest < ApplicationSystemTestCase
     assert_text "Detergente atualizado fora"
   end
 
+  test "a delayed list broadcast preserves correction typing done before replacement" do
+    visit root_path
+    connect_turbo_cable_stream_sources
+    click_on "Editar Leite"
+    click_on "Editar Detergente"
+    within("##{dom_id(list_items(:milk), :row)}") { fill_in "Nome", with: "Leite rascunho inicial" }
+    within("##{dom_id(list_items(:detergent), :row)}") { fill_in "Nome", with: "Detergente rascunho inicial" }
+
+    page.execute_script(<<~JS)
+      const holdListRender = (event) => {
+        if (event.target.getAttribute("target") !== "list_items") return
+        if (event.target.dataset.listRefreshRequestId) return
+        document.removeEventListener("turbo:before-stream-render", holdListRender)
+        const render = event.detail.render
+        event.detail.render = async (streamElement) => {
+          document.body.dataset.listStreamHeld = "true"
+          await new Promise((resolve) => { window.__releaseListStream = resolve })
+          await render(streamElement)
+        }
+      }
+      document.addEventListener("turbo:before-stream-render", holdListRender)
+    JS
+
+    assert_selector "#list_items form[data-list-refresh-correction]", count: 2
+    households(:home).broadcast_list
+    assert_selector "body[data-list-stream-held='true']"
+    assert_equal 2, page.evaluate_script("document.querySelectorAll('#list_items form[data-list-refresh-correction]').length")
+
+    within("##{dom_id(list_items(:milk), :row)}") { fill_in "Nome", with: "Leite rascunho mais recente" }
+    within("##{dom_id(list_items(:detergent), :row)}") { fill_in "Nome", with: "Detergente rascunho mais recente" }
+    page.execute_script("window.__releaseListStream()")
+
+    within("##{dom_id(list_items(:milk), :row)}") do
+      assert_field "Nome", with: "Leite rascunho mais recente"
+      click_on "Cancelar"
+    end
+    within("##{dom_id(list_items(:detergent), :row)}") do
+      assert_field "Nome", with: "Detergente rascunho mais recente"
+      click_button "Salvar"
+    end
+    assert_text "Detergente rascunho mais recente"
+  end
+
   test "summary counts update live when marking an item" do
     using_session(:other) do
       visit root_path
