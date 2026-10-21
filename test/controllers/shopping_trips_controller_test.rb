@@ -114,4 +114,11 @@ class ShoppingTripsControllerTest < ActionDispatch::IntegrationTest
     assert_response :conflict
     assert_includes response.body, "A lista mudou em outro aparelho"
   end
+
+  test "a malformed trip id responds with a stale-list refresh" do
+    delete shopping_trip_path("not-a-number"), as: :turbo_stream
+
+    assert_response :conflict
+    assert_includes response.body, "A lista mudou em outro aparelho"
+  end
 end

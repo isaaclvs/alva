@@ -218,6 +218,13 @@ class ListItemsControllerTest < ActionDispatch::IntegrationTest
     assert ListItem.exists?(item.id)
   end
 
+  test "a malformed item id responds with a stale-list refresh" do
+    patch toggle_list_item_path("not-a-number"), as: :turbo_stream
+
+    assert_response :conflict
+    assert_includes response.body, "A lista mudou em outro aparelho"
+  end
+
   test "index subscribes to the household stream" do
     get root_path
     assert_select "turbo-cable-stream-source[signed-stream-name]"

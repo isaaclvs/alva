@@ -22,7 +22,7 @@ class ShoppingTripsController < ApplicationController
   # refresh so the client can continue from the current state.
   def destroy
     trip = current_household.shopping_trips.find_by(id: params[:id])
-    return head :not_found if !trip && ShoppingTrip.exists?(params[:id])
+    return head :not_found if !trip && ShoppingTrip.where(id: params[:id]).exists?
     return stale_list_action unless trip
     return stale_list_action unless current_household.undo_shopping!(trip)
 
