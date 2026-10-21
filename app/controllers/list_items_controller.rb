@@ -41,19 +41,22 @@ class ListItemsController < ApplicationController
   # The row again, for "Cancelar" in the edit form. Both only make sense inside
   # the row's frame; opened directly they go back to the list.
   def show
-    @list_item = current_household.list_items.on_list.find(params[:id])
+    @list_item = current_household.list_items.on_list.find_by(id: params[:id])
+    return missing_or_stale_frame unless @list_item
+
     redirect_to root_path unless turbo_frame_request?
   end
 
   # Fix a typo or a wrong category, in place of the row.
   def edit
-    @list_item = current_household.list_items.on_list.find(params[:id])
+    @list_item = current_household.list_items.on_list.find_by(id: params[:id])
+    return missing_or_stale_frame unless @list_item
+
     redirect_to root_path unless turbo_frame_request?
   end
 
   def update
     correction = params.expect(list_item: [ :name, :category_id, :lock_version ])
-    @list_item = nil
     current_household.with_list_lock do
       @list_item = current_household.list_items.on_list.find_by(id: params[:id])
       return missing_or_stale_item unless @list_item
@@ -64,15 +67,12 @@ class ListItemsController < ApplicationController
       end
     end
 
-    if @list_item
-      render_list
-    end
+    render_list
   rescue ListItem::StaleAction
     stale_list_action
   end
 
   def toggle
-    @list_item = nil
     current_household.with_list_lock do
       @list_item = current_household.list_items.on_list.find_by(id: params[:id])
       return missing_or_stale_item unless @list_item
@@ -89,17 +89,17 @@ class ListItemsController < ApplicationController
   # For items added by mistake: no confirmation. The toast in the response
   # (only for whoever removed it) carries a signed snapshot to undo with.
   def destroy
-    item = nil
     current_household.with_list_lock do
-      item = current_household.list_items.on_list.find_by(id: params[:id])
+      @list_item = current_household.list_items.on_list.find_by(id: params[:id])
+      item = @list_item
       return missing_or_stale_item unless item
       return stale_list_action if stale_version?(item, params[:lock_version])
 
       item.destroy!
     end
 
-    render_list toast: { message: "#{item.name} removido",
-      undo: { path: restore_list_items_path, params: { token: ListItemSnapshot.dump(item) } } }
+    render_list toast: { message: "#{@list_item.name} removido",
+      undo: { path: restore_list_items_path, params: { token: ListItemSnapshot.dump(@list_item) } } }
   end
 
   # "Desfazer" on the toast. The token must be a valid, unexpired snapshot of
@@ -158,6 +158,15 @@ class ListItemsController < ApplicationController
     return head :not_found if ListItem.exists?(params[:id]) && !current_household.list_items.exists?(params[:id])
 
     stale_list_action
+  end
+
+  def missing_or_stale_frame
+    return head :not_found if ListItem.exists?(params[:id]) && !current_household.list_items.exists?(params[:id])
+
+    return stale_list_action unless turbo_frame_request?
+
+    render partial: "list_items/stale_frame", locals: { frame_id: request.headers["Turbo-Frame"] },
+      status: :conflict
   end
 
   def stale_version?(item, version)
