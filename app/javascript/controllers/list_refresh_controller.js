@@ -291,83 +291,64 @@ export default class extends Controller {
     if (stream.getAttribute("target") !== "list_items") return
     const render = event.detail.render
     event.detail.render = async (streamElement) => {
-      // Turbo may defer this renderer until the next repaint. Find open forms
-      // and read their live controls here, immediately before replacement, so
-      // typing, new editors and submitted forms reflect the latest state.
-      const correctionForms = Array.from(document.querySelectorAll("#list_items turbo-frame form[data-list-refresh-correction]"))
-        .filter((form) => !this.submittedCorrectionForms?.has(form))
-      const drafts = correctionForms.map((form) => {
-        const editingFrame = form.closest("turbo-frame")
-        if (!editingFrame) return null
+      if (streamElement.action !== "replace") return render(streamElement)
 
-        const controls = Array.from(form.querySelectorAll("input, select, textarea"))
-        const draft = controls.map((control) => ({
-          value: control.value,
-          checked: control.checked,
-          selectionStart: this.selectionStart(control),
-          selectionEnd: this.selectionEnd(control)
-        }))
-        const activeId = document.activeElement?.id
-        const incomingFrame = stream.templateElement.content.querySelector(`#${CSS.escape(editingFrame.id)}`)
-        if (!incomingFrame) {
-          this.showStatus("Este item saiu da lista enquanto você o corrigia", false)
-          return null
-        }
-
-        const preservedFrame = editingFrame.cloneNode(true)
-        preservedFrame.removeAttribute("src")
-        const preservedControls = Array.from(preservedFrame.querySelectorAll("input, select, textarea"))
-        draft.forEach((controlDraft, index) => {
-          const control = preservedControls[index]
-          if (control) this.restoreControlDraft(control, controlDraft)
-        })
-        incomingFrame.replaceWith(preservedFrame)
-        return { editingFrame, draft, activeId }
+      // Turbo waits for a repaint before invoking its renderer. Keep the live
+      // correction frames intact until the actual synchronous replace action,
+      // then move those same nodes into the incoming fragment. A value snapshot
+      // can go stale while typing continues during the renderer's async work.
+      const originalAction = streamElement.performAction
+      Object.defineProperty(streamElement, "performAction", {
+        configurable: true,
+        value: () => this.replaceListPreservingCorrections(streamElement, originalAction)
       })
-
-      await render(streamElement)
-
-      drafts.forEach((preserved) => {
-        if (!preserved) return
-        const { editingFrame, draft, activeId } = preserved
-        const renderedControls = Array.from(document.getElementById(editingFrame.id)?.querySelectorAll("input, select, textarea") || [])
-        draft.forEach((controlDraft, index) => {
-          const control = renderedControls[index]
-          if (!control) return
-          this.restoreControlDraft(control, controlDraft)
-          if (control.id === activeId) {
-            control.focus({ preventScroll: true })
-            if (controlDraft.selectionStart !== null) {
-              control.setSelectionRange(controlDraft.selectionStart, controlDraft.selectionEnd)
-            }
-          }
-        })
-      })
+      try {
+        await render(streamElement)
+      } finally {
+        delete streamElement.performAction
+      }
     }
   }
 
-  restoreControlDraft(control, draft) {
-    if (control instanceof HTMLSelectElement) {
-      Array.from(control.options).forEach((option) => {
-        option.selected = option.value === draft.value
-        option.toggleAttribute("selected", option.selected)
-      })
-      control.value = draft.value
-    } else if (control instanceof HTMLTextAreaElement) {
-      control.value = draft.value
-      control.textContent = draft.value
-    } else if (control.type === "checkbox" || control.type === "radio") {
-      control.checked = draft.checked
-      control.toggleAttribute("checked", draft.checked)
-    } else {
-      control.value = draft.value
-      control.setAttribute("value", draft.value)
+  replaceListPreservingCorrections(streamElement, originalAction) {
+    const targets = streamElement.targetElements
+    if (targets.length === 0 || streamElement.getAttribute("method") === "morph") {
+      return originalAction.call(streamElement)
+    }
+
+    const fragment = streamElement.templateContent
+    const activeElement = document.activeElement
+    const selectionStart = this.selectionStart(activeElement)
+    const selectionEnd = this.selectionEnd(activeElement)
+    const correctionForms = Array.from(document.querySelectorAll("#list_items turbo-frame form[data-list-refresh-correction]"))
+      .filter((form) => !this.submittedCorrectionForms?.has(form))
+
+    correctionForms.forEach((form) => {
+      const editingFrame = form.closest("turbo-frame")
+      if (!editingFrame) return
+
+      const incomingFrame = fragment.querySelector(`#${CSS.escape(editingFrame.id)}`)
+      if (!incomingFrame) {
+        this.showStatus("Este item saiu da lista enquanto você o corrigia", false)
+        return
+      }
+
+      editingFrame.removeAttribute("src")
+      incomingFrame.replaceWith(editingFrame)
+    })
+
+    targets.forEach((target) => target.replaceWith(fragment))
+    if (activeElement?.isConnected && document.activeElement !== activeElement) {
+      activeElement.focus({ preventScroll: true })
+      if (selectionStart !== null && typeof activeElement.setSelectionRange === "function") {
+        activeElement.setSelectionRange(selectionStart, selectionEnd)
+      }
     }
   }
 
   selectionStart(control) {
     try {
-      return control.selectionStart
+      return control.selectionStart ?? null
     } catch (_error) {
       return null
     }
@@ -375,7 +356,7 @@ export default class extends Controller {
 
   selectionEnd(control) {
     try {
-      return control.selectionEnd
+      return control.selectionEnd ?? null
     } catch (_error) {
       return null
     }
