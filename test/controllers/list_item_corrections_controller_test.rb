@@ -72,14 +72,23 @@ class ListItemCorrectionsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Banana", item.reload.name
   end
 
-  test "edit returns 404 off-list and update resyncs an archived row" do
+  test "stale correction frames explain archived rows and cross-household rows stay hidden" do
     trip = households(:home).finish_shopping!
     archived = trip.list_items.first
     other = Household.create!(name: "Outra").list_items.create!(name: "Arroz")
 
     [ archived, other ].each do |item|
       get edit_list_item_path(item), headers: FRAME
-      assert_response :not_found
+      assert_response(item == archived ? :conflict : :not_found)
+      if item == archived
+        assert_select "turbo-frame#list_item_row" do
+          assert_select "p[role=status]", text: "Essa linha mudou em outro aparelho."
+          assert_select "a", text: "Voltar à lista"
+        end
+        get list_item_path(item), headers: FRAME
+        assert_response :conflict
+        assert_select "turbo-frame#list_item_row p[role=status]", text: "Essa linha mudou em outro aparelho."
+      end
       patch list_item_path(item), params: { list_item: { name: "X", category_id: "" } }, headers: STREAM
       assert_response(item == archived ? :conflict : :not_found)
       assert_includes response.body, "A lista mudou em outro aparelho" if item == archived
