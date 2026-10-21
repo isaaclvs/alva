@@ -1,7 +1,7 @@
 <%= form_with model: list_item, id: "list_item_form" do |form| %>
   <div class="flex items-center gap-2 rounded-2xl border border-zinc-800 bg-zinc-900 py-1.5 pr-1.5 pl-4 focus-within:border-teal-400/60 focus-within:ring-4 focus-within:ring-teal-400/15">
     <%= form.label :name, "Item", class: "sr-only" %>
-    <%= form.text_field :name, autofocus: true, required: true, autocomplete: "off",
+    <%= form.text_field :name, autofocus: cookies[:market_mode] != "true", required: true, autocomplete: "off",
           list: "list_item_name_suggestions",
           placeholder: "O que acabou?",
           class: "min-w-0 flex-1 bg-transparent py-1.5 text-base placeholder:text-zinc-500 focus:outline-none" %>

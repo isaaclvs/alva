@@ -289,39 +289,47 @@ export default class extends Controller {
     }
 
     if (stream.getAttribute("target") !== "list_items") return
-    const correctionForms = Array.from(document.querySelectorAll("#list_items turbo-frame form[data-list-refresh-correction]"))
-    correctionForms.forEach((form) => {
-      if (this.submittedCorrectionForms?.has(form)) return
-      const editingFrame = form.closest("turbo-frame")
-      if (!editingFrame) return
+    const render = event.detail.render
+    event.detail.render = async (streamElement) => {
+      // Turbo may defer this renderer until the next repaint. Find open forms
+      // and read their live controls here, immediately before replacement, so
+      // typing, new editors and submitted forms reflect the latest state.
+      const correctionForms = Array.from(document.querySelectorAll("#list_items turbo-frame form[data-list-refresh-correction]"))
+        .filter((form) => !this.submittedCorrectionForms?.has(form))
+      const drafts = correctionForms.map((form) => {
+        const editingFrame = form.closest("turbo-frame")
+        if (!editingFrame) return null
 
-      const incomingFrame = stream.templateElement.content.querySelector(`#${CSS.escape(editingFrame.id)}`)
-      if (!incomingFrame) {
-        this.showStatus("Este item saiu da lista enquanto você o corrigia", false)
-        return
-      }
+        const controls = Array.from(form.querySelectorAll("input, select, textarea"))
+        const draft = controls.map((control) => ({
+          value: control.value,
+          checked: control.checked,
+          selectionStart: this.selectionStart(control),
+          selectionEnd: this.selectionEnd(control)
+        }))
+        const activeId = document.activeElement?.id
+        const incomingFrame = stream.templateElement.content.querySelector(`#${CSS.escape(editingFrame.id)}`)
+        if (!incomingFrame) {
+          this.showStatus("Este item saiu da lista enquanto você o corrigia", false)
+          return null
+        }
 
-      const controls = Array.from(form.querySelectorAll("input, select, textarea"))
-      const draft = controls.map((control) => ({
-        value: control.value,
-        checked: control.checked,
-        selectionStart: this.selectionStart(control),
-        selectionEnd: this.selectionEnd(control)
-      }))
-      const activeId = document.activeElement?.id
-      const preservedFrame = editingFrame.cloneNode(true)
-      preservedFrame.removeAttribute("src")
-      const preservedControls = Array.from(preservedFrame.querySelectorAll("input, select, textarea"))
-      draft.forEach((controlDraft, index) => {
-        const control = preservedControls[index]
-        if (!control) return
-        this.restoreControlDraft(control, controlDraft)
+        const preservedFrame = editingFrame.cloneNode(true)
+        preservedFrame.removeAttribute("src")
+        const preservedControls = Array.from(preservedFrame.querySelectorAll("input, select, textarea"))
+        draft.forEach((controlDraft, index) => {
+          const control = preservedControls[index]
+          if (control) this.restoreControlDraft(control, controlDraft)
+        })
+        incomingFrame.replaceWith(preservedFrame)
+        return { editingFrame, draft, activeId }
       })
-      incomingFrame.replaceWith(preservedFrame)
 
-      const render = event.detail.render
-      event.detail.render = async (streamElement) => {
-        await render(streamElement)
+      await render(streamElement)
+
+      drafts.forEach((preserved) => {
+        if (!preserved) return
+        const { editingFrame, draft, activeId } = preserved
         const renderedControls = Array.from(document.getElementById(editingFrame.id)?.querySelectorAll("input, select, textarea") || [])
         draft.forEach((controlDraft, index) => {
           const control = renderedControls[index]
@@ -334,8 +342,8 @@ export default class extends Controller {
             }
           }
         })
-      }
-    })
+      })
+    }
   }
 
   restoreControlDraft(control, draft) {

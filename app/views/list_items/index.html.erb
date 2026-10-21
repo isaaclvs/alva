@@ -3,8 +3,20 @@
 <%= tag.div data: { controller: "list-refresh", list_refresh_url_value: root_path } do %>
   <header class="sticky top-0 z-10 bg-zinc-950/90 px-4 pt-5 pb-3 backdrop-blur">
     <%= render "summary", groups: @groups %>
-    <%= render "form", list_item: @list_item %>
-    <%= render "buy_again", suggestions: @suggestions %>
+    <div data-controller="market-mode"
+         data-market-mode-active-value="<%= cookies[:market_mode] == "true" %>">
+      <div class="mb-2 flex justify-end">
+        <button id="market_mode_toggle" type="button" class="rounded-full border border-zinc-700 px-3 py-1.5 text-sm font-medium text-zinc-300 active:bg-zinc-800"
+                aria-pressed="<%= cookies[:market_mode] == "true" %>"
+                data-market-mode-target="toggle" data-action="market-mode#toggle">
+          <%= cookies[:market_mode] == "true" ? "Voltar à lista" : "Ir ao mercado" %>
+        </button>
+      </div>
+      <div id="entry_controls" data-market-mode-target="entryControls" <%= "hidden" if cookies[:market_mode] == "true" %>>
+        <%= render "form", list_item: @list_item %>
+        <%= render "buy_again", suggestions: @suggestions %>
+      </div>
+    </div>
     <div id="list_refresh_status" hidden role="status" aria-live="polite"
          class="mt-2 flex items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-900/90 px-3 py-2 text-xs text-zinc-400"
          data-list-refresh-target="status">
