@@ -1,4 +1,4 @@
-# AGENTS.md — Shopping List App
+# AGENTS.md — Alva
 
 Contexto para qualquer agente de código trabalhando neste repositório.
 
@@ -8,9 +8,10 @@ App Android de lista de compras compartilhada, para uso doméstico (2 usuários)
 Foco absoluto: adicionar um item que acabou em casa precisa ter **fricção zero**.
 Quando chega o dia de ir ao mercado, a lista já está organizada por categoria.
 
-Rastreamento de trabalho: Linear, time **SHO** (https://linear.app/diff-review/team/SHO).
-As tasks do MVP (SHO-1 a SHO-10) já descrevem contexto, critério de aceite e notas
-técnicas — leia a task correspondente antes de implementar.
+Rastreamento de trabalho: Linear, workspace **Alva**, time **ALV**
+(https://linear.app/alva-isaac/team/ALV/all). Leia a task correspondente antes
+de implementar e prefira a CLI `linear`, configurada por `.linear.toml`.
+Referências SHO neste documento são decisões históricas do MVP.
 
 ## Stack
 
