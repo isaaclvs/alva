@@ -58,6 +58,7 @@ Referências SHO neste documento são decisões históricas do MVP.
 Household
   └── has_many :list_items
   └── has_many :shopping_trips
+  └── has_many :habitual_items
 Category
   └── has_many :catalog_items
   └── has_many :list_items
@@ -95,6 +96,20 @@ isso só marca a mudança e a lista é transmitida uma única vez no fim do bloc
 e ordenados por nº de compras e recência; nomes que estão na lista viva (pendentes
 ou comprados) ficam de fora. Tocar num atalho passa por `ListItemsController#create`.
 Os atalhos são atualizados junto com a lista em `list_items/_refresh`.
+
+**Habituais:** `HabitualItem` guarda nomes escolhidos explicitamente por casa,
+com unicidade por `household_id` + `normalized_name`. Não é o dicionário nem o
+histórico. O painel recolhível fica abaixo de Comprar de novo; adicionar os
+selecionados ou todos reaproveita `Household#add_item` e agrupa broadcasts, sem
+o limite de 30 nomes do campo de texto. Remover um habitual não altera itens
+da lista ou histórico. O refresh também atualiza `#habitual_items_list`; o
+formulário, o painel aberto e as seleções sobreviventes são preservados.
+
+**Modo mercado:** preferência local por cookie `market_mode`, sem broadcast.
+Oculta `#entry_controls` (formulário, Comprar de novo e Habituais), mantendo
+resumo, categorias, edição, desfazer e Compra feita. O botão permanece fora dos
+alvos de refresh. A renderização inicial respeita o cookie para não abrir o
+teclado com autofocus durante o modo mercado.
 
 **Desfazer:** remover um item e "Compra feita" não pedem confirmação; em vez disso
 a resposta HTTP (nunca o broadcast, então só o aparelho que agiu) preenche o
