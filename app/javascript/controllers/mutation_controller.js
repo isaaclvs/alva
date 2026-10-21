@@ -109,6 +109,7 @@ export default class extends Controller {
     if (!(form instanceof HTMLFormElement)) return
 
     const key = form.dataset.mutationPendingAction || this.actionKey(form)
+    if (!this.pendingActions.has(key)) return
     if (!success) {
       this.showError(form, RESYNC_FAILED_ERROR)
       return
