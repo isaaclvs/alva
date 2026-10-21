@@ -1,0 +1,12 @@
+<div id="habitual_items">
+  <details <%= "open" if local_assigns[:open] %> class="group mt-3 rounded-2xl border border-zinc-800 bg-zinc-900/70">
+    <summary class="flex cursor-pointer list-none items-center justify-between px-3 py-2.5 text-sm font-medium text-zinc-300">
+      <span>Habituais</span>
+      <span aria-hidden="true" class="text-xs text-zinc-500 transition-transform group-open:rotate-180">⌄</span>
+    </summary>
+    <div class="space-y-3 border-t border-zinc-800 px-3 py-3">
+      <%= render "habitual_items/form", habitual_item: habitual_item, message: local_assigns[:message] %>
+      <%= render "habitual_items/list", household: household %>
+    </div>
+  </details>
+</div>

@@ -15,6 +15,7 @@
       <div id="entry_controls" data-market-mode-target="entryControls" <%= "hidden" if cookies[:market_mode] == "true" %>>
         <%= render "form", list_item: @list_item %>
         <%= render "buy_again", suggestions: @suggestions %>
+        <%= render "habitual_items/panel", household: @household, habitual_item: @habitual_item %>
       </div>
     </div>
     <div id="list_refresh_status" hidden role="status" aria-live="polite"

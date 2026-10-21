@@ -33,11 +33,11 @@ module ActiveSupport
     # test order; include it up front so every test can use it.
     include Turbo::Broadcastable::TestHelper
 
-    # A list refresh is a single broadcast that replaces the summary, the list
-    # and the "buy again" chips together. Returns the captured streams for further checks.
+    # A list refresh replaces the list surfaces together, including the habits
+    # inner list while preserving its surrounding disclosure and checked rows.
     def assert_list_broadcast(household, &block)
       streams = capture_turbo_stream_broadcasts(household, &block)
-      assert_equal [ %w[replace list_summary], %w[replace list_items], %w[replace buy_again] ],
+      assert_equal [ %w[replace list_summary], %w[replace list_items], %w[replace buy_again], %w[replace habitual_items_list] ],
         streams.map { |stream| [ stream["action"], stream["target"] ] }
       streams
     end

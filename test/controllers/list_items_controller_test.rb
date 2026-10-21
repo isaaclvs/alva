@@ -52,6 +52,7 @@ class ListItemsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "turbo-stream[action=replace][target=list_summary]"
     assert_select "turbo-stream[action=replace][target=list_items]", text: /Leite/
+    assert_select "turbo-stream[action=replace][target=habitual_items_list]"
   end
 
   test "index offers archived items to buy again and nothing without history" do

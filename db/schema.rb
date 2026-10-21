@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_21_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_21_000001) do
   create_table "catalog_items", force: :cascade do |t|
     t.integer "category_id", null: false
     t.datetime "created_at", null: false
@@ -28,6 +28,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_21_000000) do
     t.integer "position", null: false
     t.datetime "updated_at", null: false
     t.index ["name"], name: "index_categories_on_name", unique: true
+  end
+
+  create_table "habitual_items", force: :cascade do |t|
+    t.integer "household_id", null: false
+    t.string "name", null: false
+    t.string "normalized_name", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["household_id", "normalized_name"], name: "index_habitual_items_on_household_and_normalized_name", unique: true
+    t.index ["household_id"], name: "index_habitual_items_on_household_id"
   end
 
   create_table "households", force: :cascade do |t|
@@ -63,6 +73,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_21_000000) do
   end
 
   add_foreign_key "catalog_items", "categories"
+  add_foreign_key "habitual_items", "households"
   add_foreign_key "list_items", "categories"
   add_foreign_key "list_items", "households"
   add_foreign_key "list_items", "shopping_trips"

@@ -1,6 +1,7 @@
 class Household < ApplicationRecord
   has_many :list_items
   has_many :shopping_trips
+  has_many :habitual_items, dependent: :destroy
 
   # Key in ActiveSupport::IsolatedExecutionState: { household_id => changed? }
   # for each household currently inside batch_list_broadcasts.
@@ -137,7 +138,14 @@ class Household < ApplicationRecord
   # worth suggesting. All of it goes in a single broadcast.
   def broadcast_list
     Turbo::StreamsChannel.broadcast_render_to self, partial: "list_items/refresh",
-      locals: { groups: list_items_by_category, suggestions: BuyAgainSuggestions.call(self) }
+      locals: { groups: list_items_by_category, suggestions: BuyAgainSuggestions.call(self), household: self }
+  end
+
+  # Habits have their own stream target so a list refresh does not reset the
+  # disclosure state or checkboxes in the household's management section.
+  def broadcast_habitual_items
+    Turbo::StreamsChannel.broadcast_render_to self, partial: "habitual_items/refresh",
+      locals: { household: self }
   end
 
   # A list item changed (called by ListItem's after_commit). Broadcasts right

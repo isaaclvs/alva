@@ -15,6 +15,10 @@ Rails.application.routes.draw do
     post :restore, on: :collection
   end
   resources :shopping_trips, only: [ :create, :destroy ]
+  resources :habitual_items, only: [ :create, :destroy ] do
+    post :add_selected, on: :collection
+    post :add_all, on: :collection
+  end
 
   # GET /lista.pdf: shopping list download for printing.
   get "lista.pdf", to: "list_exports#show", as: :list_export, format: false
