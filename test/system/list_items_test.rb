@@ -190,9 +190,86 @@ class ListItemsTest < ApplicationSystemTestCase
     ListItem.insert!({ name: "Banana", household_id: households(:home).id, category_id: categories(:produce).id })
     assert_no_text "Banana"
 
-    page.execute_script(%(document.dispatchEvent(new Event("visibilitychange"))))
+    page.execute_script(<<~JS)
+      Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" })
+      document.dispatchEvent(new Event("visibilitychange"))
+      Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" })
+      document.dispatchEvent(new Event("visibilitychange"))
+    JS
     within("#category_#{categories(:produce).id}") { assert_text "Banana" }
     within("#list_summary") { assert_text "2 faltando" }
+  end
+
+  test "catches up when the cable reconnects while the page stays visible" do
+    using_session(:other) do
+      visit root_path
+      connect_turbo_cable_stream_sources
+    end
+
+    visit root_path
+    connect_turbo_cable_stream_sources
+    assert_text "Leite"
+    assert_equal "visible", page.evaluate_script("document.visibilityState")
+
+    page.execute_script(<<~JS)
+      const source = document.querySelector("turbo-cable-stream-source")
+      window.__cableConnection = source.subscription.consumer.connection
+      window.__cableConnection.close({ allowReconnect: false })
+    JS
+    assert_no_selector "turbo-cable-stream-source[connected]"
+
+    using_session(:other) do
+      households(:home).add_item("Banana")
+      within("#category_#{categories(:produce).id}") { assert_text "Banana" }
+    end
+    assert_no_text "Banana"
+
+    page.execute_script("window.__cableConnection.open()")
+    within("#category_#{categories(:produce).id}") { assert_text "Banana" }
+    within("#list_summary") { assert_text "2 faltando" }
+    assert_equal "visible", page.evaluate_script("document.visibilityState")
+  end
+
+  test "a failed refresh shows a retry and a successful retry clears it" do
+    visit root_path
+    page.execute_script(<<~JS)
+      window.__alvaFetch = window.fetch
+      window.fetch = (...args) => Promise.reject(new TypeError("Failed to fetch"))
+      document.dispatchEvent(new CustomEvent("list-refresh:request", { detail: { reason: "test", force: true } }))
+    JS
+
+    assert_text "Não foi possível atualizar a lista"
+    assert_button "Tentar novamente"
+
+    page.execute_script("window.fetch = window.__alvaFetch")
+    click_button "Tentar novamente"
+    assert_no_button "Tentar novamente"
+  end
+
+  test "a resync preserves a typed add draft and an in-progress correction" do
+    visit root_path
+    fill_in "Item", with: "Tomate escrito"
+    request_list_refresh
+    assert_field "Item", with: "Tomate escrito"
+
+    click_on "Editar Leite"
+    fill_in "Nome", with: "Leite corrigido"
+    request_list_refresh
+    assert_field "Nome", with: "Leite corrigido"
+    assert_selector "##{dom_id(list_items(:milk), :row)} form"
+  end
+
+  test "a list broadcast preserves a correction draft in the replaced list" do
+    visit root_path
+    connect_turbo_cable_stream_sources
+    click_on "Editar Leite"
+    fill_in "Nome", with: "Leite ainda em edição"
+
+    list_items(:milk).update!(name: "Leite atualizado em outro aparelho")
+    households(:home).broadcast_list
+
+    assert_field "Nome", with: "Leite ainda em edição"
+    assert_selector "##{dom_id(list_items(:milk), :row)} form"
   end
 
   test "summary counts update live when marking an item" do
@@ -263,5 +340,22 @@ class ListItemsTest < ApplicationSystemTestCase
 
     click_button "Leite"
     assert_button "Compra feita"
+  end
+
+  private
+
+  def request_list_refresh
+    page.driver.browser.execute_async_script(<<~JS)
+      const done = arguments[arguments.length - 1]
+      const handler = (event) => {
+        if (event.detail.reason !== "test") return
+        document.removeEventListener("list-refresh:success", handler)
+        done()
+      }
+      document.addEventListener("list-refresh:success", handler)
+      document.dispatchEvent(new CustomEvent("list-refresh:request", {
+        detail: { reason: "test", force: true }
+      }))
+    JS
   end
 end
