@@ -1,6 +1,26 @@
 require "application_system_test_case"
 
 class MarketModeTest < ApplicationSystemTestCase
+  test "market mode hides habitual items and preserves their draft and selection" do
+    habit = Household.first!.habitual_items.create!(name: "Arroz")
+    visit root_path
+    within("#habitual_items") do
+      find("summary").click
+      check "Arroz"
+      fill_in "Salvar item habitual", with: "Café"
+    end
+
+    click_button "Ir ao mercado"
+    assert_no_selector "#habitual_items", visible: true
+    request_list_refresh
+    assert_no_selector "#habitual_items", visible: true
+    click_button "Voltar à lista"
+
+    assert_selector "#habitual_items details[open]"
+    assert_checked_field "habitual_item_#{habit.id}_checkbox"
+    assert_field "Salvar item habitual", with: "Café"
+  end
+
   test "market mode hides entry shortcuts and keeps list actions available" do
     visit root_path
 
