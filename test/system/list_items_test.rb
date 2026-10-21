@@ -211,10 +211,11 @@ class ListItemsTest < ApplicationSystemTestCase
     assert_text "Leite"
     assert_equal "visible", page.evaluate_script("document.visibilityState")
 
-    page.execute_script(<<~JS)
-      const source = document.querySelector("turbo-cable-stream-source")
-      window.__cableConnection = source.subscription.consumer.connection
-      window.__cableConnection.close({ allowReconnect: false })
+    page.driver.browser.execute_async_script(<<~JS)
+      const done = arguments[arguments.length - 1]
+      window.__cableConsumer = await (await import("@hotwired/turbo-rails")).cable.getConsumer()
+      window.__cableConsumer.disconnect()
+      done()
     JS
     assert_no_selector "turbo-cable-stream-source[connected]"
 
@@ -224,7 +225,7 @@ class ListItemsTest < ApplicationSystemTestCase
     end
     assert_no_text "Banana"
 
-    page.execute_script("window.__cableConnection.open()")
+    page.execute_script("window.__cableConsumer.connect()")
     within("#category_#{categories(:produce).id}") { assert_text "Banana" }
     within("#list_summary") { assert_text "2 faltando" }
     assert_equal "visible", page.evaluate_script("document.visibilityState")
@@ -270,6 +271,8 @@ class ListItemsTest < ApplicationSystemTestCase
 
     assert_field "Nome", with: "Leite ainda em edição"
     assert_selector "##{dom_id(list_items(:milk), :row)} form"
+    click_on "Cancelar"
+    assert_text "Leite atualizado em outro aparelho"
   end
 
   test "summary counts update live when marking an item" do

@@ -76,7 +76,7 @@ export default class extends Controller {
   }
 
   handleSubmitStart(event) {
-    if (event.target.closest("turbo-frame[id$='_row']")) this.correctionSubmissionInFlight = true
+    if (event.target.matches("form[data-list-refresh-correction]")) this.correctionSubmissionInFlight = true
   }
 
   handleWindowBlur() {
@@ -90,7 +90,7 @@ export default class extends Controller {
   }
 
   handleSubmitEnd(event) {
-    if (event.target.closest("turbo-frame[id$='_row']")) this.correctionSubmissionInFlight = false
+    if (event.target.matches("form[data-list-refresh-correction]")) this.correctionSubmissionInFlight = false
   }
 
   refresh(eventOrOptions = {}) {
@@ -183,13 +183,15 @@ export default class extends Controller {
       const rendering = new Promise((resolve) => { finishRendering = resolve })
       const renderState = { startingRevision: startingStreamRevision, remaining: streamElements.length, stale: false, finish: finishRendering }
       this.refreshStreamRevisions.set(requestId, renderState)
-      setTimeout(() => this.refreshStreamRevisions?.delete(requestId), 30000)
       streamElements.forEach((element) => {
         element.dataset.listRefreshRequestId = requestId
       })
       Turbo.renderStreamMessage(template.innerHTML)
       if (renderState.remaining === 0) finishRendering()
       await rendering
+      this.refreshStreamRevisions.delete(requestId)
+      if (timedOut) throw new Error("Refresh timed out")
+      if (abortController.signal.aborted) return
       if (renderState.stale) {
         this.queuedRefresh = { reason, form, force: true }
         return
@@ -205,6 +207,7 @@ export default class extends Controller {
       this.dispatchRefreshResult("list-refresh:failure", { reason, form, requestId, success: false, error })
     }).finally(() => {
       clearTimeout(timeout)
+      this.refreshStreamRevisions?.delete(requestId)
       if (requestId !== this.requestId) return
       this.activeRequest = null
       const queuedRefresh = this.queuedRefresh
@@ -268,6 +271,10 @@ export default class extends Controller {
             this.queuedRefresh = { reason: "stale-refresh", force: true }
           } else {
             await render(streamElement)
+            if (renderState.startingRevision !== this.streamRevision) {
+              renderState.stale = true
+              this.queuedRefresh = { reason: "stale-refresh", force: true }
+            }
           }
         } finally {
           renderState.remaining -= 1
@@ -279,7 +286,7 @@ export default class extends Controller {
     if (stream.getAttribute("target") !== "list_items") return
     if (this.correctionSubmissionInFlight) return
 
-    const editingFrame = document.querySelector("#list_items turbo-frame form")?.closest("turbo-frame")
+    const editingFrame = document.querySelector("#list_items turbo-frame form[data-list-refresh-correction]")?.closest("turbo-frame")
     if (!editingFrame) return
 
     const incomingFrame = stream.templateElement.content.querySelector(`#${CSS.escape(editingFrame.id)}`)
@@ -290,7 +297,6 @@ export default class extends Controller {
 
     const controls = Array.from(editingFrame.querySelectorAll("input, select, textarea"))
     const draft = controls.map((control) => ({
-      id: control.id,
       value: control.value,
       checked: control.checked,
       selectionStart: this.selectionStart(control),
@@ -298,32 +304,49 @@ export default class extends Controller {
     }))
     const activeId = document.activeElement?.id
     const preservedFrame = editingFrame.cloneNode(true)
-    for (const controlDraft of draft) {
-      const control = preservedFrame.querySelector(`#${CSS.escape(controlDraft.id)}`)
-      if (!control) continue
-      if (control.type === "checkbox" || control.type === "radio") control.checked = controlDraft.checked
-      else control.value = controlDraft.value
-    }
+    preservedFrame.removeAttribute("src")
+    const preservedControls = Array.from(preservedFrame.querySelectorAll("input, select, textarea"))
+    draft.forEach((controlDraft, index) => {
+      const control = preservedControls[index]
+      if (!control) return
+      this.restoreControlDraft(control, controlDraft)
+    })
     incomingFrame.replaceWith(preservedFrame)
 
     const render = event.detail.render
     event.detail.render = async (streamElement) => {
       await render(streamElement)
-      for (const controlDraft of draft) {
-        const control = document.getElementById(controlDraft.id)
-        if (!control) continue
-        const renderedValue = control.type === "checkbox" || control.type === "radio" ? control.checked : control.value
-        const previousValue = control.type === "checkbox" || control.type === "radio" ? controlDraft.checked : controlDraft.value
-        if (renderedValue !== previousValue) continue
-        if (control.type === "checkbox" || control.type === "radio") control.checked = controlDraft.checked
-        else control.value = controlDraft.value
-        if (controlDraft.id === activeId) {
+      const renderedControls = Array.from(document.getElementById(editingFrame.id)?.querySelectorAll("input, select, textarea") || [])
+      draft.forEach((controlDraft, index) => {
+        const control = renderedControls[index]
+        if (!control) return
+        this.restoreControlDraft(control, controlDraft)
+        if (control.id === activeId) {
           control.focus({ preventScroll: true })
           if (controlDraft.selectionStart !== null) {
             control.setSelectionRange(controlDraft.selectionStart, controlDraft.selectionEnd)
           }
         }
-      }
+      })
+    }
+  }
+
+  restoreControlDraft(control, draft) {
+    if (control instanceof HTMLSelectElement) {
+      Array.from(control.options).forEach((option) => {
+        option.selected = option.value === draft.value
+        option.toggleAttribute("selected", option.selected)
+      })
+      control.value = draft.value
+    } else if (control instanceof HTMLTextAreaElement) {
+      control.value = draft.value
+      control.textContent = draft.value
+    } else if (control.type === "checkbox" || control.type === "radio") {
+      control.checked = draft.checked
+      control.toggleAttribute("checked", draft.checked)
+    } else {
+      control.value = draft.value
+      control.setAttribute("value", draft.value)
     }
   }
 
