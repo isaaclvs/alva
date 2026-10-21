@@ -19,7 +19,8 @@ class ApplicationController < ActionController::Base
   def list_refresh_stream
     render_to_string partial: "list_items/refresh", locals: {
       groups: current_household.list_items_by_category,
-      suggestions: BuyAgainSuggestions.call(current_household)
+      suggestions: BuyAgainSuggestions.call(current_household),
+      household: current_household
     }
   end
 

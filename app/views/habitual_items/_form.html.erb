@@ -1,0 +1,11 @@
+<div id="habitual_item_form">
+  <%= form_with model: habitual_item, url: habitual_items_path, class: "flex gap-2" do |form| %>
+    <%= form.label :name, "Salvar item habitual", class: "sr-only" %>
+    <%= form.text_field :name, placeholder: "Ex.: café", maxlength: 100,
+          class: "min-w-0 flex-1 rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500" %>
+    <%= form.submit "Salvar", class: "rounded-xl bg-zinc-800 px-3 py-2 text-sm font-medium text-zinc-200 active:bg-zinc-700" %>
+  <% end %>
+  <% if local_assigns[:message].present? %>
+    <p role="status" aria-live="polite" class="mt-2 text-xs text-red-300"><%= local_assigns[:message] %></p>
+  <% end %>
+</div>

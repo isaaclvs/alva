@@ -3,11 +3,12 @@ class ListItemsController < ApplicationController
     @household = current_household
     @groups = @household.list_items_by_category
     @suggestions = BuyAgainSuggestions.call(@household)
+    @habitual_item = HabitualItem.new
 
     respond_to do |format|
       format.html { @list_item = ListItem.new }
       # Resync when the app comes back to the foreground (list_refresh_controller.js).
-      format.turbo_stream { render partial: "refresh", locals: { groups: @groups, suggestions: @suggestions } }
+      format.turbo_stream { render partial: "refresh", locals: { groups: @groups, suggestions: @suggestions, household: @household } }
     end
   end
 

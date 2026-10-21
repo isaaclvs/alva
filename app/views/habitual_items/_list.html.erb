@@ -1,0 +1,28 @@
+<div id="habitual_items_list" class="space-y-3">
+  <% habits = household.habitual_items.order(:normalized_name, :id) %>
+  <% if habits.any? %>
+    <div class="space-y-2" aria-label="Lista de habituais">
+      <% habits.each do |habit| %>
+        <div id="habitual_item_<%= habit.id %>" data-turbo-permanent class="flex items-center gap-2">
+          <label for="habitual_item_<%= habit.id %>_checkbox" class="flex min-w-0 flex-1 items-center gap-2 text-sm text-zinc-300">
+            <%= check_box_tag "habitual_item_ids[]", habit.id, false,
+                  id: "habitual_item_#{habit.id}_checkbox", form: "habitual_item_selection",
+                  class: "rounded border-zinc-600 bg-zinc-950 text-teal-400 focus:ring-teal-400" %>
+            <span class="truncate"><%= habit.name %></span>
+          </label>
+          <%= button_to "Remover", habitual_item_path(habit), method: :delete,
+                form: { class: "shrink-0" }, aria: { label: "Remover item habitual #{habit.name}" },
+                class: "rounded-lg px-2 py-1 text-xs text-zinc-500 underline underline-offset-2 active:text-zinc-300" %>
+        </div>
+      <% end %>
+    </div>
+
+    <%= form_with url: add_selected_habitual_items_path, id: "habitual_item_selection" do %>
+      <%= submit_tag "Adicionar selecionados", class: "w-full rounded-xl bg-teal-950 px-3 py-2 text-sm font-medium text-teal-200 active:bg-teal-900" %>
+    <% end %>
+    <%= button_to "Adicionar todos", add_all_habitual_items_path,
+          class: "w-full rounded-xl border border-zinc-700 px-3 py-2 text-sm text-zinc-300 active:bg-zinc-800" %>
+  <% else %>
+    <p class="text-sm text-zinc-500">Ainda não há itens habituais salvos.</p>
+  <% end %>
+</div>
