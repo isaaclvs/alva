@@ -17,13 +17,11 @@ export default class extends Controller {
     this.handleSubmitStart = this.handleSubmitStart.bind(this)
     this.handleSubmitEnd = this.handleSubmitEnd.bind(this)
     this.handleResynced = this.handleResynced.bind(this)
-    this.handleRefreshSuccess = this.handleRefreshSuccess.bind(this)
 
     document.addEventListener("submit", this.handleSubmit, true)
     document.addEventListener("turbo:submit-start", this.handleSubmitStart)
     document.addEventListener("turbo:submit-end", this.handleSubmitEnd)
     document.addEventListener("alva:mutation-resynced", this.handleResynced)
-    document.addEventListener("list-refresh:success", this.handleRefreshSuccess)
   }
 
   disconnect() {
@@ -31,7 +29,6 @@ export default class extends Controller {
     document.removeEventListener("turbo:submit-start", this.handleSubmitStart)
     document.removeEventListener("turbo:submit-end", this.handleSubmitEnd)
     document.removeEventListener("alva:mutation-resynced", this.handleResynced)
-    document.removeEventListener("list-refresh:success", this.handleRefreshSuccess)
   }
 
   handleSubmit(event) {
@@ -109,7 +106,7 @@ export default class extends Controller {
     if (!(form instanceof HTMLFormElement)) return
 
     const key = form.dataset.mutationPendingAction || this.actionKey(form)
-    if (!this.pendingActions.has(key)) return
+    if (!this.pendingActions.has(key) || this.pendingActionForms.get(key) !== form) return
     if (!success) {
       this.showError(form, RESYNC_FAILED_ERROR)
       return
@@ -119,19 +116,6 @@ export default class extends Controller {
     this.pendingActionForms.delete(key)
     delete form.dataset.mutationPendingAction
     this.showError(form, RESYNCED_ERROR)
-  }
-
-  handleRefreshSuccess(event) {
-    // A manual retry can resolve a failed uncertain refresh even though it
-    // has a different reason than the original mutation-triggered request.
-    if (event.detail?.reason !== "retry") return
-
-    this.pendingActionForms.forEach((form, key) => {
-      this.pendingActions.delete(key)
-      this.pendingActionForms.delete(key)
-      delete form.dataset.mutationPendingAction
-      this.showError(form, RESYNCED_ERROR)
-    })
   }
 
   actionKey(form) {
