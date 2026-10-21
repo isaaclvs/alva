@@ -2,6 +2,8 @@
 
 **Estado em 21/10/2026:** roteiro preparado; aparelhos físicos, versão Android/Chrome e evidências ainda pendentes. Nenhum teste físico é declarado como concluído.
 
+**Validação automática da versão `68cd368`:** `COVERAGE=1 bin/rails test` passou (266 testes, 1.025 assertions, seed 51897); `bin/rails test:system` passou com Chrome/ChromeDriver 156 (67 testes, 315 assertions, seed 11727). CI da mesma versão aprovado: https://github.com/isaaclvs/alva/actions/runs/39689970492. Esses resultados não validam aparelhos físicos ou a configuração ativa do servidor.
+
 **Checagem desta sessão:** `adb devices -l` não listou aparelhos conectados. O Tailscale local estava ativo e o peer Atlas aparecia online. Uma tentativa HTTPS para uma URL candidata falhou ao conectar à porta 443 (`curl` código 7); a URL publicada/rota efetiva ainda não foi confirmada. Esse resultado não permite concluir que o app esteja fora do ar ou que a URL candidata seja a rota correta.
 
 ## Antes de começar
