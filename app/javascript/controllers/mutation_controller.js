@@ -12,15 +12,18 @@ export default class extends Controller {
     this.inFlight = new WeakSet()
     this.activeActions = new Set()
     this.pendingActions = new Set()
+    this.pendingActionForms = new Map()
     this.handleSubmit = this.handleSubmit.bind(this)
     this.handleSubmitStart = this.handleSubmitStart.bind(this)
     this.handleSubmitEnd = this.handleSubmitEnd.bind(this)
     this.handleResynced = this.handleResynced.bind(this)
+    this.handleRefreshSuccess = this.handleRefreshSuccess.bind(this)
 
     document.addEventListener("submit", this.handleSubmit, true)
     document.addEventListener("turbo:submit-start", this.handleSubmitStart)
     document.addEventListener("turbo:submit-end", this.handleSubmitEnd)
     document.addEventListener("alva:mutation-resynced", this.handleResynced)
+    document.addEventListener("list-refresh:success", this.handleRefreshSuccess)
   }
 
   disconnect() {
@@ -28,11 +31,13 @@ export default class extends Controller {
     document.removeEventListener("turbo:submit-start", this.handleSubmitStart)
     document.removeEventListener("turbo:submit-end", this.handleSubmitEnd)
     document.removeEventListener("alva:mutation-resynced", this.handleResynced)
+    document.removeEventListener("list-refresh:success", this.handleRefreshSuccess)
   }
 
   handleSubmit(event) {
     const form = event.target
     if (!(form instanceof HTMLFormElement)) return
+    if (!this.isTurboMutation(form)) return
 
     const key = this.actionKey(form)
     if (this.inFlight.has(form) || this.activeActions.has(key) || this.pendingActions.has(key)) {
@@ -51,7 +56,7 @@ export default class extends Controller {
 
   handleSubmitStart(event) {
     const form = event.detail.formSubmission?.formElement
-    if (!(form instanceof HTMLFormElement)) return
+    if (!(form instanceof HTMLFormElement) || !this.isTurboMutation(form)) return
 
     form.dataset.mutationSubmitting = "true"
     form.querySelectorAll("button, input[type=submit]").forEach((control) => {
@@ -63,7 +68,7 @@ export default class extends Controller {
 
   handleSubmitEnd(event) {
     const form = event.detail.formSubmission?.formElement
-    if (!(form instanceof HTMLFormElement)) return
+    if (!(form instanceof HTMLFormElement) || !this.isTurboMutation(form)) return
 
     const key = form.dataset.mutationActionKey || this.actionKey(form)
     this.inFlight.delete(form)
@@ -80,15 +85,20 @@ export default class extends Controller {
     // A 422 is an application validation response whose form already explains
     // the problem. Other failures leave the submitted values available.
     const status = event.detail.fetchResponse?.statusCode
-    if (status !== 422 && status !== 409) this.showError(form, REQUEST_ERROR)
+    // These responses explain a known rejection and may already render their
+    // own validation/conflict stream. They do not need uncertain-outcome sync.
+    if (status === 422 || status === 409) return
+
+    this.showError(form, REQUEST_ERROR)
 
     this.pendingActions.add(key)
+    this.pendingActionForms.set(key, form)
     form.dataset.mutationPendingAction = key
     document.dispatchEvent(new CustomEvent("alva:mutation-uncertain", {
       detail: {
         form,
         url: form.action,
-        method: form.method.toUpperCase(),
+        method: this.requestMethod(form),
         submitter: event.detail.formSubmission?.submitter
       }
     }))
@@ -105,15 +115,38 @@ export default class extends Controller {
     }
 
     this.pendingActions.delete(key)
+    this.pendingActionForms.delete(key)
     delete form.dataset.mutationPendingAction
     this.showError(form, RESYNCED_ERROR)
   }
 
-  actionKey(form) {
-    return `${form.method.toUpperCase()} ${new URL(form.action, window.location.href).pathname}`
+  handleRefreshSuccess(event) {
+    // A manual retry can resolve a failed uncertain refresh even though it
+    // has a different reason than the original mutation-triggered request.
+    if (event.detail?.reason !== "retry") return
+
+    this.pendingActionForms.forEach((form, key) => {
+      this.pendingActions.delete(key)
+      this.pendingActionForms.delete(key)
+      delete form.dataset.mutationPendingAction
+      this.showError(form, RESYNCED_ERROR)
+    })
   }
 
-  showError(form, message) {
+  actionKey(form) {
+    return `${this.requestMethod(form)} ${new URL(form.action, window.location.href).pathname}`
+  }
+
+  requestMethod(form) {
+    return (form.querySelector('input[name="_method"]')?.value || form.method).toUpperCase()
+  }
+
+  isTurboMutation(form) {
+    if (!["POST", "PUT", "PATCH", "DELETE"].includes(this.requestMethod(form))) return false
+    return !form.closest('[data-turbo="false"]')
+  }
+
+  showError(_form, message) {
     const status = document.getElementById("mutation_status")
     if (!status) return
     status.textContent = message
