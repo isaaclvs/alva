@@ -24,6 +24,15 @@ class Household < ApplicationRecord
   # one of :created, :revived, :duplicate or :invalid.
   AddResult = Struct.new(:item, :outcome)
 
+  # SQLite ignores row-level SELECT ... FOR UPDATE. A harmless UPDATE obtains
+  # its database write lock, serializing state transitions for this household.
+  def with_list_lock
+    transaction do
+      self.class.where(id: id).update_all("updated_at = updated_at")
+      yield
+    end
+  end
+
   # The single entry point for putting a name on the list. Returns an AddResult:
   # - :created   a new pending item was saved;
   # - :revived   the name matched a purchased item, which is pending again
@@ -31,17 +40,24 @@ class Household < ApplicationRecord
   # - :duplicate the name is already pending; `item` is that existing item;
   # - :invalid   nothing saved; `item.errors` says why (e.g. blank name).
   def add_item(name)
-    existing = pending_item_named(name)
-    return AddResult.new(existing, :duplicate) if existing
+    with_list_lock do
+      existing = pending_item_named(name)
+      next AddResult.new(existing, :duplicate) if existing
 
-    purchased = purchased_item_named(name)
-    if purchased
-      purchased.toggle_purchased!
-      return AddResult.new(purchased, :revived)
+      purchased = purchased_item_named(name)
+      if purchased
+        purchased.toggle_purchased!
+        next AddResult.new(purchased, :revived)
+      end
+
+      item = list_items.new(name: name)
+      begin
+        AddResult.new(item, item.save ? :created : :invalid)
+      rescue ActiveRecord::RecordNotUnique
+        existing = pending_item_named(name)
+        AddResult.new(existing || item, existing ? :duplicate : :invalid)
+      end
     end
-
-    item = list_items.new(name: name)
-    AddResult.new(item, item.save ? :created : :invalid)
   end
 
   # Adds every name typed in the add field (see ItemNameSplitter for the
@@ -50,7 +66,7 @@ class Household < ApplicationRecord
   # Text with no names in it counts as one invalid attempt, like a blank name.
   def add_items(text)
     names = ItemNameSplitter.call(text).presence || [ "" ]
-    batch_list_broadcasts { names.map { |name| add_item(name) } }
+    batch_list_broadcasts { with_list_lock { names.map { |name| add_item(name) } } }
   end
 
   # "Compra feita": records a ShoppingTrip and archives the purchased items on
@@ -59,8 +75,8 @@ class Household < ApplicationRecord
   # One UPDATE and one broadcast, instead of one per item (update_all skips the
   # per-item callbacks).
   def finish_shopping!
-    now = Time.current
-    trip = transaction do
+    trip = with_list_lock do
+      now = Time.current
       trip = shopping_trips.create!(finished_at: now)
       archived = list_items.on_list.purchased.update_all(shopping_trip_id: trip.id, updated_at: now)
       raise ActiveRecord::Rollback if archived.zero?
@@ -78,7 +94,7 @@ class Household < ApplicationRecord
   # changes nothing) for any other. Items already back on the list are not
   # duplicated.
   def undo_shopping!(trip)
-    undone = transaction do
+    undone = with_list_lock do
       next false unless trip.household_id == id && trip == latest_shopping_trip
 
       # An item put on the list again after the trip ("Leite" typed meanwhile)
@@ -105,9 +121,14 @@ class Household < ApplicationRecord
   # pending item with the same name was added meanwhile.
   def restore_item(snapshot)
     return unless snapshot["household_id"] == id
-    return if ListItem.exists?(snapshot["id"]) || pending_item_named(snapshot["name"])
 
-    list_items.create!(snapshot.slice(*ListItemSnapshot::ATTRIBUTES - %w[household_id]))
+    with_list_lock do
+      next if ListItem.exists?(snapshot["id"]) || pending_item_named(snapshot["name"])
+
+      list_items.create!(snapshot.slice(*ListItemSnapshot::ATTRIBUTES - %w[household_id]))
+    rescue ActiveRecord::RecordNotUnique
+      nil
+    end
   end
 
   # Re-render the whole grouped list, its summary and the "buy again" chips for

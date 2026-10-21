@@ -52,28 +52,51 @@ class ListItemsController < ApplicationController
   end
 
   def update
-    @list_item = current_household.list_items.on_list.find(params[:id])
-    correction = params.expect(list_item: [ :name, :category_id ])
+    correction = params.expect(list_item: [ :name, :category_id, :lock_version ])
+    @list_item = nil
+    current_household.with_list_lock do
+      @list_item = current_household.list_items.on_list.find_by(id: params[:id])
+      return missing_or_stale_item unless @list_item
+      return stale_list_action if stale_version?(@list_item, correction[:lock_version])
 
-    if @list_item.correct(name: correction[:name], category_id: correction[:category_id])
-      render_list
-    else
-      render :edit, status: :unprocessable_entity
+      unless @list_item.correct(name: correction[:name], category_id: correction[:category_id])
+        return render :edit, status: :unprocessable_entity
+      end
     end
+
+    if @list_item
+      render_list
+    end
+  rescue ListItem::StaleAction
+    stale_list_action
   end
 
   def toggle
-    @list_item = current_household.list_items.on_list.find(params[:id])
-    @list_item.toggle_purchased!
+    @list_item = nil
+    current_household.with_list_lock do
+      @list_item = current_household.list_items.on_list.find_by(id: params[:id])
+      return missing_or_stale_item unless @list_item
+      return stale_list_action if stale_version?(@list_item, params[:lock_version])
+
+      return stale_list_action unless @list_item.toggle_purchased!
+    end
 
     render_list
+  rescue ListItem::StaleAction
+    stale_list_action
   end
 
   # For items added by mistake: no confirmation. The toast in the response
   # (only for whoever removed it) carries a signed snapshot to undo with.
   def destroy
-    item = current_household.list_items.on_list.find(params[:id])
-    item.destroy!
+    item = nil
+    current_household.with_list_lock do
+      item = current_household.list_items.on_list.find_by(id: params[:id])
+      return missing_or_stale_item unless item
+      return stale_list_action if stale_version?(item, params[:lock_version])
+
+      item.destroy!
+    end
 
     render_list toast: { message: "#{item.name} removido",
       undo: { path: restore_list_items_path, params: { token: ListItemSnapshot.dump(item) } } }
@@ -129,5 +152,15 @@ class ListItemsController < ApplicationController
 
   def list_item_params
     params.expect(list_item: [ :name ])
+  end
+
+  def missing_or_stale_item
+    return head :not_found if ListItem.exists?(params[:id]) && !current_household.list_items.exists?(params[:id])
+
+    stale_list_action
+  end
+
+  def stale_version?(item, version)
+    version.present? && item.lock_version.to_s != version.to_s
   end
 end

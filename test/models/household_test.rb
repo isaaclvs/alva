@@ -314,7 +314,8 @@ class HouseholdTest < ActiveSupport::TestCase
   test "add_item prefers the pending duplicate over a purchased match" do
     household = households(:home)
     # insert! skips the pending-duplicate validation, which doesn't look at the new item's status.
-    ListItem.insert!({ name: "Leite", household_id: household.id, status: 1, purchased_at: 1.hour.ago })
+    ListItem.insert!({ name: "Leite", normalized_name: "leite", household_id: household.id,
+      status: 1, purchased_at: 1.hour.ago })
 
     result = household.add_item("Leite")
 

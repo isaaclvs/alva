@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_18_020527) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_21_000000) do
   create_table "catalog_items", force: :cascade do |t|
     t.integer "category_id", null: false
     t.datetime "created_at", null: false
@@ -46,7 +46,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_18_020527) do
     t.integer "shopping_trip_id"
     t.integer "status", default: 0, null: false
     t.datetime "updated_at", null: false
+    t.string "normalized_name", null: false
+    t.integer "lock_version", default: 0, null: false
     t.index ["category_id"], name: "index_list_items_on_category_id"
+    t.index ["household_id", "normalized_name"], name: "index_pending_list_items_on_household_and_normalized_name", unique: true, where: "status = 0 AND shopping_trip_id IS NULL"
     t.index ["household_id"], name: "index_list_items_on_household_id"
     t.index ["shopping_trip_id"], name: "index_list_items_on_shopping_trip_id"
   end

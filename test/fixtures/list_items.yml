@@ -1,5 +1,6 @@
 milk:
   name: Leite
+  normalized_name: leite
   category: dairy
   household: home
   status: pending
@@ -9,6 +10,7 @@ milk:
 
 detergent:
   name: Detergente
+  normalized_name: detergente
   household: home
   status: purchased
   position: 2

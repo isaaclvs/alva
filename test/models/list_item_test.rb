@@ -73,6 +73,16 @@ class ListItemTest < ActiveSupport::TestCase
     assert_nil item.purchased_at
   end
 
+  test "toggle_purchased! refuses to create a second pending normalized name" do
+    household = households(:home)
+    purchased = household.list_items.create!(name: "Feijão", status: :purchased, purchased_at: Time.current)
+    household.list_items.create!(name: "Feijao")
+
+    assert_not purchased.toggle_purchased!
+    assert purchased.reload.purchased?
+    assert purchased.errors.of_kind?(:name, :duplicate_pending)
+  end
+
   test "broadcasts the list to the household on create" do
     assert_list_broadcast households(:home) do
       ListItem.create!(name: "Arroz", household: households(:home))
@@ -218,6 +228,17 @@ class ListItemTest < ActiveSupport::TestCase
     assert item.errors.of_kind?(:name, :blank)
     assert_equal "Leite", item.reload.name
     assert_not CatalogItem.where(learned: true).exists?
+  end
+
+  test "correct refuses a stale in-memory row" do
+    item = households(:home).list_items.create!(name: "Bananna")
+    stale_copy = ListItem.find(item.id)
+    item.update!(name: "Banana nova")
+
+    assert_raises(ListItem::StaleAction) do
+      stale_copy.correct(name: "Banana antiga", category_id: item.category_id)
+    end
+    assert_equal "Banana nova", item.reload.name
   end
 
   test "correct refuses a name that is already pending" do

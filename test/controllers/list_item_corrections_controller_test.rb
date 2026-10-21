@@ -72,7 +72,7 @@ class ListItemCorrectionsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Banana", item.reload.name
   end
 
-  test "edit and update only find items on this household's list" do
+  test "edit returns 404 off-list and update resyncs an archived row" do
     trip = households(:home).finish_shopping!
     archived = trip.list_items.first
     other = Household.create!(name: "Outra").list_items.create!(name: "Arroz")
@@ -81,7 +81,8 @@ class ListItemCorrectionsControllerTest < ActionDispatch::IntegrationTest
       get edit_list_item_path(item), headers: FRAME
       assert_response :not_found
       patch list_item_path(item), params: { list_item: { name: "X", category_id: "" } }, headers: STREAM
-      assert_response :not_found
+      assert_response(item == archived ? :conflict : :not_found)
+      assert_includes response.body, "A lista mudou em outro aparelho" if item == archived
     end
   end
 end
