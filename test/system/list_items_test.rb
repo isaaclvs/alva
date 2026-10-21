@@ -286,8 +286,10 @@ class ListItemsTest < ApplicationSystemTestCase
     category_id = category_field[:id]
     page.execute_script("document.getElementById(arguments[0]).focus()", category_id)
 
+    list_items(:detergent).update!(name: "Detergente atualizado com seletor aberto")
     households(:home).broadcast_list
 
+    assert_text "Detergente atualizado com seletor aberto"
     within(frame_selector) { assert_equal category_value, find_field("Categoria").value }
     assert page.evaluate_script("document.activeElement.id === #{category_id.to_json}")
   end
