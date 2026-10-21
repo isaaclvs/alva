@@ -17,7 +17,8 @@ permissions:
 
 jobs:
   scan_ruby:
-    runs-on: ubuntu-latest
+    # Ruby 3.3.4 has a prebuilt binary for 24.04, but not newer runner images.
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -34,7 +35,7 @@ jobs:
         run: bin/bundler-audit
 
   scan_js:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -48,7 +49,7 @@ jobs:
         run: bin/importmap audit
 
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       RUBOCOP_CACHE_ROOT: tmp/rubocop
     steps:
@@ -75,7 +76,7 @@ jobs:
 
   test:
     name: test (Ruby ${{ matrix.ruby }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -114,7 +115,7 @@ jobs:
           if-no-files-found: ignore
 
   system-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Install packages
         run: sudo apt-get update && sudo apt-get install --no-install-recommends -y libvips
@@ -142,7 +143,7 @@ jobs:
 
   database:
     name: migrations, seeds and autoloading
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       RAILS_ENV: development
     steps:
@@ -170,7 +171,7 @@ jobs:
 
   production:
     name: production boot (like the Atlas)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       RAILS_ENV: production
       BUNDLE_WITHOUT: development:test
