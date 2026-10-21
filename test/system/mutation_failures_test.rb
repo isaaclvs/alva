@@ -225,7 +225,7 @@ class MutationFailuresTest < ApplicationSystemTestCase
     click_button "Desfazer"
 
     assert_selector "##{dom_id(list_items(:milk))}", text: "Leite"
-    assert_no_selector "##{dom_id(list_items(:milk))} .line-through"
+    assert_selector "##{dom_id(list_items(:milk))} .line-through", text: "Leite"
   end
 
   private
