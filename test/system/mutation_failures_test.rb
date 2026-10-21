@@ -154,6 +154,26 @@ class MutationFailuresTest < ApplicationSystemTestCase
     end
   end
 
+  test "resync timeout keeps the mutation gated until manual retry succeeds" do
+    visit root_path
+    fill_in "Item", with: "Banana"
+    make_mutation_and_resync_timeout
+
+    click_button "Adicionar"
+
+    assert_text RESYNC_FAILED_ERROR
+    click_button "Adicionar"
+    assert_text "Aguarde a resposta antes de tentar novamente."
+
+    click_button "Tentar novamente"
+    assert_text RESYNCED_ERROR
+    click_button "Adicionar"
+
+    within "#list_items" do
+      assert_text "Banana"
+    end
+  end
+
   test "lost toggle response does not replay and a fresh click is a new action" do
     visit root_path
     make_next_request_fail(:after_response)
@@ -265,6 +285,34 @@ class MutationFailuresTest < ApplicationSystemTestCase
         if (mutationFailed && !resyncFailed && method === "GET" && url.pathname === "#{root_path}") {
           resyncFailed = true
           throw new TypeError("Failed to fetch")
+        }
+        return originalFetch(...args)
+      }
+    JS
+  end
+
+  def make_mutation_and_resync_timeout
+    page.execute_script(<<~JS)
+      const originalFetch = window.__alvaOriginalFetch ||= window.fetch.bind(window)
+      const originalSetTimeout = window.setTimeout.bind(window)
+      window.setTimeout = (callback, delay, ...args) =>
+        originalSetTimeout(callback, delay === 12000 ? 50 : delay, ...args)
+
+      let mutationFailed = false
+      let timeoutStarted = false
+      window.fetch = async (...args) => {
+        const [resource, init = {}] = args
+        const url = new URL(resource.url || resource, window.location.href)
+        const method = (init.method || resource.method || "GET").toUpperCase()
+        if (!mutationFailed && method !== "GET") {
+          mutationFailed = true
+          throw new TypeError("Failed to fetch")
+        }
+        if (mutationFailed && !timeoutStarted && method === "GET" && url.pathname === "#{root_path}") {
+          timeoutStarted = true
+          return new Promise((_resolve, reject) => {
+            init.signal.addEventListener("abort", () => reject(new DOMException("Timed out", "AbortError")), { once: true })
+          })
         }
         return originalFetch(...args)
       }
