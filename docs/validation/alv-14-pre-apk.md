@@ -2,6 +2,8 @@
 
 **Estado em 21/10/2026:** roteiro preparado; aparelhos físicos, versão Android/Chrome e evidências ainda pendentes. Nenhum teste físico é declarado como concluído.
 
+**Checagem desta sessão:** `adb devices -l` não listou aparelhos conectados. O Tailscale local estava ativo e o peer Atlas aparecia online. Uma tentativa HTTPS para uma URL candidata falhou ao conectar à porta 443 (`curl` código 7); a URL publicada/rota efetiva ainda não foi confirmada. Esse resultado não permite concluir que o app esteja fora do ar ou que a URL candidata seja a rota correta.
+
 ## Antes de começar
 
 Use dois Androids reais (A e B), ambos atualizados e conectados ao mesmo tailnet, e a URL HTTPS real da Alva. Registre o commit/versão implantado, modelo e versão Android/Chrome de cada aparelho. Faça a rodada numa lista de teste descartável ou num ambiente de homologação; a Alva não tem autenticação e a lista é compartilhada. Não exponha nomes, IDs do tailnet ou dados domésticos em capturas públicas.
@@ -39,4 +41,4 @@ Marque cada etapa como **Passou**, **Falhou** ou **Pendente**, com data/hora e o
 
 Verificado em arquivos versionados: `test/integration/https_proxy_test.rb` simula `X-Forwarded-Proto: https`; `script/smoke_test` e o job de CI também simulam o proxy. `test/integration/pwa_test.rb` verifica manifesto e service worker. Os testes de sistema cobrem foco, habituais, modo mercado e desfazer. `config/cable.yml` usa Solid Cable em produção; `config/database.yml` guarda o SQLite em `storage/production.sqlite3`; `config/deploy.yml` declara o volume `alva_storage:/rails/storage`.
 
-Continuam pendentes: URL e configuração ativas do Atlas/Tailscale, TLS e proxy no servidor, WebSocket real nos aparelhos, volume persistente ativo, modelos/versões dos dois Androids e todas as evidências físicas. A inspeção SSH do Atlas não foi feita nesta sessão. E-mail e backup seguem pausados; este roteiro não os configura nem os declara concluídos.
+Continuam pendentes: confirmar com o responsável a URL publicada e a configuração ativa do Atlas/Tailscale, TLS e proxy no servidor, WebSocket real nos aparelhos, volume persistente ativo, conectar dois Androids e registrar modelos/versões e evidências físicas. A inspeção SSH do Atlas não foi feita nesta sessão. E-mail e backup seguem pausados; este roteiro não os configura nem os declara concluídos.
