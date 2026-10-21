@@ -77,8 +77,8 @@ export default class extends Controller {
 
   handleSubmitStart(event) {
     if (event.target.matches("form[data-list-refresh-correction]")) {
-      this.correctionFormsInFlight ||= new Set()
-      this.correctionFormsInFlight.add(event.target)
+      this.submittedCorrectionForms ||= new WeakSet()
+      this.submittedCorrectionForms.add(event.target)
     }
   }
 
@@ -93,7 +93,9 @@ export default class extends Controller {
   }
 
   handleSubmitEnd(event) {
-    if (event.target.matches("form[data-list-refresh-correction]")) this.correctionFormsInFlight?.delete(event.target)
+    if (!event.target.matches("form[data-list-refresh-correction]")) return
+    const responseStatus = event.detail?.fetchResponse?.response?.status
+    if (!event.detail?.success && responseStatus !== 409) this.submittedCorrectionForms?.delete(event.target)
   }
 
   refresh(eventOrOptions = {}) {
@@ -289,7 +291,7 @@ export default class extends Controller {
     if (stream.getAttribute("target") !== "list_items") return
     const correctionForms = Array.from(document.querySelectorAll("#list_items turbo-frame form[data-list-refresh-correction]"))
     correctionForms.forEach((form) => {
-      if (this.correctionFormsInFlight?.has(form)) return
+      if (this.submittedCorrectionForms?.has(form)) return
       const editingFrame = form.closest("turbo-frame")
       if (!editingFrame) return
 
