@@ -7,7 +7,8 @@ class UndoTest < ApplicationSystemTestCase
     visit root_path
     dairy = "#category_#{categories(:dairy).id} li"
     assert_selector dairy, count: 2
-    assert_equal %w[Leite Iogurte], all(dairy).map { |li| li.text.strip }
+    assert_selector "#{dairy}:nth-child(1)", exact_text: "Leite"
+    assert_selector "#{dairy}:nth-child(2)", exact_text: "Iogurte"
 
     click_button "Remover Leite"
 
@@ -21,7 +22,8 @@ class UndoTest < ApplicationSystemTestCase
 
     assert_selector "##{dom_id(milk)}", text: "Leite"
     assert_selector dairy, count: 2
-    assert_equal %w[Leite Iogurte], all(dairy).map { |li| li.text.strip }
+    assert_selector "#{dairy}:nth-child(1)", exact_text: "Leite"
+    assert_selector "#{dairy}:nth-child(2)", exact_text: "Iogurte"
     assert_no_selector "#toast [role=status]"
     assert_equal 1, ListItem.where(name: "Leite").count
   end
