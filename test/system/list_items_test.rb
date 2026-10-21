@@ -276,13 +276,36 @@ class ListItemsTest < ApplicationSystemTestCase
     assert_text "Leite atualizado em outro aparelho"
   end
 
+  test "a list broadcast preserves a focused category select" do
+    visit root_path
+    connect_turbo_cable_stream_sources
+    click_on "Editar Leite"
+    frame_selector = "##{dom_id(list_items(:milk), :row)}"
+    category_field = within(frame_selector) { find_field("Categoria") }
+    category_value = category_field.value
+    category_id = category_field[:id]
+    page.execute_script("document.getElementById(arguments[0]).focus()", category_id)
+
+    households(:home).broadcast_list
+
+    within(frame_selector) { assert_equal category_value, find_field("Categoria").value }
+    assert page.evaluate_script("document.activeElement.id === #{category_id.to_json}")
+  end
+
   test "a list broadcast preserves drafts in multiple correction frames" do
     visit root_path
     connect_turbo_cable_stream_sources
     click_on "Editar Leite"
     click_on "Editar Detergente"
+    assert_selector "#list_items form[data-list-refresh-correction]", count: 2
+    within("##{dom_id(list_items(:milk), :row)}") { assert_field "Nome", with: "Leite" }
+    within("##{dom_id(list_items(:detergent), :row)}") { assert_field "Nome", with: "Detergente" }
     within("##{dom_id(list_items(:milk), :row)}") { fill_in "Nome", with: "Leite em edição" }
     within("##{dom_id(list_items(:detergent), :row)}") { fill_in "Nome", with: "Detergente em edição" }
+    within("##{dom_id(list_items(:milk), :row)}") do
+      assert_field "Nome", with: "Leite em edição"
+    end
+    within("##{dom_id(list_items(:detergent), :row)}") { assert_field "Nome", with: "Detergente em edição" }
 
     list_items(:milk).update!(name: "Leite atualizado fora")
     list_items(:detergent).update!(name: "Detergente atualizado fora")
@@ -301,10 +324,14 @@ class ListItemsTest < ApplicationSystemTestCase
     connect_turbo_cable_stream_sources
     click_on "Editar Leite"
     click_on "Editar Detergente"
+    assert_selector "#list_items form[data-list-refresh-correction]", count: 2
     within("##{dom_id(list_items(:milk), :row)}") { fill_in "Nome", with: "Leite rascunho inicial" }
     within("##{dom_id(list_items(:detergent), :row)}") { fill_in "Nome", with: "Detergente rascunho inicial" }
 
     page.execute_script(<<~JS)
+      window.__correctionInputRefs = Array.from(
+        document.querySelectorAll("#list_items form[data-list-refresh-correction] input[type='text']")
+      )
       const holdListRender = (event) => {
         if (event.target.getAttribute("target") !== "list_items") return
         if (event.target.dataset.listRefreshRequestId) return
@@ -314,6 +341,7 @@ class ListItemsTest < ApplicationSystemTestCase
           document.body.dataset.listStreamHeld = "true"
           await new Promise((resolve) => { window.__releaseListStream = resolve })
           await render(streamElement)
+          document.body.dataset.listStreamRendered = "true"
         }
       }
       document.addEventListener("turbo:before-stream-render", holdListRender)
@@ -327,6 +355,12 @@ class ListItemsTest < ApplicationSystemTestCase
     within("##{dom_id(list_items(:milk), :row)}") { fill_in "Nome", with: "Leite rascunho mais recente" }
     within("##{dom_id(list_items(:detergent), :row)}") { fill_in "Nome", with: "Detergente rascunho mais recente" }
     page.execute_script("window.__releaseListStream()")
+
+    assert_selector "body[data-list-stream-rendered='true']"
+    assert_equal 2, page.evaluate_script("window.__correctionInputRefs.length")
+    assert page.evaluate_script(<<~JS)
+      window.__correctionInputRefs.every((input) => document.getElementById(input.id) === input)
+    JS
 
     within("##{dom_id(list_items(:milk), :row)}") do
       assert_field "Nome", with: "Leite rascunho mais recente"
