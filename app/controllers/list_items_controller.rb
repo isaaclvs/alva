@@ -155,13 +155,13 @@ class ListItemsController < ApplicationController
   end
 
   def missing_or_stale_item
-    return head :not_found if ListItem.exists?(params[:id]) && !current_household.list_items.exists?(params[:id])
+    return head :not_found if ListItem.where(id: params[:id]).exists? && !current_household.list_items.where(id: params[:id]).exists?
 
     stale_list_action
   end
 
   def missing_or_stale_frame
-    return head :not_found if ListItem.exists?(params[:id]) && !current_household.list_items.exists?(params[:id])
+    return head :not_found if ListItem.where(id: params[:id]).exists? && !current_household.list_items.where(id: params[:id]).exists?
 
     return stale_list_action unless turbo_frame_request?
 
