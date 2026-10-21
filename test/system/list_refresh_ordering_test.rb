@@ -1,6 +1,39 @@
 require "application_system_test_case"
 
 class ListRefreshOrderingTest < ApplicationSystemTestCase
+  test "a real cable reconnect catches up with changes from another session" do
+    using_session(:other) do
+      visit root_path
+      connect_turbo_cable_stream_sources
+    end
+    visit root_path
+    connect_turbo_cable_stream_sources
+    assert_no_selector "#list_refresh_status:not([hidden])"
+
+    page.evaluate_async_script(<<~JS)
+      const done = arguments[arguments.length - 1]
+      import("@hotwired/turbo-rails").then(async ({ cable }) => {
+        window.testCableConsumer = await cable.getConsumer()
+        window.testCableConsumer.disconnect()
+        done()
+      })
+    JS
+    assert_no_selector "turbo-cable-stream-source[connected]", visible: :all
+    assert_equal "visible", page.evaluate_script("document.visibilityState")
+
+    using_session(:other) do
+      fill_in "Item", with: "Banana desconectada"
+      click_button "Adicionar"
+      within("#list_items") { assert_text "Banana desconectada" }
+    end
+    within("#list_items") { assert_no_text "Banana desconectada" }
+
+    page.execute_script("window.testCableConsumer.connect()")
+    assert_selector "turbo-cable-stream-source[connected]", visible: :all
+    within("#list_items") { assert_text "Banana desconectada" }
+    assert_equal "visible", page.evaluate_script("document.visibilityState")
+  end
+
   test "an older refresh never replaces a newer broadcast" do
     visit root_path
     connect_turbo_cable_stream_sources
