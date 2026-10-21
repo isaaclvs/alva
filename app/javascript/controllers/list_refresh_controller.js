@@ -76,7 +76,10 @@ export default class extends Controller {
   }
 
   handleSubmitStart(event) {
-    if (event.target.matches("form[data-list-refresh-correction]")) this.correctionSubmissionInFlight = true
+    if (event.target.matches("form[data-list-refresh-correction]")) {
+      this.submittedCorrectionForms ||= new WeakSet()
+      this.submittedCorrectionForms.add(event.target)
+    }
   }
 
   handleWindowBlur() {
@@ -90,7 +93,9 @@ export default class extends Controller {
   }
 
   handleSubmitEnd(event) {
-    if (event.target.matches("form[data-list-refresh-correction]")) this.correctionSubmissionInFlight = false
+    if (!event.target.matches("form[data-list-refresh-correction]")) return
+    const responseStatus = event.detail?.fetchResponse?.response?.status
+    if (!event.detail?.success && responseStatus !== 409) this.submittedCorrectionForms?.delete(event.target)
   }
 
   refresh(eventOrOptions = {}) {
@@ -284,51 +289,53 @@ export default class extends Controller {
     }
 
     if (stream.getAttribute("target") !== "list_items") return
-    if (this.correctionSubmissionInFlight) return
+    const correctionForms = Array.from(document.querySelectorAll("#list_items turbo-frame form[data-list-refresh-correction]"))
+    correctionForms.forEach((form) => {
+      if (this.submittedCorrectionForms?.has(form)) return
+      const editingFrame = form.closest("turbo-frame")
+      if (!editingFrame) return
 
-    const editingFrame = document.querySelector("#list_items turbo-frame form[data-list-refresh-correction]")?.closest("turbo-frame")
-    if (!editingFrame) return
+      const incomingFrame = stream.templateElement.content.querySelector(`#${CSS.escape(editingFrame.id)}`)
+      if (!incomingFrame) {
+        this.showStatus("Este item saiu da lista enquanto você o corrigia", false)
+        return
+      }
 
-    const incomingFrame = stream.templateElement.content.querySelector(`#${CSS.escape(editingFrame.id)}`)
-    if (!incomingFrame) {
-      this.showStatus("Este item saiu da lista enquanto você o corrigia", false)
-      return
-    }
-
-    const controls = Array.from(editingFrame.querySelectorAll("input, select, textarea"))
-    const draft = controls.map((control) => ({
-      value: control.value,
-      checked: control.checked,
-      selectionStart: this.selectionStart(control),
-      selectionEnd: this.selectionEnd(control)
-    }))
-    const activeId = document.activeElement?.id
-    const preservedFrame = editingFrame.cloneNode(true)
-    preservedFrame.removeAttribute("src")
-    const preservedControls = Array.from(preservedFrame.querySelectorAll("input, select, textarea"))
-    draft.forEach((controlDraft, index) => {
-      const control = preservedControls[index]
-      if (!control) return
-      this.restoreControlDraft(control, controlDraft)
-    })
-    incomingFrame.replaceWith(preservedFrame)
-
-    const render = event.detail.render
-    event.detail.render = async (streamElement) => {
-      await render(streamElement)
-      const renderedControls = Array.from(document.getElementById(editingFrame.id)?.querySelectorAll("input, select, textarea") || [])
+      const controls = Array.from(form.querySelectorAll("input, select, textarea"))
+      const draft = controls.map((control) => ({
+        value: control.value,
+        checked: control.checked,
+        selectionStart: this.selectionStart(control),
+        selectionEnd: this.selectionEnd(control)
+      }))
+      const activeId = document.activeElement?.id
+      const preservedFrame = editingFrame.cloneNode(true)
+      preservedFrame.removeAttribute("src")
+      const preservedControls = Array.from(preservedFrame.querySelectorAll("input, select, textarea"))
       draft.forEach((controlDraft, index) => {
-        const control = renderedControls[index]
+        const control = preservedControls[index]
         if (!control) return
         this.restoreControlDraft(control, controlDraft)
-        if (control.id === activeId) {
-          control.focus({ preventScroll: true })
-          if (controlDraft.selectionStart !== null) {
-            control.setSelectionRange(controlDraft.selectionStart, controlDraft.selectionEnd)
-          }
-        }
       })
-    }
+      incomingFrame.replaceWith(preservedFrame)
+
+      const render = event.detail.render
+      event.detail.render = async (streamElement) => {
+        await render(streamElement)
+        const renderedControls = Array.from(document.getElementById(editingFrame.id)?.querySelectorAll("input, select, textarea") || [])
+        draft.forEach((controlDraft, index) => {
+          const control = renderedControls[index]
+          if (!control) return
+          this.restoreControlDraft(control, controlDraft)
+          if (control.id === activeId) {
+            control.focus({ preventScroll: true })
+            if (controlDraft.selectionStart !== null) {
+              control.setSelectionRange(controlDraft.selectionStart, controlDraft.selectionEnd)
+            }
+          }
+        })
+      }
+    })
   }
 
   restoreControlDraft(control, draft) {

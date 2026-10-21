@@ -276,6 +276,26 @@ class ListItemsTest < ApplicationSystemTestCase
     assert_text "Leite atualizado em outro aparelho"
   end
 
+  test "a list broadcast preserves drafts in multiple correction frames" do
+    visit root_path
+    connect_turbo_cable_stream_sources
+    click_on "Editar Leite"
+    click_on "Editar Detergente"
+    within("##{dom_id(list_items(:milk), :row)}") { fill_in "Nome", with: "Leite em edição" }
+    within("##{dom_id(list_items(:detergent), :row)}") { fill_in "Nome", with: "Detergente em edição" }
+
+    list_items(:milk).update!(name: "Leite atualizado fora")
+    list_items(:detergent).update!(name: "Detergente atualizado fora")
+    households(:home).broadcast_list
+
+    within("##{dom_id(list_items(:milk), :row)}") { assert_field "Nome", with: "Leite em edição" }
+    within("##{dom_id(list_items(:detergent), :row)}") { assert_field "Nome", with: "Detergente em edição" }
+    within("##{dom_id(list_items(:milk), :row)}") { click_on "Cancelar" }
+    within("##{dom_id(list_items(:detergent), :row)}") { click_on "Cancelar" }
+    assert_text "Leite atualizado fora"
+    assert_text "Detergente atualizado fora"
+  end
+
   test "summary counts update live when marking an item" do
     using_session(:other) do
       visit root_path

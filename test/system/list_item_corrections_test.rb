@@ -11,6 +11,7 @@ class ListItemCorrectionsTest < ApplicationSystemTestCase
 
     within("#category_#{categories(:produce).id}") { assert_text "Banana" }
     assert_no_text "Bananna"
+    assert_no_field "Nome"
   end
 
   test "picking a category moves the item and the next one with that name lands there" do
@@ -21,6 +22,7 @@ class ListItemCorrectionsTest < ApplicationSystemTestCase
     select "Hortifruti", from: "Categoria"
     click_on "Salvar"
     within("#category_#{categories(:produce).id}") { assert_text "Ração" }
+    assert_no_field "Categoria"
 
     click_button "Remover Ração"
     fill_in "Item", with: "rações"
