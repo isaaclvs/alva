@@ -5,6 +5,15 @@
     <%= render "summary", groups: @groups %>
     <%= render "form", list_item: @list_item %>
     <%= render "buy_again", suggestions: @suggestions %>
+    <div id="list_refresh_status" hidden role="status" aria-live="polite"
+         class="mt-2 flex items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-900/90 px-3 py-2 text-xs text-zinc-400"
+         data-list-refresh-target="status">
+      <span data-list-refresh-target="message"></span>
+      <button type="button" class="shrink-0 font-medium text-teal-300 underline underline-offset-2"
+              data-list-refresh-target="retry" data-action="list-refresh#retry" hidden>
+        Tentar novamente
+      </button>
+    </div>
   </header>
 
   <%= render "list", groups: @groups %>
