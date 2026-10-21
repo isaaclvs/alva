@@ -6,6 +6,8 @@
 
 **Checagem desta sessão:** `adb devices -l` não listou aparelhos conectados. O Tailscale local estava ativo e o peer Atlas aparecia online. Uma tentativa HTTPS para uma URL candidata falhou ao conectar à porta 443 (`curl` código 7); a URL publicada/rota efetiva ainda não foi confirmada. Esse resultado não permite concluir que o app esteja fora do ar ou que a URL candidata seja a rota correta.
 
+**URL efetiva informada depois pelo usuário:** endereço HTTP na rede local. Verificação somente leitura retornou HTTP 200 e título "Lista de Compras". Em Chrome desktop, `turbo-cable-stream-source` indicou `connected=true` e nenhum erro JavaScript foi listado. Isso comprova conexão do cliente ao canal, não troca de alterações entre dois aparelhos. A página não contém `#market_mode_toggle` nem `#habitual_items`, embora ambos existam na main: a versão servida não apresenta essas entregas. O commit efetivamente implantado ainda precisa ser identificado. Nesse endereço, `window.isSecureContext=false` e `navigator.serviceWorker` não está disponível. HTTPS/PWA segura continuam pendentes. Nenhum item foi alterado nem deploy realizado.
+
 ## Antes de começar
 
 Use dois Androids reais (A e B), ambos atualizados e conectados ao mesmo tailnet, e a URL HTTPS real da Alva. Registre o commit/versão implantado, modelo e versão Android/Chrome de cada aparelho. Faça a rodada numa lista de teste descartável ou num ambiente de homologação; a Alva não tem autenticação e a lista é compartilhada. Não exponha nomes, IDs do tailnet ou dados domésticos em capturas públicas.
