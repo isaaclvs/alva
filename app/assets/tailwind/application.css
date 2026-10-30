@@ -58,6 +58,30 @@ input[list]::-webkit-calendar-picker-indicator {
   display: none !important;
 }
 
+/* "Iniciar compras" turns the list into a checklist. <html data-shopping-mode>
+   comes from the device's cookie (server-rendered, so nothing flashes) and
+   shopping_controller.js flips it. Everything is hidden here, in CSS, not by
+   the markup: broadcast fragments never know about the mode, and display: none
+   also takes the controls out of the tab order and the accessibility tree. */
+html:not([data-shopping-mode="on"]) .shopping-only,
+html[data-shopping-mode="on"] .shopping-hide,
+html[data-shopping-mode="on"] .app-navigation {
+  display: none;
+}
+html[data-shopping-mode="on"] .shopping-toggle {
+  min-height: 3.5rem;
+  padding-block: 1rem;
+  padding-right: 1rem;
+}
+html[data-shopping-mode="on"] .shopping-check {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+/* No bottom navigation to clear: the toast sits near the edge. */
+html[data-shopping-mode="on"] #toast {
+  padding-bottom: calc(env(safe-area-inset-bottom) + 1rem);
+}
+
 /* Desktop keeps the same two spaces, with persistent side navigation and
    categories in reading order across two columns. Mobile retains its tabs. */
 @media (min-width: 1024px) {
@@ -87,6 +111,11 @@ input[list]::-webkit-calendar-picker-indicator {
   .shopping-categories > * { margin-block: 0; }
   .list-empty, .list-finish { grid-column: 1 / -1; }
   .list-finish { max-width: 420px; width: 100%; justify-self: center; }
+  /* Without the side navigation the checklist uses the space evenly. */
+  html[data-shopping-mode="on"] .app-shell {
+    max-width: 960px;
+    padding: 24px 32px 32px;
+  }
 }
 @media (min-width: 768px) and (max-width: 1023px) {
   .app-shell { max-width: 720px; }

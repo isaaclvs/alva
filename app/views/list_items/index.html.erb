@@ -4,7 +4,7 @@
     is local to this device (screen_controller.js + the "screen" cookie), so
     broadcasts only ever touch what is inside them, never the navigation. %>
 <% screen = current_screen %>
-<%= tag.div data: { controller: "list-refresh screen", list_refresh_url_value: root_path, screen_current_value: screen } do %>
+<%= tag.div data: { controller: "list-refresh screen shopping", list_refresh_url_value: root_path, screen_current_value: screen } do %>
   <div id="list_refresh_status" hidden role="status" aria-live="polite"
        class="sticky top-0 z-20 mx-4 mt-3 flex items-center justify-between gap-3 rounded-xl border border-line bg-surface px-3 py-2 text-xs text-ink-soft"
        data-list-refresh-target="status">
@@ -49,8 +49,9 @@
            data-screen-target="panel" data-screen-name="list" <%= "hidden" unless screen == "list" %>>
     <header class="sticky top-0 z-10 bg-canvas/95 px-4 pt-5 pb-3 backdrop-blur">
       <div class="flex items-center justify-between gap-2">
-        <h1 id="list_screen_title" class="text-2xl font-bold tracking-tight">Lista de compras</h1>
-        <div class="flex items-center gap-1">
+        <h1 id="list_screen_title" tabindex="-1" class="shopping-hide text-2xl font-bold tracking-tight">Lista de compras</h1>
+        <h1 id="shopping_title" tabindex="-1" class="shopping-only text-2xl font-bold tracking-tight" data-shopping-target="title">Em compras</h1>
+        <div class="shopping-hide flex items-center gap-1">
           <%= link_to list_export_path, title: "Baixar PDF", aria: { label: "Baixar PDF" }, download: true, data: { turbo: false },
                 class: "grid size-9 shrink-0 place-items-center rounded-full text-ink-soft active:bg-surface-2" do %>
             <svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -59,6 +60,8 @@
           <% end %>
           <%= render "list_items/theme_toggle" %>
         </div>
+        <button type="button" class="shopping-only min-h-11 shrink-0 rounded-full border border-line px-4 text-sm font-semibold text-ink-soft active:bg-surface-2"
+                data-action="shopping#exit">Sair das compras</button>
       </div>
       <%= render "summary", groups: @groups %>
     </header>

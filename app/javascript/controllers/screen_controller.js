@@ -16,6 +16,9 @@ export default class extends Controller {
   }
 
   show(event) {
+    // While shopping the list is the only screen (shopping_controller.js).
+    if (document.documentElement.dataset.shoppingMode === "on") return
+
     const screen = event.params.screen
     if (screen === this.currentValue) {
       if (screen === "add") this.focusAddField()
