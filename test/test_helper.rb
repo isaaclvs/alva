@@ -37,7 +37,8 @@ module ActiveSupport
     # inner list while preserving its surrounding disclosure and checked rows.
     def assert_list_broadcast(household, &block)
       streams = capture_turbo_stream_broadcasts(household, &block)
-      assert_equal [ %w[replace list_summary], %w[replace list_items], %w[replace buy_again], %w[replace habitual_items_list] ],
+      assert_equal [ %w[replace list_summary], %w[replace list_items], %w[replace buy_again], %w[replace habitual_items_list],
+        %w[replace list_counter] ],
         streams.map { |stream| [ stream["action"], stream["target"] ] }
       streams
     end

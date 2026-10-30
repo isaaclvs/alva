@@ -3,61 +3,71 @@ require "application_system_test_case"
 class ListItemsTest < ApplicationSystemTestCase
   test "opens with the add field focused" do
     visit root_path
-    assert_equal "list_item_name", page.evaluate_script("document.activeElement.id")
+    assert_equal "list_item_name", focused_element_id
   end
 
-  test "adding an item shows it in its category and keeps focus on the field" do
+  test "adding an item confirms it, keeps focus on the field and files it in its category" do
     visit root_path
 
     fill_in "Item", with: "maçã"
-    click_button "Adicionar"
+    click_button "Adicionar item"
 
+    within("#add_feedback[role=status]") { assert_text "maçã adicionado em Hortifruti" }
+    assert_field "Item", with: ""
+    assert_equal "list_item_name", focused_element_id
+    assert_no_selector "#list_items", visible: true
+
+    show_list
     within "#category_#{categories(:produce).id}" do
       assert_text "maçã"
     end
-    assert_field "Item", with: ""
-    assert_equal "list_item_name", page.evaluate_script("document.activeElement.id")
   end
 
   test "adding a pending item again shows feedback instead of a duplicate" do
     visit root_path
 
     fill_in "Item", with: "LEITE"
-    click_button "Adicionar"
+    click_button "Adicionar item"
 
-    assert_text "Leite já está na lista"
-    assert_selector "li", text: "Leite", count: 1
+    within("#add_feedback[role=status]") { assert_selector ".text-warn", text: "Leite já está na lista" }
     assert_field "Item", with: ""
-    assert_equal "list_item_name", page.evaluate_script("document.activeElement.id")
+    assert_equal "list_item_name", focused_element_id
+
+    show_list
+    assert_selector "li", text: "Leite", count: 1
   end
 
   test "adding a purchased item again brings it back instead of duplicating" do
-    visit root_path
+    visit_list
 
     click_button "Leite"
     assert_selector "##{dom_id(list_items(:milk))} .line-through", text: "Leite"
 
+    show_add
     fill_in "Item", with: "leite"
-    click_button "Adicionar"
+    click_button "Adicionar item"
 
+    assert_text "Leite voltou para a lista"
+    assert_field "Item", with: ""
+    assert_equal "list_item_name", focused_element_id
+    assert_selector "##{dom_id(list_items(:milk))}.animate-highlight", text: "Leite", visible: :all
+
+    show_list
     assert_selector "li", text: "Leite", count: 1
     assert_no_selector "##{dom_id(list_items(:milk))} .line-through"
-    assert_selector "##{dom_id(list_items(:milk))}.animate-highlight", text: "Leite"
-    assert_field "Item", with: ""
-    assert_equal "list_item_name", page.evaluate_script("document.activeElement.id")
   end
 
   test "reviving a purchased item shows up in another open session" do
     using_session(:other) do
-      visit root_path
+      visit_list
       connect_turbo_cable_stream_sources
       assert_selector "##{dom_id(list_items(:detergent))} .line-through"
     end
 
     visit root_path
     fill_in "Item", with: "detergente"
-    click_button "Adicionar"
-    assert_no_selector "##{dom_id(list_items(:detergent))} .line-through"
+    click_button "Adicionar item"
+    assert_text "Detergente voltou para a lista"
 
     using_session(:other) do
       assert_selector "li", text: "Detergente", count: 1
@@ -69,30 +79,33 @@ class ListItemsTest < ApplicationSystemTestCase
     visit root_path
 
     fill_in "Item", with: "Banana, Maçã; Coisa nova"
-    click_button "Adicionar"
+    click_button "Adicionar item"
 
+    within("#add_feedback") { assert_text "3 itens adicionados" }
+    assert_selector "li.animate-highlight", count: 3, visible: :all
+    assert_field "Item", with: ""
+    assert_equal "list_item_name", focused_element_id
+
+    show_list
     within("#category_#{categories(:produce).id}") do
       assert_text "Banana"
       assert_text "Maçã"
     end
     within("#category_#{categories(:other).id}") { assert_text "Coisa nova" }
-    assert_text "3 itens adicionados"
-    assert_selector "li.animate-highlight", count: 3
-    assert_field "Item", with: ""
-    assert_equal "list_item_name", page.evaluate_script("document.activeElement.id")
   end
 
   test "adding several names mentions the ones already on the list" do
     visit root_path
 
     fill_in "Item", with: "Banana, Maçã"
-    click_button "Adicionar"
+    click_button "Adicionar item"
     assert_text "2 itens adicionados"
 
     fill_in "Item", with: "banana; Leite; Arroz"
-    click_button "Adicionar"
+    click_button "Adicionar item"
 
     assert_text "1 item adicionado · Banana e Leite já estavam na lista"
+    show_list
     assert_selector "li", text: "Banana", count: 1
     assert_selector "li", text: "Leite", count: 1
     assert_selector "li", text: "Arroz", count: 1
@@ -100,13 +113,13 @@ class ListItemsTest < ApplicationSystemTestCase
 
   test "several names show up in another open session" do
     using_session(:other) do
-      visit root_path
+      visit_list
       connect_turbo_cable_stream_sources
     end
 
     visit root_path
     fill_in "Item", with: "Banana, Maçã"
-    click_button "Adicionar"
+    click_button "Adicionar item"
     assert_text "2 itens adicionados"
 
     using_session(:other) do
@@ -123,6 +136,8 @@ class ListItemsTest < ApplicationSystemTestCase
     fill_in "Item", with: "Coisa nova"
     send_keys :enter
 
+    assert_text "Coisa nova adicionado em Outros"
+    show_list
     within("#category_#{categories(:other).id}") { assert_text "Coisa nova" }
   end
 
@@ -133,23 +148,23 @@ class ListItemsTest < ApplicationSystemTestCase
     assert_selector "datalist#list_item_name_suggestions option[value=Leite]", visible: :all, count: 1
 
     fill_in "Item", with: "Coisa nova"
-    click_button "Adicionar"
+    click_button "Adicionar item"
 
-    assert_selector "li", text: "Coisa nova"
+    assert_selector "li", text: "Coisa nova", visible: :all
     assert_selector "datalist", visible: :all, count: 1
     assert_selector "datalist#list_item_name_suggestions option[value='Coisa nova']", visible: :all, count: 1
     assert_selector "datalist#list_item_name_suggestions option[value=Leite]", visible: :all, count: 1
   end
 
   test "hides empty categories" do
-    visit root_path
+    visit_list
 
     assert_selector "#category_#{categories(:dairy).id}"
     assert_no_selector "#category_#{categories(:produce).id}"
   end
 
   test "marking and unmarking as purchased" do
-    visit root_path
+    visit_list
 
     click_button "Leite"
     assert_selector "##{dom_id(list_items(:milk))} .line-through", text: "Leite"
@@ -161,13 +176,14 @@ class ListItemsTest < ApplicationSystemTestCase
 
   test "changes show up live in another open session" do
     using_session(:other) do
-      visit root_path
+      visit_list
       connect_turbo_cable_stream_sources
     end
 
     visit root_path
     fill_in "Item", with: "Banana"
-    click_button "Adicionar"
+    click_button "Adicionar item"
+    show_list
     assert_selector "#category_#{categories(:produce).id}", text: "Banana"
 
     using_session(:other) do
@@ -183,7 +199,7 @@ class ListItemsTest < ApplicationSystemTestCase
   end
 
   test "catches up on changes missed while the page was in the background" do
-    visit root_path
+    visit_list
     assert_text "Leite"
 
     # Skips callbacks, so no broadcast: like one lost while the phone was locked.
@@ -198,16 +214,16 @@ class ListItemsTest < ApplicationSystemTestCase
       document.dispatchEvent(new Event("visibilitychange"))
     JS
     within("#category_#{categories(:produce).id}") { assert_text "Banana" }
-    within("#list_summary") { assert_text "2 faltando" }
+    within("#list_summary") { assert_text "2 pendentes" }
   end
 
   test "catches up when the cable reconnects while the page stays visible" do
     using_session(:other) do
-      visit root_path
+      visit_list
       connect_turbo_cable_stream_sources
     end
 
-    visit root_path
+    visit_list
     connect_turbo_cable_stream_sources
     assert_text "Leite"
     assert_equal "visible", page.evaluate_script("document.visibilityState")
@@ -228,7 +244,7 @@ class ListItemsTest < ApplicationSystemTestCase
 
     page.execute_script("window.__cableConsumer.connect()")
     within("#category_#{categories(:produce).id}") { assert_text "Banana" }
-    within("#list_summary") { assert_text "2 faltando" }
+    within("#list_summary") { assert_text "2 pendentes" }
     assert_equal "visible", page.evaluate_script("document.visibilityState")
   end
 
@@ -254,6 +270,7 @@ class ListItemsTest < ApplicationSystemTestCase
     request_list_refresh
     assert_field "Item", with: "Tomate escrito"
 
+    show_list
     click_on "Editar Leite"
     fill_in "Nome", with: "Leite corrigido"
     request_list_refresh
@@ -262,7 +279,7 @@ class ListItemsTest < ApplicationSystemTestCase
   end
 
   test "a list broadcast preserves a correction draft in the replaced list" do
-    visit root_path
+    visit_list
     connect_turbo_cable_stream_sources
     click_on "Editar Leite"
     fill_in "Nome", with: "Leite ainda em edição"
@@ -277,7 +294,7 @@ class ListItemsTest < ApplicationSystemTestCase
   end
 
   test "a list broadcast preserves a focused category select" do
-    visit root_path
+    visit_list
     connect_turbo_cable_stream_sources
     click_on "Editar Leite"
     frame_selector = "##{dom_id(list_items(:milk), :row)}"
@@ -295,7 +312,7 @@ class ListItemsTest < ApplicationSystemTestCase
   end
 
   test "a list broadcast preserves drafts in multiple correction frames" do
-    visit root_path
+    visit_list
     connect_turbo_cable_stream_sources
     click_on "Editar Leite"
     click_on "Editar Detergente"
@@ -322,7 +339,7 @@ class ListItemsTest < ApplicationSystemTestCase
   end
 
   test "a delayed list broadcast preserves correction typing done before replacement" do
-    visit root_path
+    visit_list
     connect_turbo_cable_stream_sources
     click_on "Editar Leite"
     click_on "Editar Detergente"
@@ -377,35 +394,38 @@ class ListItemsTest < ApplicationSystemTestCase
 
   test "summary counts update live when marking an item" do
     using_session(:other) do
-      visit root_path
+      visit_list
       connect_turbo_cable_stream_sources
-      within("#list_summary") { assert_text "1 faltando · 1 no carrinho" }
+      within("#list_summary") { assert_text "1 pendente · 1 comprado" }
+      assert_selector "#list_counter", text: "1"
     end
 
-    visit root_path
+    visit_list
     click_button "Leite"
-    within("#list_summary") { assert_text "2 no carrinho" }
+    within("#list_summary") { assert_text "0 pendentes · 2 comprados" }
+    assert_selector "#list_counter", text: "0"
 
     using_session(:other) do
-      within("#list_summary") { assert_text "2 no carrinho" }
+      within("#list_summary") { assert_text "0 pendentes · 2 comprados" }
+      assert_selector "#list_counter", text: "0"
     end
   end
 
   test "finishing the shopping archives purchased items everywhere and keeps pending" do
     using_session(:other) do
-      visit root_path
+      visit_list
       connect_turbo_cable_stream_sources
       assert_text "Detergente"
     end
 
-    visit root_path
+    visit_list
     click_on "Compra feita"
 
     # Archived, so gone from the list (it now shows as a buy again chip).
     assert_no_selector "#list_items", text: "Detergente"
     assert_text "Leite"
     assert_no_button "Compra feita"
-    within("#list_summary") { assert_text "1 faltando" }
+    within("#list_summary") { assert_text "1 pendente" }
 
     using_session(:other) do
       assert_no_selector "#list_items", text: "Detergente"
@@ -417,19 +437,22 @@ class ListItemsTest < ApplicationSystemTestCase
   end
 
   test "an item bought on a finished trip can be added again as a new pending item" do
-    visit root_path
+    visit_list
     click_on "Compra feita"
     assert_no_selector "#list_items", text: "Detergente"
 
+    show_add
     fill_in "Item", with: "Detergente"
-    click_button "Adicionar"
+    click_button "Adicionar item"
+    assert_text "Detergente adicionado"
+    show_list
 
     assert_selector "li", text: "Detergente", count: 1
     assert_no_selector "li .line-through", text: "Detergente"
   end
 
   test "removing an item added by mistake" do
-    visit root_path
+    visit_list
 
     click_button "Remover Leite"
     assert_no_selector "#list_items", text: "Leite"
@@ -437,7 +460,7 @@ class ListItemsTest < ApplicationSystemTestCase
   end
 
   test "finish shopping button appears once an item is purchased" do
-    visit root_path
+    visit_list
     click_on "Compra feita"
     assert_no_button "Compra feita"
 

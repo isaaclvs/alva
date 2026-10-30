@@ -19,4 +19,20 @@ class ApplicationHelperTest < ActionView::TestCase
     assert_equal "#09090B", theme_color("dark")
     assert_equal "#F4F4F5", theme_color("light")
   end
+
+  test "screen defaults to add" do
+    assert_equal "add", current_screen
+  end
+
+  test "screen follows the saved cookie and ignores unknown values" do
+    cookies[:screen] = "list"
+    assert_equal "list", current_screen
+    cookies[:screen] = "mercado"
+    assert_equal "add", current_screen
+  end
+
+  test "the old market mode cookie means the list" do
+    cookies[:market_mode] = "true"
+    assert_equal "list", current_screen
+  end
 end

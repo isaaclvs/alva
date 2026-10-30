@@ -18,12 +18,16 @@ class HabitualItemsTest < ApplicationSystemTestCase
       click_button "Adicionar selecionados"
     end
 
-    assert_selector "#list_items li", text: "Arroz", count: 1
+    assert_selector "#toast [role=status]", text: /1 adicionados à lista/
+    assert_selector "#list_counter", text: "2"
     assert_selector "#habitual_item_#{Household.first!.habitual_items.sole.id}"
     assert_equal 1, Household.first!.habitual_items.count
 
+    show_list
+    assert_selector "#list_items li", text: "Arroz", count: 1
     click_button "Leite"
     click_on "Compra feita"
+    show_add
     assert_selector "#habitual_item_#{Household.first!.habitual_items.sole.id}"
     assert_equal "Arroz", Household.first!.habitual_items.sole.name
   end
@@ -90,7 +94,7 @@ class HabitualItemsTest < ApplicationSystemTestCase
 
     using_session(:other) do
       fill_in "Item", with: "Banana fora"
-      click_button "Adicionar"
+      click_button "Adicionar item"
     end
 
     assert_selector "#habitual_items details[open]"

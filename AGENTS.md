@@ -94,7 +94,7 @@ devolve os `AddResult`s. Todo `ListItem` salvo chama `Household#list_changed`
 (não `broadcast_list` direto); dentro de `Household#batch_list_broadcasts { }`
 isso só marca a mudança e a lista é transmitida uma única vez no fim do bloco.
 
-**Comprar de novo:** abaixo do campo de adicionar, até 8 atalhos (`#buy_again`,
+**Comprar de novo:** abaixo do campo de adicionar, até 5 atalhos (`#buy_again`,
 `BuyAgainSuggestions`) vêm do histórico arquivado, agrupados por nome normalizado
 e ordenados por nº de compras e recência; nomes que estão na lista viva (pendentes
 ou comprados) ficam de fora. Tocar num atalho passa por `ListItemsController#create`.
@@ -108,11 +108,26 @@ o limite de 30 nomes do campo de texto. Remover um habitual não altera itens
 da lista ou histórico. O refresh também atualiza `#habitual_items_list`; o
 formulário, o painel aberto e as seleções sobreviventes são preservados.
 
-**Modo mercado:** preferência local por cookie `market_mode`, sem broadcast.
-Oculta `#entry_controls` (formulário, Comprar de novo e Habituais), mantendo
-resumo, categorias, edição, desfazer e Compra feita. O botão permanece fora dos
-alvos de refresh. A renderização inicial respeita o cookie para não abrir o
-teclado com autofocus durante o modo mercado.
+**Duas telas, navegação local:** a página tem dois espaços, `#add_screen`
+(Adicionar, a inicial: cabeçalho Alva/Nossa casa, campo, dica de vírgula,
+Comprar de novo e Habituais recolhido — sem a lista) e `#list_screen` (Lista de
+compras: resumo pendentes/comprados, categorias, edição, desfazer e Compra
+feita). A navegação inferior ("Adicionar" e "Lista" com `#list_counter` de
+pendentes) troca de tela no cliente (`screen_controller.js`), sem request. A
+tela aberta é preferência do aparelho (cookie `screen`, sem broadcast); a
+renderização inicial respeita o cookie e só dá autofocus no campo quando abre
+em Adicionar. O antigo cookie `market_mode=true` abre a Lista até o aparelho
+escolher uma tela (o modo mercado foi absorvido pela tela Lista). Broadcasts
+atualizam as duas telas (escondida ou não), mas nunca navegação, tema ou o
+retorno de adicionar: `#add_feedback` (live region) só é preenchido na resposta
+HTTP de quem adicionou.
+
+**Tema:** escuro (padrão) e claro, alternados pelo botão em cada tela e salvos
+por aparelho no cookie `theme` (`<html data-theme>` vem do servidor). As cores
+são tokens semânticos em `app/assets/tailwind/application.css` (`canvas`,
+`surface`, `line`, `ink`, `accent`…), redefinidos por `html[data-theme=light]`.
+Views usam os tokens, não a paleta fixa do Tailwind (exceção: os fundos
+translúcidos dos ícones de categoria, que funcionam nos dois temas).
 
 **Desfazer:** remover um item e "Compra feita" não pedem confirmação; em vez disso
 a resposta HTTP (nunca o broadcast, então só o aparelho que agiu) preenche o
@@ -136,9 +151,10 @@ acoplar o dicionário à lista viva.
   de "remover acento + downcase" em vários lugares.
 - Lógica de categorização vive em um service/PORO dedicado (`ItemCategorizer`),
   não direto no controller ou callback do model.
-- UI mobile-first, tela única no MVP: campo de adicionar item com foco
-  automático no topo, lista abaixo. Evitar modais, telas de confirmação ou
-  navegação extra no fluxo principal de adicionar.
+- UI mobile-first em duas telas (Adicionar e Lista, ver acima), substituindo a
+  antiga tela única a pedido do usuário. Adicionar abre com o campo focado e
+  dá retorno imediato; a Lista não abre teclado. Evitar modais, telas de
+  confirmação ou navegação extra no fluxo principal de adicionar.
 - Atualizações da lista via Turbo Streams / ActionCable broadcast — sem
   JavaScript customizado além do que Hotwire já oferece, a menos que
   estritamente necessário.

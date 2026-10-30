@@ -2,3 +2,4 @@
 <%= turbo_stream.replace "list_items", partial: "list_items/list", locals: { groups: groups } %>
 <%= turbo_stream.replace "buy_again", partial: "list_items/buy_again", locals: { suggestions: suggestions } %>
 <%= turbo_stream.replace "habitual_items_list", partial: "habitual_items/list", locals: { household: household } %>
+<%= turbo_stream.replace "list_counter", partial: "list_items/list_counter", locals: { groups: groups } %>

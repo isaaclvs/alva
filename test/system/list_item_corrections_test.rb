@@ -3,7 +3,7 @@ require "application_system_test_case"
 class ListItemCorrectionsTest < ApplicationSystemTestCase
   test "fixing a typo in place recategorizes the item" do
     households(:home).list_items.create!(name: "Bananna")
-    visit root_path
+    visit_list
 
     click_on "Editar Bananna"
     fill_in "Nome", with: "Banana"
@@ -16,7 +16,7 @@ class ListItemCorrectionsTest < ApplicationSystemTestCase
 
   test "picking a category moves the item and the next one with that name lands there" do
     households(:home).list_items.create!(name: "Ração")
-    visit root_path
+    visit_list
 
     click_on "Editar Ração"
     select "Hortifruti", from: "Categoria"
@@ -25,14 +25,16 @@ class ListItemCorrectionsTest < ApplicationSystemTestCase
     assert_no_field "Categoria"
 
     click_button "Remover Ração"
-    fill_in "Item", with: "rações"
-    click_button "Adicionar"
+    show_add
+    add_item "rações"
+    assert_text "rações adicionado em Hortifruti"
+    show_list
 
     within("#category_#{categories(:produce).id}") { assert_text "rações" }
   end
 
   test "cancelling brings the row back unchanged" do
-    visit root_path
+    visit_list
 
     click_on "Editar Leite"
     fill_in "Nome", with: "Outra coisa"
@@ -45,7 +47,7 @@ class ListItemCorrectionsTest < ApplicationSystemTestCase
 
   test "a duplicate name keeps the form open with a message" do
     households(:home).list_items.create!(name: "Banana")
-    visit root_path
+    visit_list
 
     click_on "Editar Banana"
     fill_in "Nome", with: "leite"

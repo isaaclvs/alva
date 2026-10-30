@@ -7,7 +7,10 @@
 class BuyAgainSuggestions
   Suggestion = Struct.new(:name, :category, :trips, :last_purchased_at)
 
-  def self.call(household, limit: 8)
+  # A handful of shortcuts: the add field stays the main way in.
+  LIMIT = 5
+
+  def self.call(household, limit: LIMIT)
     new(household, limit).call
   end
 

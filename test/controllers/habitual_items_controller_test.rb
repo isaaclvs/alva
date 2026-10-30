@@ -60,7 +60,7 @@ class HabitualItemsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_equal [ "Arroz" ], household.list_items.on_list.pending.order(:name).pluck(:name) - [ "Leite" ]
     assert_select "turbo-stream[target=toast]", text: /1 adicionados à lista/
-    assert_equal 4, streams.length
+    assert_equal 5, streams.length
   end
 
   test "selected habits report names already on the list and do not duplicate them" do
@@ -98,7 +98,7 @@ class HabitualItemsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_equal 31, household.list_items.on_list.pending.where("name LIKE 'Item de teste %'").count
-    assert_equal 4, streams.length
+    assert_equal 5, streams.length
   end
 
   test "remove is scoped to this household and does not delete list items" do

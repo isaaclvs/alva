@@ -22,6 +22,7 @@ class ListItemsController < ApplicationController
       @groups = current_household.list_items_by_category
       @suggestions = BuyAgainSuggestions.call(current_household)
       @revived_item = result.item if result.outcome == :revived
+      @feedback = add_feedback_stream(helpers.add_item_notice(result), :added)
       respond_to do |format|
         format.turbo_stream
         format.html { redirect_to root_path }
@@ -29,8 +30,8 @@ class ListItemsController < ApplicationController
     when :duplicate
       existing = result.item
       render turbo_stream: [
-        turbo_stream.replace("list_item_form", partial: "form",
-          locals: { list_item: ListItem.new, notice: "#{existing.name} já está na lista" }),
+        turbo_stream.replace("list_item_form", partial: "form", locals: { list_item: ListItem.new }),
+        add_feedback_stream(helpers.add_item_notice(result), :already),
         turbo_stream.replace(existing, partial: "list_item", locals: { list_item: existing, highlight: true })
       ]
     else
@@ -123,7 +124,8 @@ class ListItemsController < ApplicationController
     @groups = current_household.list_items_by_category
     @suggestions = BuyAgainSuggestions.call(current_household)
     @results = results.reject { |result| result.outcome == :invalid }
-    @notice = helpers.add_items_notice(@results)
+    added = @results.any? { |result| result.outcome.in?(%i[created revived]) }
+    @feedback = add_feedback_stream(helpers.add_items_notice(@results), added ? :added : :already)
 
     respond_to do |format|
       format.turbo_stream { render :create_many }
@@ -143,6 +145,12 @@ class ListItemsController < ApplicationController
       end
       format.html { redirect_to root_path }
     end
+  end
+
+  # What an add did, for the add screen's live region. Only in this device's
+  # response: the other device is not told what someone else typed.
+  def add_feedback_stream(message, tone)
+    turbo_stream.update "add_feedback", partial: "list_items/add_feedback", locals: { message: message, tone: tone }
   end
 
   def toast_stream(toast)

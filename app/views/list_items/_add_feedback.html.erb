@@ -1,0 +1,5 @@
+<%# What the last add did, inside the #add_feedback live region. `tone` is
+    :added (something went on the list) or :already (nothing new). %>
+<%= tag.span message, data: { controller: "toast", toast_delay_value: 6000 },
+      class: class_names("inline-flex items-center gap-1.5",
+        "text-accent-strong": tone == :added, "text-warn": tone == :already) %>
