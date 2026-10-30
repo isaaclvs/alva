@@ -19,3 +19,15 @@ rsvg-convert -w 512 -h 512 public/icon.svg -o public/icon.png
 rsvg-convert -w 192 -h 192 public/icon.svg -o public/icon-192.png
 rsvg-convert -w 512 -h 512 docs/brand/icon-maskable.svg -o public/icon-maskable-512.png
 ```
+
+## Cor por aparelho
+
+O controle “Personalizar”, ao lado do toggle claro/escuro, permite escolher
+Teal (padrão) ou Rosa. A escolha usa o cookie `color`, por um ano, independente
+do cookie `theme`, e não é transmitida aos outros aparelhos. O HTML inicial
+já recebe `data-color`, evitando uma troca de paleta durante o carregamento.
+
+O rosa usa carvão rosado no escuro e branco levemente rosado no claro; os
+ícones de categoria mantêm suas cores. A marca dentro do app acompanha o acento.
+Os arquivos estáticos do ícone instalado continuam com a identidade original.
+A paleta clara e os contrastes estão documentados em `pink-light.md`.
