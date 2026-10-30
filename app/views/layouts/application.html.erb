@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html data-theme="<%= theme_name %>" <%= tag.attributes(data: { shopping_mode: (ApplicationHelper::SHOPPING_ON if shopping_mode?) }) %>>
+<html data-theme="<%= theme_name %>" data-color="<%= color_name %>" <%= tag.attributes(data: { shopping_mode: (ApplicationHelper::SHOPPING_ON if shopping_mode?) }) %>>
   <head>
     <title><%= content_for(:title) || "Alva" %></title>
     <meta name="viewport" content="width=device-width,initial-scale=1">

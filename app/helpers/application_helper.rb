@@ -4,7 +4,13 @@ module ApplicationHelper
   THEME_COOKIE = :theme
   # Browser chrome colors (the PWA status bar), matching the canvas token of
   # each theme in app/assets/tailwind/application.css.
-  THEME_COLORS = { "dark" => "#09090B", "light" => "#F4F4F5" }.freeze
+  COLORS = %w[teal pink].freeze
+  DEFAULT_COLOR = "teal".freeze
+  COLOR_COOKIE = :color
+  COLOR_THEME_COLORS = {
+    "teal" => { "dark" => "#09090B", "light" => "#F4F4F5" },
+    "pink" => { "dark" => "#151014", "light" => "#fcf8fa" }
+  }.freeze
 
   # The two spaces of the app: "add" (the starting one) and "list". Which one
   # is open is a device preference, like the theme: saved in a cookie by
@@ -28,7 +34,12 @@ module ApplicationHelper
   end
 
   def theme_color(theme = theme_name)
-    THEME_COLORS.fetch(theme)
+    COLOR_THEME_COLORS.fetch(color_name).fetch(theme)
+  end
+
+  def color_name
+    saved = cookies[COLOR_COOKIE]
+    COLORS.include?(saved) ? saved : DEFAULT_COLOR
   end
 
   def shopping_mode?

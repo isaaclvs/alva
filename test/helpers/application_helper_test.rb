@@ -20,6 +20,16 @@ class ApplicationHelperTest < ActionView::TestCase
     assert_equal "#F4F4F5", theme_color("light")
   end
 
+  test "color defaults to teal and uses pink canvas colors by theme" do
+    assert_equal "teal", color_name
+    cookies[:color] = "pink"
+    assert_equal "pink", color_name
+    assert_equal "#151014", theme_color("dark")
+    assert_equal "#fcf8fa", theme_color("light")
+    cookies[:color] = "unknown"
+    assert_equal "teal", color_name
+  end
+
   test "screen defaults to add" do
     assert_equal "add", current_screen
   end

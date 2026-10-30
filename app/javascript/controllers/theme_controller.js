@@ -7,8 +7,6 @@ const CHANGED_EVENT = "alva:theme-changed"
 // broadcast), so this only has to keep the attribute, the cookie, the browser
 // chrome color and every toggle's label in sync.
 export default class extends Controller {
-  static values = { darkColor: String, lightColor: String }
-
   connect() {
     this.sync = this.sync.bind(this)
     document.addEventListener(CHANGED_EVENT, this.sync)
@@ -32,7 +30,9 @@ export default class extends Controller {
   }
 
   colorFor(theme) {
-    return theme === "light" ? this.lightColorValue : this.darkColorValue
+    const pink = document.documentElement.dataset.color === "pink"
+    if (pink) return theme === "light" ? "#fcf8fa" : "#151014"
+    return theme === "light" ? "#F4F4F5" : "#09090B"
   }
 
   // The label names the theme the button switches to.

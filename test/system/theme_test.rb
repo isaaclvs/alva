@@ -67,4 +67,47 @@ class ThemeTest < ApplicationSystemTestCase
       assert_button "Tema claro"
     end
   end
+
+  test "pink color selection persists, syncs on both screens, and stays local to the device" do
+    using_session(:other_color_device) do
+      visit root_path
+      assert_selector 'html[data-color="teal"]'
+    end
+
+    visit root_path
+    within("#add_screen") { find('summary[title="Personalizar"]').click }
+    click_button "Cor Rosa"
+    assert_selector 'html[data-color="pink"]'
+    assert_equal "rgb(21, 16, 20)", page.evaluate_script("getComputedStyle(document.body).backgroundColor")
+    assert_selector 'button[title="Cor Rosa"][aria-pressed="true"]', visible: :all
+    assert_equal "#151014", page.evaluate_script("document.querySelector('meta[name=theme-color]').content")
+    show_list
+    within("#list_screen") { assert_selector 'button[title="Cor Rosa"][aria-pressed="true"]', visible: :all }
+
+    click_button "Tema claro"
+    assert_equal "#fcf8fa", page.evaluate_script("document.querySelector('meta[name=theme-color]').content")
+    visit root_path
+    assert_selector 'html[data-color="pink"][data-theme="light"]'
+    assert_equal "rgb(252, 248, 250)", page.evaluate_script("getComputedStyle(document.body).backgroundColor")
+    within("#list_screen") do
+      find('summary[title="Personalizar"]').click
+      click_button "Cor Teal"
+    end
+    click_button "Tema escuro"
+    assert_equal "#09090B", page.evaluate_script("document.querySelector('meta[name=theme-color]').content")
+    click_button "Tema claro"
+    assert_equal "#F4F4F5", page.evaluate_script("document.querySelector('meta[name=theme-color]').content")
+
+    using_session(:other_color_device) do
+      assert_selector 'html[data-color="teal"]'
+      assert_selector 'button[title="Cor Teal"][aria-pressed="true"]', visible: :all
+    end
+  end
+
+  test "color controls are hidden while shopping" do
+    visit root_path
+    show_list
+    click_button "Iniciar compras"
+    assert_no_selector "details.shopping-hide", visible: true
+  end
 end
