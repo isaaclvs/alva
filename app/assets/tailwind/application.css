@@ -57,3 +57,38 @@ html[data-theme="light"] {
 input[list]::-webkit-calendar-picker-indicator {
   display: none !important;
 }
+
+/* Desktop keeps the same two spaces, with persistent side navigation and
+   categories in reading order across two columns. Mobile retains its tabs. */
+@media (min-width: 1024px) {
+  .app-shell {
+    max-width: 1200px;
+    padding: 24px 32px 32px 232px;
+  }
+  .app-navigation {
+    inset: 48px auto auto max(24px, calc((100vw - 1200px) / 2 + 24px));
+    width: 184px;
+    border: 0;
+    background: transparent;
+    padding: 0;
+  }
+  .desktop-brand { display: block; }
+  .navigation-items { grid-template-columns: 1fr; padding: 0; gap: 8px; }
+  .navigation-items > button { justify-content: flex-start; padding: 14px 16px; }
+  .add-screen { max-width: 640px; margin-inline: auto; padding-bottom: 48px; }
+  .add-screen > h1 { margin-top: 64px; font-size: 2rem; }
+  .shopping-screen { padding-bottom: 32px; }
+  .shopping-categories {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px;
+    align-items: start;
+  }
+  .shopping-categories > * { margin-block: 0; }
+  .list-empty, .list-finish { grid-column: 1 / -1; }
+  .list-finish { max-width: 420px; width: 100%; justify-self: center; }
+}
+@media (min-width: 768px) and (max-width: 1023px) {
+  .app-shell { max-width: 720px; }
+  .add-screen { max-width: 600px; margin-inline: auto; }
+}

@@ -15,7 +15,7 @@
     </button>
   </div>
 
-  <section id="add_screen" aria-labelledby="add_screen_title" class="px-5 pt-5 pb-28"
+  <section id="add_screen" aria-labelledby="add_screen_title" class="add-screen px-5 pt-5 pb-28"
            data-screen-target="panel" data-screen-name="add" <%= "hidden" unless screen == "add" %>>
     <header class="flex items-center justify-between gap-3">
       <div class="flex items-center gap-2.5">
@@ -45,7 +45,7 @@
     </div>
   </section>
 
-  <section id="list_screen" aria-labelledby="list_screen_title" class="pb-28"
+  <section id="list_screen" aria-labelledby="list_screen_title" class="shopping-screen pb-28"
            data-screen-target="panel" data-screen-name="list" <%= "hidden" unless screen == "list" %>>
     <header class="sticky top-0 z-10 bg-canvas/95 px-4 pt-5 pb-3 backdrop-blur">
       <div class="flex items-center justify-between gap-2">
@@ -66,8 +66,9 @@
     <%= render "list", groups: @groups %>
   </section>
 
-  <nav aria-label="Telas" class="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-canvas/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
-    <div class="mx-auto grid max-w-md grid-cols-2 gap-1 px-3 py-1.5">
+  <nav aria-label="Telas" class="app-navigation fixed inset-x-0 bottom-0 z-20 border-t border-line bg-canvas/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
+    <div class="desktop-brand hidden px-4 pb-6"><p class="text-xl font-bold tracking-tight">Alva</p><p class="mt-1 text-xs text-ink-faint">Nossa casa</p></div>
+    <div class="navigation-items mx-auto grid max-w-md grid-cols-2 gap-1 px-3 py-1.5">
       <% [ [ "add", "nav_add", "Adicionar" ], [ "list", "nav_list", "Lista" ] ].each do |name, id, label| %>
         <%= tag.button type: "button", id: id,
               aria: { current: ("page" if screen == name) },

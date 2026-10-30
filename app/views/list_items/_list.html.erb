@@ -1,6 +1,6 @@
-<div id="list_items" class="space-y-5 px-4 pt-2">
+<div id="list_items" class="shopping-categories space-y-5 px-4 pt-2">
   <% if groups.empty? %>
-    <div class="py-16 text-center">
+    <div class="list-empty py-16 text-center">
       <p class="text-4xl" aria-hidden="true">🛒</p>
       <p class="mt-3 text-ink-soft">Nada na lista por enquanto.</p>
       <button type="button" class="mt-3 text-sm font-semibold text-accent-strong underline underline-offset-4"
@@ -9,7 +9,7 @@
   <% end %>
 
   <% groups.each do |category, items| %>
-    <section id="<%= category ? dom_id(category) : "uncategorized" %>">
+    <section class="shopping-category" id="<%= category ? dom_id(category) : "uncategorized" %>">
       <% purchased_in_group = items.count(&:purchased?) %>
       <h2 class="mb-1.5 flex items-center gap-2 px-1 text-sm font-semibold text-ink-soft">
         <%= category_icon(category) %>
@@ -26,7 +26,7 @@
 
   <% purchased_count = groups.sum { |_, items| items.count(&:purchased?) } %>
   <% if purchased_count.positive? %>
-    <div class="pt-2 pb-4">
+    <div class="list-finish pt-2 pb-4">
       <%= button_to "Compra feita", shopping_trips_path, form: { class: "contents" },
             aria: { describedby: "finish_shopping_hint" },
             class: "w-full rounded-2xl border border-accent bg-accent-soft py-3 text-base font-semibold text-accent-strong active:opacity-80" %>
