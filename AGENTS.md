@@ -43,6 +43,9 @@ Referências SHO neste documento são decisões históricas do MVP.
   aprende: corrigir a categoria de um item à mão (lápis na linha) grava a
   entrada em `CatalogItem` com `learned: true` via `ItemCategorizer.learn`, e o
   `db:seed` (que roda a cada deploy) não sobrescreve entradas aprendidas.
+  Digitar de novo um item comprado que ainda está na lista o traz de volta já
+  na categoria atual do dicionário (`Household#add_item`); desmarcar o item
+  pela caixinha mantém a categoria que ele tinha.
 - **Corrigir item no lugar:** o lápis troca a linha, dentro de um Turbo Frame
   (`dom_id(item, :row)`), por nome + categoria (`ListItem#correct`). Nome novo
   sem categoria escolhida é recategorizado como se fosse digitado de novo.
