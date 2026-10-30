@@ -19,7 +19,7 @@
            data-screen-target="panel" data-screen-name="add" <%= "hidden" unless screen == "add" %>>
     <header class="flex items-center justify-between gap-3">
       <div class="flex items-center gap-2.5">
-        <span class="grid size-9 place-items-center rounded-xl bg-accent text-base font-bold text-accent-ink" aria-hidden="true">A</span>
+        <span class="grid size-9 place-items-center rounded-xl bg-surface-2" aria-hidden="true"><%= render "brand_mark", css_class: "size-7" %></span>
         <div class="leading-tight">
           <p class="text-sm font-semibold">Alva</p>
           <p class="text-xs text-ink-faint">Nossa casa</p>
@@ -87,7 +87,7 @@
   </section>
 
   <nav aria-label="Telas" class="app-navigation fixed inset-x-0 bottom-0 z-20 border-t border-line bg-canvas/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
-    <div class="desktop-brand hidden px-4 pb-6"><p class="text-xl font-bold tracking-tight">Alva</p><p class="mt-1 text-xs text-ink-faint">Nossa casa</p></div>
+    <div class="desktop-brand hidden px-4 pb-6"><p class="flex items-center gap-2 text-xl font-bold tracking-tight"><%= render "brand_mark", css_class: "size-8 shrink-0" %>Alva</p><p class="mt-1 text-xs text-ink-faint">Nossa casa</p></div>
     <div class="navigation-items mx-auto grid max-w-md grid-cols-2 gap-1 px-3 py-1.5">
       <% [ [ "add", "nav_add", "Adicionar" ], [ "list", "nav_list", "Lista" ] ].each do |name, id, label| %>
         <%= tag.button type: "button", id: id,
