@@ -4,7 +4,7 @@ class UndoTest < ApplicationSystemTestCase
   test "removing an item and undoing puts it back in the same place" do
     milk = list_items(:milk)
     households(:home).list_items.create!(name: "Iogurte", category: categories(:dairy))
-    visit root_path
+    visit_list
     dairy = "#category_#{categories(:dairy).id} li"
     assert_selector dairy, count: 2
     assert_selector "#{dairy}:nth-child(1)", exact_text: "Leite"
@@ -30,7 +30,7 @@ class UndoTest < ApplicationSystemTestCase
 
   test "undoing the removal of a purchased item keeps it purchased" do
     detergent = list_items(:detergent)
-    visit root_path
+    visit_list
 
     click_button "Remover Detergente"
     assert_selector "#toast", text: "Detergente removido"
@@ -40,7 +40,7 @@ class UndoTest < ApplicationSystemTestCase
   end
 
   test "finishing the shopping and undoing brings the purchased items back" do
-    visit root_path
+    visit_list
 
     click_on "Compra feita"
 
@@ -58,7 +58,7 @@ class UndoTest < ApplicationSystemTestCase
   end
 
   test "the toast goes away by itself" do
-    visit root_path
+    visit_list
     click_button "Remover Leite"
     assert_selector "#toast [role=status]"
 
@@ -68,7 +68,7 @@ class UndoTest < ApplicationSystemTestCase
   end
 
   test "a new toast replaces the previous one" do
-    visit root_path
+    visit_list
 
     click_button "Remover Leite"
     assert_selector "#toast", text: "Leite removido"
@@ -81,12 +81,12 @@ class UndoTest < ApplicationSystemTestCase
 
   test "the other device sees the change but not the toast, and the undo reaches it too" do
     using_session(:other) do
-      visit root_path
+      visit_list
       connect_turbo_cable_stream_sources
       assert_text "Leite"
     end
 
-    visit root_path
+    visit_list
     click_button "Remover Leite"
     assert_selector "#toast", text: "Leite removido"
 

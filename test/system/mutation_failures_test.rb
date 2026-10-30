@@ -10,19 +10,15 @@ class MutationFailuresTest < ApplicationSystemTestCase
     fill_in "Item", with: "Banana"
     make_next_request_fail(:network)
 
-    click_button "Adicionar"
+    click_button "Adicionar item"
 
     assert_field "Item", with: "Banana"
     assert_text RESYNCED_ERROR
-    within "#list_items" do
-      assert_no_text "Banana"
-    end
+    assert_no_selector "#list_items li", text: "Banana", visible: :all
 
-    click_button "Adicionar"
+    click_button "Adicionar item"
 
-    within "#list_items" do
-      assert_text "Banana"
-    end
+    assert_selector "#list_items li", text: "Banana", visible: :all
     assert_field "Item", with: ""
   end
 
@@ -31,19 +27,15 @@ class MutationFailuresTest < ApplicationSystemTestCase
     fill_in "Item", with: "Banana"
     make_next_request_fail(:server)
 
-    click_button "Adicionar"
+    click_button "Adicionar item"
 
     assert_field "Item", with: "Banana"
     assert_text RESYNCED_ERROR
-    within "#list_items" do
-      assert_no_text "Banana"
-    end
+    assert_no_selector "#list_items li", text: "Banana", visible: :all
 
-    click_button "Adicionar"
+    click_button "Adicionar item"
 
-    within "#list_items" do
-      assert_text "Banana"
-    end
+    assert_selector "#list_items li", text: "Banana", visible: :all
     assert_field "Item", with: ""
   end
 
@@ -52,7 +44,7 @@ class MutationFailuresTest < ApplicationSystemTestCase
     fill_in "Item", with: "Banana"
     make_next_request_fail(:network, resync_delay: 1200)
 
-    click_button "Adicionar"
+    click_button "Adicionar item"
 
     assert_text REQUEST_ERROR
     assert_no_text RESYNCED_ERROR
@@ -63,14 +55,14 @@ class MutationFailuresTest < ApplicationSystemTestCase
     fill_in "Item", with: "Banana"
     make_next_request_fail(:network, request_delay: 1000)
 
-    click_button "Adicionar"
+    click_button "Adicionar item"
 
     assert_selector "#list_item_form button[disabled]"
     assert_text RESYNCED_ERROR
   end
 
   test "failed correction keeps the edited name and category and can be retried" do
-    visit root_path
+    visit_list
     click_on "Editar Leite"
     fill_in "Nome", with: "Leite de aveia"
     select "Hortifruti", from: "Categoria"
@@ -91,7 +83,7 @@ class MutationFailuresTest < ApplicationSystemTestCase
 
   test "validation response stays visible and does not request an uncertain resync" do
     households(:home).list_items.create!(name: "Banana")
-    visit root_path
+    visit_list
     click_on "Editar Banana"
     fill_in "Nome", with: "Leite"
     page.execute_script("window.__uncertainMutationEvents = 0; document.addEventListener('alva:mutation-uncertain', () => window.__uncertainMutationEvents++)")
@@ -104,7 +96,7 @@ class MutationFailuresTest < ApplicationSystemTestCase
   end
 
   test "GET and explicitly non-Turbo forms are ignored" do
-    visit root_path
+    visit_list
 
     assert_equal [ false, false ], page.evaluate_script(<<~JS)
       [
@@ -136,22 +128,18 @@ class MutationFailuresTest < ApplicationSystemTestCase
     fill_in "Item", with: "Banana"
     make_mutation_and_resync_fail_once
 
-    click_button "Adicionar"
+    click_button "Adicionar item"
 
     assert_text RESYNC_FAILED_ERROR
-    click_button "Adicionar"
+    click_button "Adicionar item"
     assert_text "Aguarde a resposta antes de tentar novamente."
-    within "#list_items" do
-      assert_no_text "Banana"
-    end
+    assert_no_selector "#list_items li", text: "Banana", visible: :all
 
     click_button "Tentar novamente"
     assert_text RESYNCED_ERROR
-    click_button "Adicionar"
+    click_button "Adicionar item"
 
-    within "#list_items" do
-      assert_text "Banana"
-    end
+    assert_selector "#list_items li", text: "Banana", visible: :all
   end
 
   test "resync timeout keeps the mutation gated until manual retry succeeds" do
@@ -159,23 +147,21 @@ class MutationFailuresTest < ApplicationSystemTestCase
     fill_in "Item", with: "Banana"
     make_mutation_and_resync_timeout
 
-    click_button "Adicionar"
+    click_button "Adicionar item"
 
     assert_text RESYNC_FAILED_ERROR
-    click_button "Adicionar"
+    click_button "Adicionar item"
     assert_text "Aguarde a resposta antes de tentar novamente."
 
     click_button "Tentar novamente"
     assert_text RESYNCED_ERROR
-    click_button "Adicionar"
+    click_button "Adicionar item"
 
-    within "#list_items" do
-      assert_text "Banana"
-    end
+    assert_selector "#list_items li", text: "Banana", visible: :all
   end
 
   test "lost toggle response does not replay and a fresh click is a new action" do
-    visit root_path
+    visit_list
     make_next_request_fail(:after_response)
 
     click_button "Leite"
@@ -191,7 +177,7 @@ class MutationFailuresTest < ApplicationSystemTestCase
   end
 
   test "remove failure keeps the item available and a retry removes it" do
-    visit root_path
+    visit_list
     make_next_request_fail(:network)
 
     click_button "Remover Leite"
@@ -205,7 +191,7 @@ class MutationFailuresTest < ApplicationSystemTestCase
   end
 
   test "finish and undo failures require retry and keep the list state current" do
-    visit root_path
+    visit_list
     click_button "Leite"
     make_next_request_fail(:network)
 

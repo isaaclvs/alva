@@ -1,0 +1,7 @@
+<%# Pending items on the live list, inside the "Lista" tab. Broadcast with the
+    list, so it stays right on every device whichever screen is open. %>
+<% pending_count = groups.sum { |_, items| items.count(&:pending?) } %>
+<span id="list_counter" data-count="<%= pending_count %>"
+      class="<%= class_names("min-w-5 rounded-full px-1.5 py-px text-xs font-semibold tabular-nums",
+                 "bg-accent text-accent-ink": pending_count.positive?,
+                 "bg-surface-2 text-ink-faint": pending_count.zero?) %>"><%= pending_count %><span class="sr-only"> <%= pending_count == 1 ? "pendente" : "pendentes" %></span></span>

@@ -5,6 +5,7 @@ class ThemeTest < ActionDispatch::IntegrationTest
     get root_path
     assert_select "html[data-theme=dark]"
     assert_select "meta[name=theme-color][content='#09090B']"
+    assert_select "button[data-controller=theme][aria-label='Tema claro']", count: 2
   end
 
   test "renders the theme saved in the cookie" do
@@ -12,6 +13,7 @@ class ThemeTest < ActionDispatch::IntegrationTest
     get root_path
     assert_select "html[data-theme=light]"
     assert_select "meta[name=theme-color][content='#F4F4F5']"
+    assert_select "button[data-controller=theme][aria-label='Tema escuro']", count: 2
   end
 
   test "falls back to dark for an unknown cookie value" do

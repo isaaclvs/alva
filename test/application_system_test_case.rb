@@ -9,4 +9,34 @@ class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
     # Lets machines without a system Chrome point at another binary.
     options.binary = ENV["CHROME_BIN"] if ENV["CHROME_BIN"]
   end
+
+  private
+
+  # The app has two screens, switched by the bottom navigation: Adicionar
+  # (where it opens) and Lista.
+  def show_list
+    find("#nav_list").click
+    assert_selector "#list_screen:not([hidden])"
+    assert_selector "#nav_list[aria-current=page]"
+  end
+
+  def show_add
+    find("#nav_add").click
+    assert_selector "#add_screen:not([hidden])"
+    assert_selector "#nav_add[aria-current=page]"
+  end
+
+  def visit_list
+    visit root_path
+    show_list
+  end
+
+  def add_item(name)
+    fill_in "Item", with: name
+    click_button "Adicionar item"
+  end
+
+  def focused_element_id
+    page.evaluate_script("document.activeElement.id")
+  end
 end

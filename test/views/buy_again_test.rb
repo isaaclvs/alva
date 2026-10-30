@@ -10,7 +10,8 @@ class BuyAgainViewTest < ActionView::TestCase
   test "renders one add button per suggestion with its category icon" do
     render partial: "list_items/buy_again", locals: { suggestions: [ suggestion("Leite", categories(:dairy)), suggestion("Arroz") ] }
 
-    assert_select "#buy_again [aria-label='Comprar de novo']"
+    assert_select "#buy_again [role=group][aria-labelledby=buy_again_title]"
+    assert_select "#buy_again h2#buy_again_title", text: "Comprar de novo"
     assert_select "#buy_again form[action='#{list_items_path}'][method=post]", count: 2
     assert_select "#buy_again input[name='list_item[name]'][value=Leite]"
     assert_select "#buy_again button", text: /Leite/

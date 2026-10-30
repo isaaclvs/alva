@@ -57,13 +57,13 @@ class ListItemsControllerTest < ActionDispatch::IntegrationTest
 
   test "index offers archived items to buy again and nothing without history" do
     get root_path
-    assert_select "header #buy_again", count: 1
+    assert_select "#add_screen #buy_again", count: 1
     assert_select "#buy_again button", count: 0
 
     list_items(:detergent).update_columns(shopping_trip_id: households(:home).shopping_trips.create!(finished_at: 1.day.ago).id)
     get root_path
-    assert_select "header #buy_again form[action='#{list_items_path}'] button", text: /Detergente/
-    assert_select "header #buy_again input[name='list_item[name]'][value=Detergente]"
+    assert_select "#add_screen #buy_again form[action='#{list_items_path}'] button", text: /Detergente/
+    assert_select "#add_screen #buy_again input[name='list_item[name]'][value=Detergente]"
   end
 
   test "index as turbo stream refreshes the buy again chips" do
@@ -237,12 +237,24 @@ class ListItemsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "create confirms the added item only to this device, in the add feedback" do
+    streams = capture_turbo_stream_broadcasts(households(:home)) do
+      post list_items_path, params: { list_item: { name: "Banana" } }, as: :turbo_stream
+    end
+
+    assert_select "turbo-stream[action=update][target=add_feedback] .text-accent-strong", text: "Banana adicionado em Hortifruti"
+    assert_select "turbo-stream[action=replace][target=list_item_form] input#list_item_name[autofocus]"
+    assert_select "turbo-stream[action=replace][target=list_counter] #list_counter", text: /\A2/
+    assert streams.none? { |stream| stream["target"] == "add_feedback" }
+    assert_not_includes streams.map(&:to_html).join, "adicionado em"
+  end
+
   test "create with a pending duplicate keeps one item and points to it" do
     assert_no_difference "ListItem.count" do
       post list_items_path, params: { list_item: { name: "leite" } }, as: :turbo_stream
     end
     assert_response :success
-    assert_includes response.body, "Leite já está na lista"
+    assert_select "turbo-stream[action=update][target=add_feedback] .text-warn", text: "Leite já está na lista"
     assert_includes response.body, %(target="#{ActionView::RecordIdentifier.dom_id(list_items(:milk))}")
     assert_includes response.body, "animate-highlight"
   end
@@ -269,7 +281,7 @@ class ListItemsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "create with several names adds them all and summarizes in the form" do
+  test "create with several names adds them all and summarizes in the add feedback" do
     assert_difference "ListItem.count", 2 do
       post list_items_path, params: { list_item: { name: "Banana, Arroz" } }, as: :turbo_stream
     end
@@ -277,8 +289,8 @@ class ListItemsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_equal "text/vnd.turbo-stream.html", response.media_type
     assert_select "turbo-stream[action=replace][target=list_items]"
+    assert_select "turbo-stream[action=update][target=add_feedback]", text: "2 itens adicionados"
     assert_select "turbo-stream[action=replace][target=list_item_form]" do
-      assert_select "p[role=status]", text: "2 itens adicionados"
       assert_select "datalist#list_item_name_suggestions option[value=Banana]", count: 1
       assert_select "input#list_item_name[value]", count: 0
     end
@@ -295,7 +307,7 @@ class ListItemsControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert purchased.reload.pending?
-    assert_select "p[role=status]", text: "2 itens adicionados · Leite já estava na lista"
+    assert_select "turbo-stream[target=add_feedback]", text: "2 itens adicionados · Leite já estava na lista"
     [ list_items(:milk), purchased, ListItem.find_by!(name: "Banana") ].each do |item|
       assert_select "turbo-stream[action=replace][target=#{ActionView::RecordIdentifier.dom_id(item)}] li.animate-highlight"
     end
@@ -306,13 +318,13 @@ class ListItemsControllerTest < ActionDispatch::IntegrationTest
       post list_items_path, params: { list_item: { name: "Leite, leite, Detergente" } }, as: :turbo_stream
     end
 
-    assert_select "p[role=status]", text: "1 item adicionado · Leite já estava na lista"
+    assert_select "turbo-stream[target=add_feedback]", text: "1 item adicionado · Leite já estava na lista"
 
     assert_no_difference "ListItem.count" do
       post list_items_path, params: { list_item: { name: "Leite, Detergente" } }, as: :turbo_stream
     end
 
-    assert_select "p[role=status]", text: "Nada adicionado · Leite e Detergente já estavam na lista"
+    assert_select "turbo-stream[target=add_feedback] .text-warn", text: "Nada adicionado · Leite e Detergente já estavam na lista"
   end
 
   test "create with several names broadcasts the list once" do

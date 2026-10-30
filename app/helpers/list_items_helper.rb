@@ -18,12 +18,24 @@ module ListItemsHelper
     tag.span emoji, class: "grid size-7 place-items-center rounded-lg text-sm #{background}", aria: { hidden: true }
   end
 
-  # "6 faltando · 2 no carrinho", dropping the parts that are zero.
+  # "6 pendentes · 2 comprados"; the purchased part only once something was
+  # bought. An empty list says so.
   def list_summary_text(pending_count, purchased_count)
-    parts = []
-    parts << "#{pending_count} faltando" if pending_count.positive?
-    parts << "#{purchased_count} no carrinho" if purchased_count.positive?
-    parts.any? ? parts.join(" · ") : "Nada faltando"
+    return "Nada na lista" if pending_count.zero? && purchased_count.zero?
+
+    parts = [ pluralize(pending_count, "pendente") ]
+    parts << pluralize(purchased_count, "comprado") if purchased_count.positive?
+    parts.join(" · ")
+  end
+
+  # Feedback for adding one name, for the add screen (the list is not on it).
+  def add_item_notice(result)
+    item = result.item
+    case result.outcome
+    when :created then "#{item.name} adicionado em #{Category.label_for(item.category)}"
+    when :revived then "#{item.name} voltou para a lista"
+    when :duplicate then "#{item.name} já está na lista"
+    end
   end
 
   # Options for the add field's <datalist>, rendered together with the form so
