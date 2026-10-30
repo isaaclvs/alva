@@ -185,7 +185,8 @@ class Household < ApplicationRecord
   # Only categories with at least one item show up. Within a category, pending
   # items come first so what is still missing stays at the top.
   def list_items_by_category
-    list_items.on_list.includes(:category).order(:status, :created_at, :id)
+    list_items.on_list.includes(:category)
+      .sort_by { |item| [ item.purchased? ? 1 : 0, TextNormalizer.plain(item.name), item.id ] }
       .group_by(&:category)
       .sort_by { |category, _| category&.position || Float::INFINITY }
   end

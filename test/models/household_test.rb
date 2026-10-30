@@ -26,6 +26,17 @@ class HouseholdTest < ActiveSupport::TestCase
     assert_equal [ bread, list_items(:milk) ], dairy_items
   end
 
+  test "sorts each status alphabetically without accents or case" do
+    household = households(:home)
+    category = categories(:dairy)
+    names = [ "Zebra", "Água", "banana" ]
+    names.each { |name| household.list_items.create!(name: name, category: category) }
+    household.list_items.create!(name: "Abacate", category: category, status: :purchased)
+
+    assert_equal [ "Água", "banana", "Leite", "Zebra", "Abacate" ],
+      household.list_items_by_category.to_h.fetch(category).map(&:name)
+  end
+
   test "finish_shopping! archives purchased items into a trip and keeps pending ones" do
     household = households(:home)
     purchased, pending = list_items(:detergent), list_items(:milk)
@@ -379,7 +390,7 @@ class HouseholdTest < ActiveSupport::TestCase
     assert_equal attributes, restored.reload.attributes.except("updated_at")
   end
 
-  test "restore_item puts the item back in its original position" do
+  test "restore_item keeps alphabetical ordering" do
     household = households(:home)
     first = household.list_items.create!(name: "Queijo", category: categories(:dairy), created_at: 2.days.ago)
     household.list_items.create!(name: "Iogurte", category: categories(:dairy))
@@ -387,7 +398,7 @@ class HouseholdTest < ActiveSupport::TestCase
     household.restore_item(removed_snapshot(first))
 
     names = household.list_items_by_category.to_h.fetch(categories(:dairy)).map(&:name)
-    assert_equal %w[Queijo Leite Iogurte], names
+    assert_equal %w[Iogurte Leite Queijo], names
   end
 
   test "restore_item broadcasts the list once" do
