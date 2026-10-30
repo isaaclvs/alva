@@ -1,60 +1,127 @@
-# Shopping List
+<p align="center">
+  <img src="public/icon.svg" alt="Marca do Alva" width="96">
+</p>
 
-Shared shopping list app, for home use, self-hosted. Traditional Rails
-(MVC + views), installable as a PWA straight from the browser. Full product
-context in `AGENTS.md`.
+<h1 align="center">Alva</h1>
 
-## Running the Rails server locally
+<p align="center">Lembrou que acabou? Adicione. No mercado, é só marcar.</p>
 
-Requirements: Ruby version from `.ruby-version`, SQLite3.
+O Alva é uma lista de compras compartilhada para uso doméstico. Feito para
+adicionar produtos com pouca fricção e encontrar tudo com facilidade na hora
+das compras, no celular ou no computador.
+
+O app é self-hosted, sincroniza alterações em tempo real e pode ser instalado
+como PWA pelo navegador. O uso atual é de uma única casa, com acesso restrito
+pela rede local ou Tailscale e sem autenticação no aplicativo.
+
+## Como funciona
+
+- **Adicionar:** tela inicial focada no campo de produtos, posicionado na região
+  central do celular para facilitar o alcance. Aceita vários nomes separados
+  por vírgula, ponto e vírgula ou quebra de linha, até 30 por envio.
+- **Lista:** produtos organizados por categoria e em ordem alfabética, com os
+  pendentes antes dos comprados. Busca por parte do nome, sem diferenciar
+  maiúsculas ou acentos, e filtro **Só pendentes**.
+- **Iniciar compras:** transforma a Lista em um checklist com áreas de toque
+  maiores e oculta os controles de edição. A busca e o filtro continuam
+  disponíveis. Sair desse modo não altera os itens.
+- **Categorização que aprende:** um dicionário classifica os produtos
+  automaticamente. Corrigir uma categoria pelo lápis ensina o app para as
+  próximas adições, sem IA ou serviços externos.
+- **Comprar de novo e Habituais:** até cinco sugestões do histórico e um painel
+  de produtos escolhidos pela casa para adicionar com poucos toques.
+- **Compra feita:** arquiva os produtos marcados e mantém os pendentes na lista.
+  Remoções e finalizações oferecem **Desfazer**.
+- **Compartilhamento ao vivo:** alterações aparecem nos aparelhos conectados
+  por Turbo Streams e ActionCable. A lista também pode ser exportada em PDF.
+- **Personalização por aparelho:** temas claro e escuro, com destaque teal ou
+  rosa, além da preferência de tela e do modo de compras. Uma pessoa pode usar
+  rosa claro enquanto outra usa teal escuro na mesma lista.
+
+O Alva mantém o foco em nomes de produtos: não há quantidades, modo offline,
+login ou publicação na Play Store. O histórico arquivado alimenta as sugestões;
+ainda não existe uma tela para consultá-lo.
+
+## Stack
+
+Ruby on Rails, SQLite, Hotwire (Turbo e Stimulus), ActionCable e Tailwind CSS.
+Os testes usam Minitest e Capybara com navegador headless.
+
+## Desenvolvimento local
+
+Use a versão de Ruby indicada em [`.ruby-version`](.ruby-version), Bundler e
+SQLite3. O processamento de imagens utiliza libvips; os testes de sistema
+precisam de Chrome/Chromium ou navegador compatível.
 
 ```bash
-bin/setup           # bundle install + prepares the database (idempotent)
-bin/rails server    # starts the server at http://localhost:3000
+bin/setup
 ```
 
-Other useful commands:
+O comando instala as dependências, prepara o banco e inicia o servidor e o
+watcher do Tailwind. Acesse `http://localhost:3000`.
+
+Para preparar o projeto sem iniciar o servidor, ou voltar a executá-lo depois:
 
 ```bash
-bin/rails test           # test suite (model/request/controller)
-bin/rails test:system    # system tests (Capybara)
-bin/rails db:seed        # populates categories and the item dictionary
+bin/setup --skip-server
+bin/dev
 ```
 
-## Testing as a PWA (installing on your phone)
+Comandos úteis:
 
-1. Start the server bound to all interfaces so the local network can reach
-   it: `bin/rails server -b 0.0.0.0` (or set up Tailscale — see SHO-9/SHO-10).
-2. Find the machine's LAN IP (`ip -4 addr`) and open
-   `http://<that-ip>:3000` in your phone's browser (Chrome/Android or
-   Safari/iOS), on the same Wi-Fi. Real-time sync works from private LAN IPs
-   (allowed Action Cable origins in `config/environments/development.rb`).
-3. Use "Add to Home Screen" (browser menu). The app opens full-screen, with
-   its own icon, like an installed app.
+```bash
+bin/rails db:seed          # categorias e dicionário; preserva entradas aprendidas
+bin/rails test             # testes de unidade e integração
+bin/rails test:system      # testes de sistema (rodar após a suíte anterior)
+bin/rubocop               # estilo Ruby
+```
 
-No build step — just open the URL. There's no offline mode (product
-decision); the service worker exists only to satisfy the browser's
-installability criteria.
+Se necessário, indique o binário do navegador nos testes de sistema:
 
-**Note:** the service worker only registers on `https:` or `localhost`.
-Testing on the same machine works without HTTPS; testing over a local
-network IP or Tailscale (`http://`) works for browsing, but the browser may
-not offer "Add to Home Screen" until the server has HTTPS (Tailscale solves
-this with automatic certificates via `tailscale serve`, see SHO-9/SHO-10).
+```bash
+CHROME_BIN=/caminho/do/navegador bin/rails test:system
+```
 
-## Why PWA (and not a native app)
+## Acesso no celular e instalação
 
-The original idea (SHO-1) was to package the app as a native Android app. We
-evaluated two options and dropped both for now:
+Para testar na rede local, compile o CSS e disponibilize o servidor nas
+interfaces de rede:
 
-- **Ruby Native**: paid SaaS (rubynative.com, Starter plan US$299/year),
-  requires an account on their platform, and the build/deploy flow is geared
-  towards store publishing — incompatible with the "no account, self-hosted"
-  decision already made for this project.
-- **Hotwire Native**: open source, but requires a full Android toolchain
-  (Android Studio, SDK, Gradle, emulator) just to package a WebView.
+```bash
+bin/rails tailwindcss:build
+bin/rails server -b 0.0.0.0
+```
 
-For the current goal — having something quickly testable with the real user
-— a PWA delivers the essentials (own icon, full screen, "installed" on the
-phone) with no toolchain at all. A native app stays on the table for the
-future, if it makes sense after testing.
+No celular conectado ao mesmo Wi-Fi, abra `http://<ip-do-servidor>:3000`.
+Para acesso fora de casa, conecte o servidor e os celulares à rede Tailscale e
+utilize o endereço do servidor nessa rede. O servidor deve permanecer ligado
+e conectado.
+
+Para instalar como PWA, use o endereço HTTPS do servidor e a opção **Instalar
+app** ou **Adicionar à tela inicial** do navegador. O service worker requer
+um contexto seguro (HTTPS ou localhost); acessar por IP via HTTP permite usar
+a lista, mas não garante a instalação como PWA. Tailscale Serve é uma opção
+para disponibilizar HTTPS dentro da rede Tailscale.
+
+O service worker não fornece cache offline: o app precisa de conexão para
+funcionar. Como não há autenticação, mantenha o acesso restrito à rede de
+confiança; não exponha o app diretamente à internet pública.
+
+## Hospedagem e dados
+
+O projeto inclui [Dockerfile](Dockerfile) e uma configuração de referência
+para [Kamal](config/deploy.yml). Ajuste os exemplos ao seu ambiente antes de
+utilizá-los; eles não representam necessariamente a instalação em uso.
+
+Em produção, preserve o diretório `storage/`, que contém os bancos SQLite,
+entre atualizações e configure seu backup. O CI verifica testes, estilo,
+análises de segurança, migrações, seeds e inicialização em produção.
+
+## Documentação
+
+- [Contexto do projeto e convenções](AGENTS.md)
+- [Marca e arquivos dos ícones](docs/brand/README.md)
+- [Paleta rosa clara e contrastes](docs/brand/pink-light.md)
+- [Plano do modo de compras](docs/plans/shopping-mode.md)
+
+O trabalho é acompanhado no [Linear, time ALV](https://linear.app/alva-isaac/team/ALV/all).
