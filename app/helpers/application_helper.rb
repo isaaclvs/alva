@@ -13,6 +13,12 @@ module ApplicationHelper
   DEFAULT_SCREEN = "add".freeze
   SCREEN_COOKIE = :screen
 
+  # "Iniciar compras": a checklist mode of the list screen, also a device
+  # preference (cookie written by shopping_controller.js, never broadcast).
+  # It is separate from the old market_mode cookie.
+  SHOPPING_COOKIE = :shopping_mode
+  SHOPPING_ON = "on".freeze
+
   # The theme saved in the device's cookie. Anything unexpected falls back to
   # dark, which stays the default. Broadcast renders have no request (and so
   # no cookie); they are only used for the list markup, never the <html> tag.
@@ -25,10 +31,17 @@ module ApplicationHelper
     THEME_COLORS.fetch(theme)
   end
 
+  def shopping_mode?
+    cookies[SHOPPING_COOKIE] == SHOPPING_ON
+  end
+
   # The screen this device had open, so a reload (or Android bringing the PWA
   # back) reopens it. The old "market mode" cookie meant "only the list", so
-  # it still opens the list until the device picks a screen.
+  # it still opens the list until the device picks a screen. While shopping,
+  # it is always the list, whatever the saved screen says.
   def current_screen
+    return "list" if shopping_mode?
+
     saved = cookies[SCREEN_COOKIE]
     return saved if SCREENS.include?(saved)
 
