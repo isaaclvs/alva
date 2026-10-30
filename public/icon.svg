@@ -1,7 +1,4 @@
-<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-  <circle cx="256" cy="256" r="256" fill="#0F766E"/>
-  <line x1="150" y1="160" x2="200" y2="210" stroke="#FFFFFF" stroke-width="16" stroke-linecap="round"/>
-  <polygon points="200,210 390,210 360,330 225,330" fill="#FFFFFF"/>
-  <circle cx="250" cy="368" r="20" fill="#FFFFFF"/>
-  <circle cx="335" cy="368" r="20" fill="#FFFFFF"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#09090B"/>
+  <g transform="translate(76 76) scale(3.6)"><g transform="translate(0 -2)" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M18 57H34.5M57.5 57H82M30 70H70M40 82H60" stroke="#F4F4F5" stroke-width="6.5"/><path d="M32 42L46 57L72 24" stroke="#2DD4BF" stroke-width="9"/></g></g>
 </svg>
