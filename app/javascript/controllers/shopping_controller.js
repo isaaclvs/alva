@@ -56,6 +56,7 @@ export default class extends Controller {
   exit() {
     document.cookie = `${COOKIE_NAME}=; Max-Age=0; Path=/; SameSite=Lax`
     delete document.documentElement.dataset.shoppingMode
+    this.dispatch("exited")
     window.scrollTo({ top: 0 })
     const next = this.hasStartTarget ? this.startTarget : document.getElementById("list_screen_title")
     next.focus()
