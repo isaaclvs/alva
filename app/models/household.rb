@@ -37,7 +37,8 @@ class Household < ApplicationRecord
   # The single entry point for putting a name on the list. Returns an AddResult:
   # - :created   a new pending item was saved;
   # - :revived   the name matched a purchased item, which is pending again
-  #              (keeping its original name); no new row;
+  #              (keeping its original name, in the dictionary's category);
+  #              no new row;
   # - :duplicate the name is already pending; `item` is that existing item;
   # - :invalid   nothing saved; `item.errors` says why (e.g. blank name).
   def add_item(name)
@@ -48,6 +49,10 @@ class Household < ApplicationRecord
       purchased = purchased_item_named(name)
       if purchased
         purchased.toggle_purchased!
+        # Typed again, so it lands where a new item would: the dictionary may
+        # have learned a category since this row was added.
+        category = ItemCategorizer.call(purchased.name)
+        purchased.update!(category: category) unless purchased.category == category
         next AddResult.new(purchased, :revived)
       end
 

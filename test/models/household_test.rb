@@ -182,6 +182,47 @@ class HouseholdTest < ActiveSupport::TestCase
     assert older.reload.purchased?
   end
 
+  test "add_item puts a name in the category learned from a correction" do
+    household = households(:home)
+    tomato = household.add_item("Tomate cereja").item
+    assert_equal categories(:other), tomato.category
+
+    assert tomato.correct(name: tomato.name, category_id: categories(:produce).id)
+    tomato.toggle_purchased!
+    household.finish_shopping!
+
+    [ "tomates cereja", "  TOMATE   CEREJA " ].each do |typed|
+      result = household.add_item(typed)
+
+      assert_equal :created, result.outcome
+      assert_equal categories(:produce), result.item.category, typed
+      result.item.destroy!
+    end
+  end
+
+  test "add_item gives a revived item the category the dictionary has now" do
+    household = households(:home)
+    tomato = household.add_item("Tomate cereja").item
+    tomato.toggle_purchased!
+    ItemCategorizer.learn("Tomates cereja", categories(:produce))
+
+    result = nil
+    assert_list_broadcast(household) { result = household.add_item("tomate cereja") }
+
+    assert_equal :revived, result.outcome
+    assert_equal categories(:produce), tomato.reload.category
+  end
+
+  test "unticking a purchased item keeps its category" do
+    tomato = households(:home).add_item("Tomate cereja").item
+    tomato.toggle_purchased!
+    ItemCategorizer.learn("Tomate cereja", categories(:produce))
+
+    tomato.reload.toggle_purchased!
+
+    assert_equal categories(:other), tomato.reload.category
+  end
+
   test "batch_list_broadcasts holds back per-item broadcasts and broadcasts once at the end" do
     household = households(:home)
 

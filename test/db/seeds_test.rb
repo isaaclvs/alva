@@ -24,6 +24,26 @@ class SeedsTest < ActiveSupport::TestCase
     assert_equal hygiene, leite.reload.category
   end
 
+  test "keeps a category learned from a correction, under any spelling, for the next item" do
+    Rails.application.load_seed
+    household = Household.find_by!(name: "Casa")
+    pantry = Category.find_by!(name: "Mercearia")
+    produce = Category.find_by!(name: "Hortifruti")
+
+    tomato = household.add_item("Tomates").item
+    assert tomato.correct(name: tomato.name, category_id: pantry.id)
+    cherry = household.add_item("Tomate cereja").item
+    assert cherry.correct(name: cherry.name, category_id: produce.id)
+    [ tomato, cherry ].each(&:destroy!)
+
+    assert_no_difference "CatalogItem.count" do
+      Rails.application.load_seed
+    end
+
+    assert_equal pantry, household.add_item("tomate").item.category
+    assert_equal produce, household.add_item("TOMATES CEREJA").item.category
+  end
+
   test "updates entries that were not learned" do
     Rails.application.load_seed
     leite = CatalogItem.find_by!(normalized_name: TextNormalizer.call("Leite"))
