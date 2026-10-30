@@ -38,7 +38,7 @@ export default class extends Controller {
     // checklist: finish (or cancel) it first.
     const editing = this.editingForm
     if (editing) {
-      editing.querySelector("input, select")?.focus()
+      editing.querySelector("input:not([type=hidden]), select")?.focus()
       return
     }
 

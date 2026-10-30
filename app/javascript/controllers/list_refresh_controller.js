@@ -3,6 +3,7 @@ import { Turbo } from "@hotwired/turbo-rails"
 
 const REFRESH_COOLDOWN_MS = 1500
 const REQUEST_TIMEOUT_MS = 12000
+const ROW_FOCUS_WINDOW_MS = 5000
 
 // ActionCable reconnects do not replay broadcasts missed while this client was
 // away. Re-fetch the current list on reconnect and when the app returns to the
@@ -76,6 +77,9 @@ export default class extends Controller {
   }
 
   handleSubmitStart(event) {
+    if (event.target.closest?.("#list_items") && event.target.querySelector("button[aria-pressed]")) {
+      this.togglingRow = { id: event.target.closest("li")?.id, at: Date.now() }
+    }
     if (event.target.matches("form[data-list-refresh-correction]")) {
       this.submittedCorrectionForms ||= new WeakSet()
       this.submittedCorrectionForms.add(event.target)
@@ -320,9 +324,13 @@ export default class extends Controller {
     const activeElement = document.activeElement
     const selectionStart = this.selectionStart(activeElement)
     const selectionEnd = this.selectionEnd(activeElement)
-    // A row's check button is replaced with the list; its successor gets the
-    // focus back so the checklist can be walked with the keyboard.
-    const toggledRowId = activeElement?.matches?.("#list_items button[aria-pressed]") ? activeElement.closest("li")?.id : null
+    // A row's check button is replaced with the list (Turbo also disables it
+    // while it submits, which already drops its focus). Its successor gets the
+    // focus back, unless the user has since moved it elsewhere, so the checklist
+    // can be walked with the keyboard.
+    const submittedRow = this.togglingRow && Date.now() - this.togglingRow.at < ROW_FOCUS_WINDOW_MS ? this.togglingRow.id : null
+    const toggledRowId = submittedRow || (activeElement?.matches?.("#list_items button[aria-pressed]") ? activeElement.closest("li")?.id : null)
+    this.togglingRow = null
     const correctionForms = Array.from(document.querySelectorAll("#list_items turbo-frame form[data-list-refresh-correction]"))
       .filter((form) => !this.submittedCorrectionForms?.has(form))
 
@@ -342,7 +350,9 @@ export default class extends Controller {
 
     targets.forEach((target) => target.replaceWith(fragment))
     if (toggledRowId) {
-      document.querySelector(`#${CSS.escape(toggledRowId)} button[aria-pressed]`)?.focus({ preventScroll: true })
+      if (document.activeElement === document.body) {
+        document.querySelector(`#${CSS.escape(toggledRowId)} button[aria-pressed]`)?.focus({ preventScroll: true })
+      }
     } else if (activeElement?.isConnected && document.activeElement !== activeElement) {
       activeElement.focus({ preventScroll: true })
       if (selectionStart !== null && typeof activeElement.setSelectionRange === "function") {
