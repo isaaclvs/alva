@@ -101,7 +101,8 @@ class BuyAgainSuggestionsTest < ActiveSupport::TestCase
   test "keeps only the top limit" do
     10.times { |i| buy "Item #{i}" }
 
-    assert_equal 8, names.size
+    assert_equal BuyAgainSuggestions::LIMIT, names.size
+    assert_equal 5, names.size
     assert_equal 3, names(limit: 3).size
     assert_equal [ "Item 9", "Item 8" ], names(limit: 2)
   end
