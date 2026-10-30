@@ -28,20 +28,22 @@
       <%= render "list_items/theme_toggle" %>
     </header>
 
-    <h1 id="add_screen_title" class="mt-8 text-2xl font-bold tracking-tight">O que está faltando em casa?</h1>
-    <p class="mt-1 text-ink-soft">Lembrou, adicionou.</p>
+    <div class="add-screen-content">
+      <h1 id="add_screen_title" class="text-2xl font-bold tracking-tight">O que está faltando em casa?</h1>
+      <p class="mt-1 text-ink-soft">Lembrou, adicionou.</p>
 
-    <div class="mt-5">
-      <%= render "form", list_item: @list_item, autofocus: screen == "add" %>
-      <p id="add_hint" class="mt-2 px-1 text-xs text-ink-faint">Dica: separe por vírgula para adicionar vários.</p>
-      <%# Filled by the add responses (never by broadcasts): only this device
-          hears what it just added. %>
-      <p id="add_feedback" role="status" aria-live="polite" class="mt-1 min-h-5 px-1 text-sm font-medium"></p>
-    </div>
+      <div class="mt-5">
+        <%= render "form", list_item: @list_item, autofocus: screen == "add" %>
+        <p id="add_hint" class="mt-2 px-1 text-xs text-ink-faint">Dica: separe por vírgula para adicionar vários.</p>
+        <%# Filled by the add responses (never by broadcasts): only this device
+            hears what it just added. %>
+        <p id="add_feedback" role="status" aria-live="polite" class="mt-1 min-h-5 px-1 text-sm font-medium"></p>
+      </div>
 
-    <div class="mt-5 space-y-3">
-      <%= render "buy_again", suggestions: @suggestions %>
-      <%= render "habitual_items/panel", household: @household, habitual_item: @habitual_item %>
+      <div class="mt-5 space-y-3">
+        <%= render "buy_again", suggestions: @suggestions %>
+        <%= render "habitual_items/panel", household: @household, habitual_item: @habitual_item %>
+      </div>
     </div>
   </section>
 
