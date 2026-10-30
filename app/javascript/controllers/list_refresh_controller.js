@@ -320,6 +320,9 @@ export default class extends Controller {
     const activeElement = document.activeElement
     const selectionStart = this.selectionStart(activeElement)
     const selectionEnd = this.selectionEnd(activeElement)
+    // A row's check button is replaced with the list; its successor gets the
+    // focus back so the checklist can be walked with the keyboard.
+    const toggledRowId = activeElement?.matches?.("#list_items button[aria-pressed]") ? activeElement.closest("li")?.id : null
     const correctionForms = Array.from(document.querySelectorAll("#list_items turbo-frame form[data-list-refresh-correction]"))
       .filter((form) => !this.submittedCorrectionForms?.has(form))
 
@@ -338,7 +341,9 @@ export default class extends Controller {
     })
 
     targets.forEach((target) => target.replaceWith(fragment))
-    if (activeElement?.isConnected && document.activeElement !== activeElement) {
+    if (toggledRowId) {
+      document.querySelector(`#${CSS.escape(toggledRowId)} button[aria-pressed]`)?.focus({ preventScroll: true })
+    } else if (activeElement?.isConnected && document.activeElement !== activeElement) {
       activeElement.focus({ preventScroll: true })
       if (selectionStart !== null && typeof activeElement.setSelectionRange === "function") {
         activeElement.setSelectionRange(selectionStart, selectionEnd)
