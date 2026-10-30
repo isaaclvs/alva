@@ -122,6 +122,22 @@ atualizam as duas telas (escondida ou não), mas nunca navegação, tema ou o
 retorno de adicionar: `#add_feedback` (live region) só é preenchido na resposta
 HTTP de quem adicionou.
 
+**Iniciar compras:** botão no resumo da Lista (só com itens na lista viva, também
+quando todos já estão marcados) que a transforma em checklist. A preferência é do
+aparelho, no cookie `shopping_mode=on` (24 h; separado do antigo `market_mode`),
+gravado por `shopping_controller.js` e nunca transmitido. O servidor renderiza
+`<html data-shopping-mode="on">` a partir do cookie (sem flash de controles nem
+teclado) e `current_screen` passa a ser sempre `list`, sem mexer no cookie
+`screen`. Todo o resto é CSS em `application.css` (`.shopping-hide`,
+`.shopping-only`, navegação oculta): ficam só cabeçalho "Em compras" com resumo e
+"Sair das compras", categorias, checkbox + nome em linhas maiores, "Compra feita"
+e o toast com Desfazer. Como a marcação dos fragments de broadcast não depende do
+cookie, lista atualizada por outro aparelho nunca traz controles de volta. Com um
+formulário de correção aberto o botão fica `aria-disabled` com a dica "Salve ou
+cancele a edição" (e o foco vai para o campo), para não perder o rascunho. Iniciar
+e sair só mudam a tela: nada é alterado nos itens nem finalizado. Compra feita
+mantém o modo. `screen#show` ignora trocas de tela enquanto o modo está ativo.
+
 **Tema:** escuro (padrão) e claro, alternados pelo botão em cada tela e salvos
 por aparelho no cookie `theme` (`<html data-theme>` vem do servidor). As cores
 são tokens semânticos em `app/assets/tailwind/application.css` (`canvas`,
