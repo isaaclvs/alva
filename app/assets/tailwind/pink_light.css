@@ -1,0 +1,18 @@
+/* Approved light pink palette. Category icon colors remain in the views. */
+html[data-color="pink"][data-theme="light"] {
+  color-scheme: light;
+
+  --color-canvas: #fcf8fa;
+  --color-surface: #ffffff;
+  --color-surface-2: #f6edf2;
+  --color-line: #eadde4;
+  --color-ink: #30242c;
+  --color-ink-soft: #806d78;
+  --color-ink-faint: #806d78;
+  --color-accent: #b73570;
+  --color-accent-strong: #922955;
+  --color-accent-ink: #ffffff;
+  --color-accent-soft: #f8e8f0;
+  --color-warn: #805000;
+  --color-danger: #a32636;
+}
