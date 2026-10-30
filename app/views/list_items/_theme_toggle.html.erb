@@ -1,6 +1,8 @@
-<%# Shows the sun in the dark theme (switches to light) and the moon in the light one. %>
-<%= tag.button type: "button", title: "Alternar tema", aria: { label: "Alternar tema" },
-      class: "grid size-9 shrink-0 place-items-center rounded-full text-zinc-400 active:bg-zinc-800",
+<%# Shows the sun in the dark theme (switches to light) and the moon in the
+    light one. Each screen has one; theme_controller.js keeps them in sync. %>
+<% label = theme_name == "dark" ? "Tema claro" : "Tema escuro" %>
+<%= tag.button type: "button", title: label, aria: { label: label },
+      class: "grid size-9 shrink-0 place-items-center rounded-full text-ink-soft active:bg-surface-2",
       data: { controller: "theme", action: "theme#toggle",
               theme_dark_color_value: theme_color("dark"), theme_light_color_value: theme_color("light") } do %>
   <svg class="size-5 in-data-[theme=light]:hidden" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true">
