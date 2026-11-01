@@ -1,0 +1,22 @@
+[
+  {
+    "operation": "open",
+    "samples": 10,
+    "server_median_ms": 72.94,
+    "server_p95_ms": 79.46,
+    "median_bytes": 18744.0,
+    "content_encoding": [
+      "gzip"
+    ]
+  },
+  {
+    "operation": "refresh",
+    "samples": 10,
+    "server_median_ms": 64.78,
+    "server_p95_ms": 73.12,
+    "median_bytes": 13459.5,
+    "content_encoding": [
+      "gzip"
+    ]
+  }
+]

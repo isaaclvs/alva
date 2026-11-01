@@ -43,3 +43,12 @@ No Atlas, a página de entrada respondeu em cerca de 6 ms via loopback. Pelo Fun
 ## Validação
 
 309 testes de unidade/integração e 93 de sistema passaram, incluindo dois aparelhos, filtro, foco e rascunhos durante atualizações parciais. RuboCop e Brakeman limpos. Nenhuma alteração de banco ou novo APK é necessária.
+
+## Leituras reais após a implantação
+
+| GET autenticado | Rails antes (ms) | Rails depois (ms) | Bytes antes | Bytes depois (gzip) |
+|---|---:|---:|---:|---:|
+| open | 78.0 | 72.94 | 145939.0 | 18744.0 |
+| refresh | 67.27 | 64.78 | 123228.0 | 13459.5 |
+
+Na lista real atual, o ganho de CPU na abertura foi pequeno (78 para 73 ms); o ganho maior foi o volume de dados: cerca de 87% menos na abertura e 89% menos no refresh. O ganho grande do SQL aparece com histórico maior nos cenários isolados. As marcações parciais são verificadas nos testes e no benchmark; a medição do Atlas não marcou itens reais.
