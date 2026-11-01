@@ -24,6 +24,12 @@ module Alva
     # Dates shown to the user (e.g. the PDF filename and header) follow the
     # household's clock, not UTC.
     config.time_zone = "America/Sao_Paulo"
+
+    # Compress dynamic HTML/streams on the route through Funnel as well as LAN.
+    # Static precompressed assets are handled earlier by ActionDispatch::Static.
+    config.middleware.use Rack::Deflater, if: ->(_env, _status, headers, _body) {
+      headers["content-type"].to_s.match?(%r{\A(?:text/(?:html|vnd\.turbo-stream\.html)|application/(?:javascript|json))})
+    }
     # config.eager_load_paths << Rails.root.join("extras")
   end
 end
