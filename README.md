@@ -32,7 +32,9 @@ compartilhada da casa, lembrada por aparelho por 30 dias.
 - **Comprar de novo e Habituais:** até cinco sugestões do histórico e um painel
   de produtos escolhidos pela casa para adicionar com poucos toques.
 - **Compra feita:** arquiva os produtos marcados e mantém os pendentes na lista.
-  Remoções e finalizações oferecem **Desfazer**.
+  Remoções, finalizações e a última marcação oferecem **Desfazer**.
+  Ao marcar ou desmarcar, o aviso fica disponível por cerca de cinco segundos
+  no aparelho que agiu, inclusive quando o produto some pelo filtro Só pendentes.
 - **Compartilhamento ao vivo:** alterações aparecem nos aparelhos conectados
   por Turbo Streams e ActionCable. A lista também pode ser exportada em PDF.
 - **Personalização por aparelho:** temas claro e escuro, com destaque teal ou
