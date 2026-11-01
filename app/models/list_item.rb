@@ -55,6 +55,21 @@ class ListItem < ApplicationRecord
     end
   end
 
+  # Restore the state before a signed toggle, including its original date.
+  def undo_purchase!(snapshot)
+    household.with_list_lock do
+      reload
+      raise StaleAction unless lock_version == snapshot.fetch("lock_version") && shopping_trip_id.nil?
+
+      if snapshot.fetch("status") == "pending" && household.pending_item_named(name)
+        return false
+      end
+
+      update!(status: snapshot.fetch("status"), purchased_at: snapshot["purchased_at"])
+      true
+    end
+  end
+
   # Fixes what was typed. A category picked by hand is applied and learned, so
   # the next item with this name lands there; a new name with the category
   # left as it was is recategorized like a freshly typed one. Returns false,

@@ -80,10 +80,31 @@ class ListItemsController < ApplicationController
       return missing_or_stale_item unless @list_item
       return stale_list_action if stale_version?(@list_item, params[:lock_version])
 
+      previous_status = @list_item.status
+      previous_purchased_at = @list_item.purchased_at
       return stale_list_action unless @list_item.toggle_purchased!
+
+      @purchase_undo = PurchaseUndo.dump(@list_item, status: previous_status, purchased_at: previous_purchased_at)
     end
 
-    render_list(category: @list_item.category)
+    message = @list_item.purchased? ? "#{@list_item.name} marcado" : "#{@list_item.name} desmarcado"
+    render_list(category: @list_item.category, toast: { message: message,
+      undo: { path: undo_purchase_list_item_path(@list_item), params: { token: @purchase_undo } } })
+  rescue ListItem::StaleAction
+    stale_list_action
+  end
+
+  def undo_purchase
+    snapshot = PurchaseUndo.load(params[:token])
+    return head :not_found unless snapshot && snapshot["household_id"] == current_household.id && snapshot["id"].to_s == params[:id]
+
+    current_household.with_list_lock do
+      @list_item = current_household.list_items.on_list.find_by(id: snapshot["id"])
+      return stale_list_action unless @list_item
+      return stale_list_action unless @list_item.undo_purchase!(snapshot)
+    end
+
+    render_list(category: @list_item.category, toast: :clear)
   rescue ListItem::StaleAction
     stale_list_action
   end
