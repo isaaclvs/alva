@@ -22,7 +22,8 @@ Tailscale no celular. O recurso é beta; mantenha a rota privada para manutenç�
 
 Não grave a senha ou o hash em arquivos versionados. Gere o hash usando bcrypt,
 com entrada pelo terminal sem eco, e guarde-o em um arquivo privado de ambiente
-do serviço (permissão 600). Use uma frase longa, exclusiva, com até 72 bytes.
+do serviço (permissão 600). Use uma senha exclusiva com pelo menos 8 caracteres e até 72 bytes;
+uma frase mais longa é recomendada.
 Nunca passe a senha em argumentos de linha de comando.
 
 ## Implantação no Atlas
