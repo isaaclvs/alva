@@ -109,6 +109,16 @@ funcionar. Para disponibilizar sem VPN, configure primeiro a proteção por senh
 conforme o [guia de implantação via Funnel](docs/deployment/tailscale-funnel.md).
 Instalações sem senha devem permanecer restritas à rede de confiança.
 
+## APK Android
+
+Também é possível instalar o [APK do Alva](https://atlas.taild80ca0.ts.net/downloads/Alva-1.0.apk)
+diretamente no Android, sem Play Store. Ao abrir o arquivo, o Android pode pedir
+permissão para instalar aplicativos dessa origem. O APK usa a mesma lista e a
+mesma senha da casa; o Atlas deve continuar ligado e o celular conectado à internet.
+
+O empacotamento usa Trusted Web Activity. Consulte o [guia do APK](docs/deployment/android-apk.md)
+para informações sobre assinatura e atualizações.
+
 ## Hospedagem e dados
 
 O projeto inclui [Dockerfile](Dockerfile) e uma configuração de referência

@@ -39,3 +39,6 @@
 
 # Test coverage reports (COVERAGE=1 bin/rails test)
 /coverage
+
+# Locally distributed Android builds; signing material stays outside the repo.
+/public/downloads/*.apk
