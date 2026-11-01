@@ -1,0 +1,81 @@
+# Run with: RAILS_ENV=test bin/rails runner script/benchmark_list
+# Every scenario uses a disposable SQLite database, never the household's data.
+require "tmpdir"
+require "json"
+require "zlib"
+abort "Run with RAILS_ENV=test" unless Rails.env.test?
+Rails.logger = ActiveSupport::Logger.new(File::NULL)
+ActiveRecord::Base.logger = nil
+ActionCable.server.config.cable = { "adapter" => "test" }
+ActiveRecord::Schema.verbose = false
+
+samples = Integer(ENV.fetch("SAMPLES", "20"))
+results = []
+Dir.mktmpdir("alva-benchmark-") do |dir|
+  ActiveRecord::Base.establish_connection(adapter: "sqlite3", database: File.join(dir, "benchmark.sqlite3"))
+  load Rails.root.join("db/schema.rb")
+  [ [ 50, 0 ], [ 50, 5000 ], [ 200, 5000 ] ].each do |size, history_size|
+    ListItem.delete_all
+    ShoppingTrip.delete_all
+    Household.delete_all
+    Category.delete_all
+    household = Household.create!(name: "Benchmark")
+    categories = 8.times.map { |i| Category.create!(name: "Seção #{i}", position: i) }
+    now = Time.current.change(usec: 0)
+    rows = size.times.map do |i|
+      { household_id: household.id, category_id: categories[i % 8].id, name: "Produto #{i}",
+        normalized_name: TextNormalizer.call("Produto #{i}"), status: 0, created_at: now, updated_at: now }
+    end
+    ListItem.insert_all!(rows)
+    trip = household.shopping_trips.create!(finished_at: now)
+    history = history_size.times.map do |i|
+      name = "Histórico #{i % 100}"
+      { household_id: household.id, category_id: categories[i % 8].id, name: name,
+        normalized_name: TextNormalizer.call(name), status: 1, shopping_trip_id: trip.id,
+        purchased_at: now - i.minutes, created_at: now, updated_at: now }
+    end
+    ListItem.insert_all!(history) if history.any?
+    session = ActionDispatch::Integration::Session.new(Rails.application)
+    session.host! "www.example.com"
+    headers = { "Accept" => "text/vnd.turbo-stream.html" }
+    item = household.list_items.on_list.first
+    [ :open, :add, :toggle ].each do |operation|
+      observations = []
+      (samples + 3).times do |iteration|
+        sql = 0
+        refreshes = 0
+        bytes = 0
+        callbacks = [
+          [ "sql.active_record", ->(*, p) { sql += 1 unless %w[SCHEMA TRANSACTION].include?(p[:name]) || p[:cached] } ],
+          [ "render_partial.action_view", ->(*, p) { refreshes += 1 if p[:identifier]&.match?(/_(?:purchase_)?refresh\.turbo_stream\.erb\z/) } ],
+          [ "broadcast.action_cable", ->(*, p) { bytes += p[:message].to_s.bytesize } ]
+        ]
+        subscriptions = callbacks.map { |event, callback| ActiveSupport::Notifications.subscribe(event, callback) }
+        before_allocations = GC.stat(:total_allocated_objects)
+        start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        case operation
+        when :open then session.get "/"
+        when :add then session.post "/list_items", params: { list_item: { name: "Novo produto" } }, headers: headers
+        when :toggle then session.patch "/list_items/#{item.id}/toggle", headers: headers
+        end
+        elapsed = (Process.clock_gettime(Process::CLOCK_MONOTONIC) - start) * 1000
+        allocations = GC.stat(:total_allocated_objects) - before_allocations
+        subscriptions.each { |subscription| ActiveSupport::Notifications.unsubscribe(subscription) }
+        raise "HTTP #{session.response.status}" unless session.response.successful?
+        observations << { ms: elapsed, sql: sql, refresh_renders: refreshes, broadcast_bytes: bytes,
+          response_bytes: session.response.body.bytesize, gzip_response_bytes: Zlib.gzip(session.response.body).bytesize, allocations: allocations } if iteration >= 3
+        household.list_items.where(name: "Novo produto").delete_all if operation == :add
+        ActionCable.server.pubsub.clear
+      end
+      entry = { items: size, history: history_size, operation: operation, samples: samples }
+      observations.first.keys.each do |key|
+        values = observations.map { |o| o[key] }.sort
+        entry[key] = { median: values[values.length / 2].round(2), p95: values[[(values.length * 0.95).ceil - 1, 0].max].round(2) }
+      end
+      results << entry
+    end
+  end
+ensure
+  ActiveRecord::Base.connection_pool.disconnect!
+end
+puts JSON.pretty_generate(results)

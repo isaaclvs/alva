@@ -1,0 +1,272 @@
+[
+  {
+    "items": 50,
+    "history": 0,
+    "operation": "open",
+    "samples": 20,
+    "ms": {
+      "median": 23.09,
+      "p95": 29.09
+    },
+    "sql": {
+      "median": 8,
+      "p95": 8
+    },
+    "refresh_renders": {
+      "median": 0,
+      "p95": 0
+    },
+    "broadcast_bytes": {
+      "median": 0,
+      "p95": 0
+    },
+    "response_bytes": {
+      "median": 115936,
+      "p95": 115936
+    },
+    "allocations": {
+      "median": 34780,
+      "p95": 34782
+    }
+  },
+  {
+    "items": 50,
+    "history": 0,
+    "operation": "add",
+    "samples": 20,
+    "ms": {
+      "median": 48.55,
+      "p95": 80.97
+    },
+    "sql": {
+      "median": 15,
+      "p95": 15
+    },
+    "refresh_renders": {
+      "median": 2,
+      "p95": 2
+    },
+    "broadcast_bytes": {
+      "median": 98327,
+      "p95": 98327
+    },
+    "response_bytes": {
+      "median": 101655,
+      "p95": 101655
+    },
+    "allocations": {
+      "median": 76777,
+      "p95": 76779
+    }
+  },
+  {
+    "items": 50,
+    "history": 0,
+    "operation": "toggle",
+    "samples": 20,
+    "ms": {
+      "median": 44.28,
+      "p95": 45.4
+    },
+    "sql": {
+      "median": 13,
+      "p95": 13
+    },
+    "refresh_renders": {
+      "median": 2,
+      "p95": 2
+    },
+    "broadcast_bytes": {
+      "median": 95834,
+      "p95": 95947
+    },
+    "response_bytes": {
+      "median": 95832,
+      "p95": 95947
+    },
+    "allocations": {
+      "median": 69560,
+      "p95": 69772
+    }
+  },
+  {
+    "items": 50,
+    "history": 5000,
+    "operation": "open",
+    "samples": 20,
+    "ms": {
+      "median": 168.46,
+      "p95": 193.04
+    },
+    "sql": {
+      "median": 9,
+      "p95": 9
+    },
+    "refresh_renders": {
+      "median": 0,
+      "p95": 0
+    },
+    "broadcast_bytes": {
+      "median": 0,
+      "p95": 0
+    },
+    "response_bytes": {
+      "median": 121602,
+      "p95": 122502
+    },
+    "allocations": {
+      "median": 453839,
+      "p95": 454039
+    }
+  },
+  {
+    "items": 50,
+    "history": 5000,
+    "operation": "add",
+    "samples": 20,
+    "ms": {
+      "median": 264.6,
+      "p95": 271.59
+    },
+    "sql": {
+      "median": 16,
+      "p95": 16
+    },
+    "refresh_renders": {
+      "median": 2,
+      "p95": 2
+    },
+    "broadcast_bytes": {
+      "median": 100115,
+      "p95": 100115
+    },
+    "response_bytes": {
+      "median": 107333,
+      "p95": 107333
+    },
+    "allocations": {
+      "median": 737394,
+      "p95": 737394
+    }
+  },
+  {
+    "items": 50,
+    "history": 5000,
+    "operation": "toggle",
+    "samples": 20,
+    "ms": {
+      "median": 199.48,
+      "p95": 236.97
+    },
+    "sql": {
+      "median": 14,
+      "p95": 14
+    },
+    "refresh_renders": {
+      "median": 2,
+      "p95": 2
+    },
+    "broadcast_bytes": {
+      "median": 98508,
+      "p95": 98510
+    },
+    "response_bytes": {
+      "median": 98508,
+      "p95": 98510
+    },
+    "allocations": {
+      "median": 573074,
+      "p95": 573075
+    }
+  },
+  {
+    "items": 200,
+    "history": 5000,
+    "operation": "open",
+    "samples": 20,
+    "ms": {
+      "median": 191.84,
+      "p95": 226.66
+    },
+    "sql": {
+      "median": 9,
+      "p95": 9
+    },
+    "refresh_renders": {
+      "median": 0,
+      "p95": 0
+    },
+    "broadcast_bytes": {
+      "median": 0,
+      "p95": 0
+    },
+    "response_bytes": {
+      "median": 396229,
+      "p95": 399829
+    },
+    "allocations": {
+      "median": 542189,
+      "p95": 542989
+    }
+  },
+  {
+    "items": 200,
+    "history": 5000,
+    "operation": "add",
+    "samples": 20,
+    "ms": {
+      "median": 375.54,
+      "p95": 388.2
+    },
+    "sql": {
+      "median": 16,
+      "p95": 16
+    },
+    "refresh_renders": {
+      "median": 2,
+      "p95": 2
+    },
+    "broadcast_bytes": {
+      "median": 369248,
+      "p95": 369248
+    },
+    "response_bytes": {
+      "median": 381966,
+      "p95": 381966
+    },
+    "allocations": {
+      "median": 935394,
+      "p95": 935596
+    }
+  },
+  {
+    "items": 200,
+    "history": 5000,
+    "operation": "toggle",
+    "samples": 20,
+    "ms": {
+      "median": 308.72,
+      "p95": 344.07
+    },
+    "sql": {
+      "median": 14,
+      "p95": 14
+    },
+    "refresh_renders": {
+      "median": 2,
+      "p95": 2
+    },
+    "broadcast_bytes": {
+      "median": 367635,
+      "p95": 367637
+    },
+    "response_bytes": {
+      "median": 367635,
+      "p95": 367637
+    },
+    "allocations": {
+      "median": 758174,
+      "p95": 758375
+    }
+  }
+]

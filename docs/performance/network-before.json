@@ -1,0 +1,28 @@
+[
+  {
+    "route": "private_https",
+    "samples": 10,
+    "errors": 0,
+    "median_ttfb_ms": 50.91,
+    "median_total_ms": 51.88
+  },
+  {
+    "route": "public_relay_1",
+    "samples": 10,
+    "errors": 0,
+    "median_ttfb_ms": 1114.2,
+    "median_total_ms": 1121.14
+  },
+  {
+    "route": "public_relay_2",
+    "samples": 10,
+    "errors": 0,
+    "median_ttfb_ms": 1013.85,
+    "median_total_ms": 1028.43
+  },
+  {
+    "route": "atlas_loopback",
+    "samples": 10,
+    "median_ttfb_ms": 5.66
+  }
+]

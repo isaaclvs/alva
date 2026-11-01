@@ -1,0 +1,22 @@
+[
+  {
+    "operation": "open",
+    "samples": 10,
+    "server_median_ms": 78.0,
+    "server_p95_ms": 96.07,
+    "median_bytes": 145939.0,
+    "content_encoding": [
+      "identity"
+    ]
+  },
+  {
+    "operation": "refresh",
+    "samples": 10,
+    "server_median_ms": 67.27,
+    "server_p95_ms": 78.59,
+    "median_bytes": 123228.0,
+    "content_encoding": [
+      "identity"
+    ]
+  }
+]

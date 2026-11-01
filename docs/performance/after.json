@@ -1,0 +1,308 @@
+[
+  {
+    "items": 50,
+    "history": 0,
+    "operation": "open",
+    "samples": 20,
+    "ms": {
+      "median": 22.62,
+      "p95": 29.32
+    },
+    "sql": {
+      "median": 7,
+      "p95": 7
+    },
+    "refresh_renders": {
+      "median": 0,
+      "p95": 0
+    },
+    "broadcast_bytes": {
+      "median": 0,
+      "p95": 0
+    },
+    "response_bytes": {
+      "median": 115669,
+      "p95": 115669
+    },
+    "gzip_response_bytes": {
+      "median": 8459,
+      "p95": 8459
+    },
+    "allocations": {
+      "median": 32626,
+      "p95": 32628
+    }
+  },
+  {
+    "items": 50,
+    "history": 0,
+    "operation": "add",
+    "samples": 20,
+    "ms": {
+      "median": 45.33,
+      "p95": 48.4
+    },
+    "sql": {
+      "median": 14,
+      "p95": 14
+    },
+    "refresh_renders": {
+      "median": 2,
+      "p95": 2
+    },
+    "broadcast_bytes": {
+      "median": 98017,
+      "p95": 98017
+    },
+    "response_bytes": {
+      "median": 101345,
+      "p95": 101345
+    },
+    "gzip_response_bytes": {
+      "median": 4890,
+      "p95": 4891
+    },
+    "allocations": {
+      "median": 69281,
+      "p95": 69283
+    }
+  },
+  {
+    "items": 50,
+    "history": 0,
+    "operation": "toggle",
+    "samples": 20,
+    "ms": {
+      "median": 13.7,
+      "p95": 15.45
+    },
+    "sql": {
+      "median": 11,
+      "p95": 11
+    },
+    "refresh_renders": {
+      "median": 2,
+      "p95": 2
+    },
+    "broadcast_bytes": {
+      "median": 15344,
+      "p95": 15346
+    },
+    "response_bytes": {
+      "median": 15344,
+      "p95": 15346
+    },
+    "gzip_response_bytes": {
+      "median": 1940,
+      "p95": 1945
+    },
+    "allocations": {
+      "median": 17127,
+      "p95": 17129
+    }
+  },
+  {
+    "items": 50,
+    "history": 5000,
+    "operation": "open",
+    "samples": 20,
+    "ms": {
+      "median": 33.3,
+      "p95": 34.62
+    },
+    "sql": {
+      "median": 8,
+      "p95": 8
+    },
+    "refresh_renders": {
+      "median": 0,
+      "p95": 0
+    },
+    "broadcast_bytes": {
+      "median": 0,
+      "p95": 0
+    },
+    "response_bytes": {
+      "median": 122235,
+      "p95": 122235
+    },
+    "gzip_response_bytes": {
+      "median": 9044,
+      "p95": 9044
+    },
+    "allocations": {
+      "median": 36451,
+      "p95": 36452
+    }
+  },
+  {
+    "items": 50,
+    "history": 5000,
+    "operation": "add",
+    "samples": 20,
+    "ms": {
+      "median": 56.39,
+      "p95": 73.98
+    },
+    "sql": {
+      "median": 15,
+      "p95": 15
+    },
+    "refresh_renders": {
+      "median": 2,
+      "p95": 2
+    },
+    "broadcast_bytes": {
+      "median": 100705,
+      "p95": 100705
+    },
+    "response_bytes": {
+      "median": 107923,
+      "p95": 107923
+    },
+    "gzip_response_bytes": {
+      "median": 5508,
+      "p95": 5509
+    },
+    "allocations": {
+      "median": 73916,
+      "p95": 73918
+    }
+  },
+  {
+    "items": 50,
+    "history": 5000,
+    "operation": "toggle",
+    "samples": 20,
+    "ms": {
+      "median": 13.89,
+      "p95": 15.54
+    },
+    "sql": {
+      "median": 11,
+      "p95": 11
+    },
+    "refresh_renders": {
+      "median": 2,
+      "p95": 2
+    },
+    "broadcast_bytes": {
+      "median": 15266,
+      "p95": 15268
+    },
+    "response_bytes": {
+      "median": 15266,
+      "p95": 15268
+    },
+    "gzip_response_bytes": {
+      "median": 1937,
+      "p95": 1940
+    },
+    "allocations": {
+      "median": 17080,
+      "p95": 17082
+    }
+  },
+  {
+    "items": 200,
+    "history": 5000,
+    "operation": "open",
+    "samples": 20,
+    "ms": {
+      "median": 83.93,
+      "p95": 119.36
+    },
+    "sql": {
+      "median": 8,
+      "p95": 8
+    },
+    "refresh_renders": {
+      "median": 0,
+      "p95": 0
+    },
+    "broadcast_bytes": {
+      "median": 0,
+      "p95": 0
+    },
+    "response_bytes": {
+      "median": 399562,
+      "p95": 399562
+    },
+    "gzip_response_bytes": {
+      "median": 18973,
+      "p95": 18973
+    },
+    "allocations": {
+      "median": 118202,
+      "p95": 118202
+    }
+  },
+  {
+    "items": 200,
+    "history": 5000,
+    "operation": "add",
+    "samples": 20,
+    "ms": {
+      "median": 159.13,
+      "p95": 193.54
+    },
+    "sql": {
+      "median": 15,
+      "p95": 15
+    },
+    "refresh_renders": {
+      "median": 2,
+      "p95": 2
+    },
+    "broadcast_bytes": {
+      "median": 368938,
+      "p95": 368938
+    },
+    "response_bytes": {
+      "median": 381656,
+      "p95": 381656
+    },
+    "gzip_response_bytes": {
+      "median": 15432,
+      "p95": 15434
+    },
+    "allocations": {
+      "median": 247968,
+      "p95": 247968
+    }
+  },
+  {
+    "items": 200,
+    "history": 5000,
+    "operation": "toggle",
+    "samples": 20,
+    "ms": {
+      "median": 33.53,
+      "p95": 34.97
+    },
+    "sql": {
+      "median": 11,
+      "p95": 11
+    },
+    "refresh_renders": {
+      "median": 2,
+      "p95": 2
+    },
+    "broadcast_bytes": {
+      "median": 47578,
+      "p95": 47580
+    },
+    "response_bytes": {
+      "median": 47578,
+      "p95": 47580
+    },
+    "gzip_response_bytes": {
+      "median": 3028,
+      "p95": 3034
+    },
+    "allocations": {
+      "median": 48503,
+      "p95": 48503
+    }
+  }
+]

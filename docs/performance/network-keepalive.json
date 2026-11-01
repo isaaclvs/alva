@@ -1,0 +1,26 @@
+[
+  {
+    "route": "private_keepalive",
+    "protocol": "HTTP/1.1",
+    "samples": 10,
+    "first_request_ms": 155.6,
+    "median_reused_connection_ms": 13.35,
+    "p95_reused_connection_ms": 22.03
+  },
+  {
+    "route": "public_keepalive_1",
+    "protocol": "HTTP/1.1",
+    "samples": 10,
+    "first_request_ms": 1192.11,
+    "median_reused_connection_ms": 271.15,
+    "p95_reused_connection_ms": 319.17
+  },
+  {
+    "route": "public_keepalive_2",
+    "protocol": "HTTP/1.1",
+    "samples": 10,
+    "first_request_ms": 1235.08,
+    "median_reused_connection_ms": 276.92,
+    "p95_reused_connection_ms": 282.84
+  }
+]
