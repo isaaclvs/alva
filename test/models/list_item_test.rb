@@ -91,7 +91,8 @@ class ListItemTest < ActiveSupport::TestCase
 
   test "broadcasts the list to the household on purchase toggle" do
     item = list_items(:milk)
-    streams = assert_list_broadcast(households(:home)) { item.toggle_purchased! }
+    streams = capture_turbo_stream_broadcasts(households(:home)) { item.toggle_purchased! }
+    assert_equal [ "list_summary", dom_id(item.category), "list_finish", "list_counter" ], streams.map { |stream| stream["target"] }
 
     assert_includes streams[1].to_html, "line-through"
   end

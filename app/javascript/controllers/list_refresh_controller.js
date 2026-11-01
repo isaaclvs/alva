@@ -292,7 +292,8 @@ export default class extends Controller {
       }
     }
 
-    if (stream.getAttribute("target") !== "list_items") return
+    const target = stream.getAttribute("target")
+    if (target !== "list_items" && target !== "uncategorized" && !target?.startsWith("category_")) return
     const render = event.detail.render
     event.detail.render = async (streamElement) => {
       if (streamElement.action !== "replace") return render(streamElement)
@@ -332,7 +333,7 @@ export default class extends Controller {
     const toggledRowId = submittedRow || (activeElement?.matches?.("#list_items button[aria-pressed]") ? activeElement.closest("li")?.id : null)
     this.togglingRow = null
     const correctionForms = Array.from(document.querySelectorAll("#list_items turbo-frame form[data-list-refresh-correction]"))
-      .filter((form) => !this.submittedCorrectionForms?.has(form))
+      .filter((form) => targets.some((target) => target.contains(form)) && !this.submittedCorrectionForms?.has(form))
 
     correctionForms.forEach((form) => {
       const editingFrame = form.closest("turbo-frame")

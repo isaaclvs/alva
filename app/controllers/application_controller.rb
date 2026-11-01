@@ -27,9 +27,15 @@ class ApplicationController < ActionController::Base
     @current_household ||= Household.first!
   end
 
-  # The whole list, its summary and the "buy again" chips as Turbo Streams: the
-  # same partial Household#broadcast_list sends, for this client's response.
-  def list_refresh_stream
+  # Same stream shape as the household broadcast: one category for purchases,
+  # the complete snapshot for structural changes and recovery.
+  def list_refresh_stream(category: :all)
+    if category != :all
+      return render_to_string partial: "list_items/purchase_refresh", locals: {
+        groups: current_household.list_items_by_category, category: category
+      }
+    end
+
     render_to_string partial: "list_items/refresh", locals: {
       groups: current_household.list_items_by_category,
       suggestions: BuyAgainSuggestions.call(current_household),

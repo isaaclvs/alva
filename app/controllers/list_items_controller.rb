@@ -83,7 +83,7 @@ class ListItemsController < ApplicationController
       return stale_list_action unless @list_item.toggle_purchased!
     end
 
-    render_list
+    render_list(category: @list_item.category)
   rescue ListItem::StaleAction
     stale_list_action
   end
@@ -133,13 +133,13 @@ class ListItemsController < ApplicationController
     end
   end
 
-  # Whole list and summary, not one row: the counts and the "Compra feita"
-  # button depend on every item. `toast` (locals for _toast, or :clear) also
+  # Purchases refresh one category and shared counts; structural changes use
+  # the whole list. `toast` (locals for _toast, or :clear) also
   # fills or empties the toast, but only in this response: it is not broadcast.
-  def render_list(toast: nil)
+  def render_list(toast: nil, category: :all)
     respond_to do |format|
       format.turbo_stream do
-        streams = [ list_refresh_stream ]
+        streams = [ list_refresh_stream(category: category) ]
         streams << toast_stream(toast) if toast
         render turbo_stream: streams
       end

@@ -1,0 +1,7 @@
+<%= turbo_stream.replace "list_summary", partial: "list_items/summary", locals: { groups: groups } %>
+<% items = groups.find { |group_category, _| group_category == category }&.last %>
+<% if items %>
+  <%= turbo_stream.replace(category ? dom_id(category) : "uncategorized", partial: "list_items/category", locals: { category: category, items: items }) %>
+<% end %>
+<%= turbo_stream.replace "list_finish", partial: "list_items/finish", locals: { groups: groups } %>
+<%= turbo_stream.replace "list_counter", partial: "list_items/list_counter", locals: { groups: groups } %>

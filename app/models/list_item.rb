@@ -26,7 +26,7 @@ class ListItem < ApplicationRecord
   before_create :assign_category, unless: :category
   before_validation :normalize_name
 
-  after_commit -> { household.list_changed }
+  after_commit :refresh_household
 
   # Just became pending (added, brought back or unticked): every device that
   # renders the row in the next few seconds shows it highlighted.
@@ -86,6 +86,12 @@ class ListItem < ApplicationRecord
   end
 
   private
+
+  def refresh_household
+    status_only = !destroyed? && previous_changes.key?("status") &&
+      (previous_changes.keys - %w[status purchased_at updated_at lock_version]).empty?
+    household.list_changed(category: status_only ? category : :all)
+  end
 
   # No quantities in this app, so a second pending "leite" adds nothing.
   # Purchased items don't count: buying it again starts a new pending entry.

@@ -10,30 +10,8 @@
   <% end %>
 
   <% groups.each do |category, items| %>
-    <section class="shopping-category" id="<%= category ? dom_id(category) : "uncategorized" %>">
-      <% purchased_in_group = items.count(&:purchased?) %>
-      <h2 class="mb-1.5 flex items-center gap-2 px-1 text-sm font-semibold text-ink-soft">
-        <%= category_icon(category) %>
-        <%= Category.label_for(category) %>
-        <span class="ml-auto text-xs font-medium text-ink-faint tabular-nums" aria-label="<%= purchased_in_group %> de <%= items.size %> comprados">
-          <%= purchased_in_group %>/<%= items.size %>
-        </span>
-      </h2>
-      <ul class="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
-        <%= render partial: "list_items/list_item", collection: items %>
-      </ul>
-    </section>
+    <%= render "list_items/category", category: category, items: items %>
   <% end %>
 
-  <% purchased_count = groups.sum { |_, items| items.count(&:purchased?) } %>
-  <% if purchased_count.positive? %>
-    <div class="list-finish pt-2 pb-4">
-      <%= button_to "Compra feita", shopping_trips_path, form: { class: "contents" },
-            aria: { describedby: "finish_shopping_hint" },
-            class: "w-full rounded-2xl border border-accent bg-accent-soft py-3 text-base font-semibold text-accent-strong active:opacity-80" %>
-      <p id="finish_shopping_hint" class="mt-2 text-center text-xs text-ink-faint">
-        Arquiva <%= pluralize(purchased_count, "item comprado", plural: "itens comprados") %>; pendentes continuam na lista.
-      </p>
-    </div>
-  <% end %>
+  <%= render "list_items/finish", groups: groups %>
 </div>
