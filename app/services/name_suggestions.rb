@@ -13,11 +13,12 @@ class NameSuggestions
 
   def call
     # Most recent first, so the spelling used last is the one that is kept.
-    household_names = @household.list_items.order(id: :desc).pluck(:name)
-    catalog_names = CatalogItem.pluck(:name)
+    latest_ids = @household.list_items.group(:normalized_name).select("MAX(id)")
+    household_names = @household.list_items.where(id: latest_ids).order(id: :desc).pluck(:normalized_name, :name)
+    catalog_names = CatalogItem.pluck(:normalized_name, :name)
 
     (household_names + catalog_names)
-      .uniq { |name| TextNormalizer.call(name) }
+      .uniq(&:first).map(&:last)
       .sort_by { |name| [ TextNormalizer.plain(name), name ] }
   end
 end

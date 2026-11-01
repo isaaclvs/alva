@@ -115,6 +115,24 @@ class BuyAgainSuggestionsTest < ActiveSupport::TestCase
     assert_not_includes names, "Segredo"
   end
 
+  test "same-time ties use the latest row and preserve the purchase timestamp" do
+    time = Time.utc(2026, 10, 1, 12, 30)
+    buy "Pão", ago: time, category: categories(:produce)
+    buy "Pães", ago: time, category: categories(:dairy)
+    result = BuyAgainSuggestions.call(@household).first
+    assert_equal "Pães", result.name
+    assert_equal categories(:dairy), result.category
+    assert_equal time, result.last_purchased_at
+    assert_equal 2, result.trips
+  end
+
+  test "falls back to updated_at when historical purchase time is missing" do
+    buy "Arroz", ago: 3.days.ago
+    row = buy "Café", ago: 2.days.ago
+    row.update_columns(purchased_at: nil, updated_at: 1.day.ago)
+    assert_equal %w[Café Arroz], names
+  end
+
   test "uses few queries" do
     buy "Arroz", category: categories(:produce)
     buy "Café"

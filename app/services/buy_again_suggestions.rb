@@ -1,13 +1,7 @@
-# "Comprar de novo": the things this household buys the most, according to the
-# purchase history (archived items), minus whatever is on the list right now.
-# Ranked by how many trips each name was bought in, then by how recently.
-# Names are grouped after normalization, and the most recent spelling and
-# category are the ones shown. Done in Ruby over plucked columns: the history
-# is small and this runs on every list refresh.
+# Rank archived names in SQLite, returning only the few suggestions displayed.
+# Stored normalized keys share the same matching rules as additions/corrections.
 class BuyAgainSuggestions
   Suggestion = Struct.new(:name, :category, :trips, :last_purchased_at)
-
-  # A handful of shortcuts: the add field stays the main way in.
   LIMIT = 5
 
   def self.call(household, limit: LIMIT)
@@ -16,31 +10,43 @@ class BuyAgainSuggestions
 
   def initialize(household, limit)
     @household = household
-    @limit = limit
+    @limit = Integer(limit)
+    raise ArgumentError, "limit must be nonnegative" if @limit.negative?
   end
 
   def call
-    on_list = @household.list_items.on_list.pluck(:name).map { |name| TextNormalizer.call(name) }.to_set
+    return [] if @limit.zero?
 
-    history = @household.list_items.archived.pluck(:name, :category_id, :shopping_trip_id, :purchased_at, :updated_at, :id)
-      .group_by { |name, *| TextNormalizer.call(name) }
-      .reject { |key, _| key.blank? || on_list.include?(key) }
-    return [] if history.empty?
-
-    ranked = history.map { |_, rows| summarize(rows) }
-      .sort_by { |trips, recency, name, *| [ -trips, -recency, name ] }
-      .first(@limit)
-
-    categories = Category.where(id: ranked.filter_map { |*, category_id| category_id }).index_by(&:id)
-    ranked.map { |trips, recency, name, category_id| Suggestion.new(name, categories[category_id], trips, Time.zone.at(recency)) }
-  end
-
-  private
-
-  # [trips, recency, latest name, latest category_id] for the rows of one name.
-  def summarize(rows)
-    latest = rows.max_by { |_, _, _, purchased_at, updated_at, id| [ (purchased_at || updated_at).to_f, id ] }
-    name, category_id, _, purchased_at, updated_at = latest
-    [ rows.map { |row| row[2] }.uniq.size, (purchased_at || updated_at).to_f, name, category_id ]
+    # Frequency counts trips (not rows); rn chooses the latest spelling and
+    # category, breaking same-time ties by id, just like the original ranking.
+    sql = <<~SQL
+      WITH history AS (
+        SELECT id, name, normalized_name, category_id, shopping_trip_id, purchased_at, updated_at
+        FROM list_items WHERE household_id = :household_id AND shopping_trip_id IS NOT NULL
+      ),
+      ranked AS (
+        SELECT history.*, ROW_NUMBER() OVER (
+          PARTITION BY normalized_name ORDER BY COALESCE(purchased_at, updated_at) DESC, id DESC
+        ) AS rn FROM history
+      ),
+      frequency AS (
+        SELECT normalized_name, COUNT(DISTINCT shopping_trip_id) AS trips
+        FROM history GROUP BY normalized_name
+      )
+      SELECT ranked.name, ranked.category_id, frequency.trips,
+             COALESCE(ranked.purchased_at, ranked.updated_at) AS last_purchased_at
+      FROM ranked JOIN frequency USING (normalized_name)
+      WHERE rn = 1 AND normalized_name <> '' AND normalized_name NOT IN (
+        SELECT normalized_name FROM list_items WHERE household_id = :household_id AND shopping_trip_id IS NULL
+      )
+      ORDER BY trips DESC, last_purchased_at DESC, name ASC
+      LIMIT :limit
+    SQL
+    rows = ListItem.connection.select_all(ListItem.sanitize_sql_array([ sql, { household_id: @household.id, limit: @limit } ]))
+    categories = Category.where(id: rows.filter_map { |row| row["category_id"] }).index_by(&:id)
+    time_type = ListItem.type_for_attribute("purchased_at")
+    rows.map do |row|
+      Suggestion.new(row["name"], categories[row["category_id"]], row["trips"], time_type.deserialize(row["last_purchased_at"]))
+    end
   end
 end

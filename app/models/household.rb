@@ -146,6 +146,13 @@ class Household < ApplicationRecord
       locals: { groups: list_items_by_category, suggestions: BuyAgainSuggestions.call(self), household: self }
   end
 
+  # Checking a row only changes its category, counts and the finish button.
+  # Membership, history suggestions and habitual items are unchanged.
+  def broadcast_purchase(category)
+    Turbo::StreamsChannel.broadcast_render_to self, partial: "list_items/purchase_refresh",
+      locals: { groups: list_items_by_category, category: category }
+  end
+
   # Habits have their own stream target so a list refresh does not reset the
   # disclosure state or checkboxes in the household's management section.
   def broadcast_habitual_items
@@ -155,12 +162,14 @@ class Household < ApplicationRecord
 
   # A list item changed (called by ListItem's after_commit). Broadcasts right
   # away, unless inside batch_list_broadcasts, which defers it to the end.
-  def list_changed
+  def list_changed(category: :all)
     batches = ActiveSupport::IsolatedExecutionState[BATCHES_KEY]
     if batches&.key?(id)
       batches[id] = true
-    else
+    elsif category == :all
       broadcast_list
+    else
+      broadcast_purchase(category)
     end
   end
 
@@ -199,6 +208,6 @@ class Household < ApplicationRecord
     key = TextNormalizer.call(name)
     return if key.blank?
 
-    scope.find { |item| TextNormalizer.call(item.name) == key }
+    scope.find_by(normalized_name: key)
   end
 end
