@@ -1,0 +1,20 @@
+<% content_for :head do %>
+  <meta name="turbo-visit-control" content="reload">
+<% end %>
+<section class="mx-auto max-w-md px-6 py-16" aria-labelledby="login_title">
+  <div class="mb-8 flex items-center gap-3">
+    <%= render "application/brand_mark", css_class: "size-12" %>
+    <span class="text-2xl font-bold">Alva</span>
+  </div>
+  <h1 id="login_title" class="text-2xl font-bold">Entre na lista de casa</h1>
+  <p class="mt-2 text-sm text-ink-soft">Use a senha da casa. Este aparelho ficará conectado por 30 dias.</p>
+  <% if @error %>
+    <p role="alert" class="mt-6 text-sm text-danger"><%= @error %></p>
+  <% end %>
+  <%= form_with url: login_path, data: { turbo: false }, class: "mt-8 space-y-4" do |form| %>
+    <%= form.label :password, "Senha da casa", class: "block text-sm font-medium" %>
+    <%= form.password_field :password, required: true, autofocus: true, autocomplete: "current-password",
+          class: "min-h-12 w-full rounded-xl border border-line bg-surface px-4 text-base text-ink focus:outline-accent" %>
+    <%= form.submit "Entrar", class: "min-h-12 w-full cursor-pointer rounded-xl bg-accent px-4 font-semibold text-accent-ink" %>
+  <% end %>
+</section>

@@ -5,9 +5,22 @@ class ApplicationController < ActionController::Base
   # Changes to the importmap will invalidate the etag for HTML responses
   stale_when_importmap_changes
 
+  before_action :prevent_private_caching
+  before_action :require_household_access
+
   helper_method :current_household
 
   private
+
+  def require_household_access
+    return if HouseholdAccess.authorized?(cookies.encrypted[HouseholdAccess::COOKIE])
+
+    redirect_to login_path, status: :see_other
+  end
+
+  def prevent_private_caching
+    response.headers["Cache-Control"] = "no-store" if HouseholdAccess.enabled?
+  end
 
   # Single shared household until multi-tenancy exists (see AGENTS.md).
   def current_household

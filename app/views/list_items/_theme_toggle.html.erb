@@ -27,5 +27,9 @@
         <%= label %>
       </button>
     <% end %>
+    <% if HouseholdAccess.enabled? %>
+      <%= button_to "Sair", logout_path, method: :delete, data: { turbo: false },
+            class: "rounded-lg px-3 py-2 text-sm text-ink-soft" %>
+    <% end %>
   </div>
 </details>
