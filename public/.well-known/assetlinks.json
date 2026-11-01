@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "net.ts.taild80ca0.atlas.twa",
+        "sha256_cert_fingerprints": ["51:3D:D0:F0:B8:21:DD:09:80:54:02:9C:EE:70:35:DC:B3:AD:D1:48:03:0C:6F:69:5D:3A:02:FA:6F:6B:13:21"]
+      }
+    }]
