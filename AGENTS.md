@@ -28,7 +28,11 @@ Referências SHO neste documento são decisões históricas do MVP.
 
 ## Decisões de produto já fechadas (não reabrir sem confirmar com o usuário)
 
-- **Sem autenticação.** App doméstico, self-hosted, uso restrito a 2 pessoas.
+- **Acesso doméstico.** Sem contas individuais. Instalações privadas podem operar
+  sem senha; publicação via Funnel exige senha compartilhada, cookie por
+  aparelho e proteção de HTTP e ActionCable. Para configurar ou publicar, leia
+  `docs/deployment/tailscale-funnel.md`. Decisão autorizada pelo usuário ao
+  preparar o acesso sem VPN.
 - **Sem modo offline.** Uso majoritariamente em casa via wifi.
 - **Sem quantidade nos itens.** Só o nome (ex.: "Leite", não "2x Leite").
 - **Lista contínua.** Item comprado fica riscado mas visível, não vai para tela
@@ -184,7 +188,7 @@ acoplar o dicionário à lista viva.
 
 ## Fora de escopo do MVP (não implementar sem pedido explícito)
 
-- Múltiplas famílias/contas, login
+- Múltiplas famílias/contas e cadastro de usuários
 - Quantidade por item
 - Categorização com IA/fuzzy matching avançado
 - Criar, renomear ou reordenar categorias via UI

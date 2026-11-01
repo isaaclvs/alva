@@ -24,6 +24,15 @@ Rails.application.configure do
   # Store uploaded files on the local file system (see config/storage.yml for options).
   config.active_storage.service = :local
 
+  if ENV["ALVA_PUBLIC_HOST"].present?
+    public_host = ENV.fetch("ALVA_PUBLIC_HOST")
+    config.hosts = [ public_host, "localhost", "127.0.0.1" ]
+    config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
+    config.force_ssl = true
+    config.ssl_options = { redirect: { exclude: ->(request) { request.path == "/up" } } }
+    config.action_cable.allowed_request_origins = [ "https://#{public_host}" ]
+  end
+
   # Assume all access to the app is happening through a SSL-terminating reverse proxy.
   # config.assume_ssl = true
 

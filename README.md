@@ -12,7 +12,8 @@ das compras, no celular ou no computador.
 
 O app é self-hosted, sincroniza alterações em tempo real e pode ser instalado
 como PWA pelo navegador. O uso atual é de uma única casa, com acesso restrito
-pela rede local ou Tailscale e sem autenticação no aplicativo.
+pela rede local ou Tailscale. A publicação via Funnel é preparada com senha
+compartilhada da casa, lembrada por aparelho por 30 dias.
 
 ## Como funciona
 
@@ -39,7 +40,7 @@ pela rede local ou Tailscale e sem autenticação no aplicativo.
   rosa claro enquanto outra usa teal escuro na mesma lista.
 
 O Alva mantém o foco em nomes de produtos: não há quantidades, modo offline,
-login ou publicação na Play Store. O histórico arquivado alimenta as sugestões;
+cadastro de contas ou publicação na Play Store. O histórico arquivado alimenta as sugestões;
 ainda não existe uma tela para consultá-lo.
 
 ## Stack
@@ -104,8 +105,9 @@ a lista, mas não garante a instalação como PWA. Tailscale Serve é uma opçã
 para disponibilizar HTTPS dentro da rede Tailscale.
 
 O service worker não fornece cache offline: o app precisa de conexão para
-funcionar. Como não há autenticação, mantenha o acesso restrito à rede de
-confiança; não exponha o app diretamente à internet pública.
+funcionar. Para disponibilizar sem VPN, configure primeiro a proteção por senha e HTTPS,
+conforme o [guia de implantação via Funnel](docs/deployment/tailscale-funnel.md).
+Instalações sem senha devem permanecer restritas à rede de confiança.
 
 ## Hospedagem e dados
 
