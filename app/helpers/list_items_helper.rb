@@ -2,20 +2,24 @@ module ListItemsHelper
   # Categories are fixed (db/seeds/catalog.yml), so their look lives here
   # instead of in the database. Unknown or missing categories get the default.
   CATEGORY_ICONS = {
-    "Hortifruti" => [ "🥬", "bg-emerald-500/15" ],
-    "Laticínios" => [ "🧀", "bg-sky-500/15" ],
-    "Mercearia" => [ "🥫", "bg-amber-500/15" ],
-    "Açougue" => [ "🥩", "bg-rose-500/15" ],
-    "Padaria" => [ "🥖", "bg-orange-500/15" ],
-    "Bebidas" => [ "🥤", "bg-cyan-500/15" ],
-    "Limpeza" => [ "🧽", "bg-indigo-500/15" ],
-    "Higiene" => [ "🧴", "bg-fuchsia-500/15" ]
+    "Hortifruti" => [ "M20 4C10 2 3 7 5 14c2 6 13 6 15-10Z M4 21 15 10", "produce" ],
+    "Laticínios" => [ "M9 3h6v4l3 4v10H6V11l3-4V3Z M9 7h6 M6 13h12", "dairy" ],
+    "Mercearia" => [ "M5 8h14l1 13H4L5 8Z M9 8V6a3 3 0 0 1 6 0v2", "pantry" ],
+    "Açougue" => [ "M15 3c5 0 7 5 4 9l-6 7c-3 3-9 1-10-3S6 8 9 7s2-4 6-4Z M14 7c3-1 5 2 3 4s-5-1-3-4Z", "meat" ],
+    "Padaria" => [ "M4 20c-3-3 1-8 5-12s9-7 12-4-1 8-5 12-9 7-12 4Z M8 10l3 3 M12 6l3 3 M5 14l3 3", "bakery" ],
+    "Bebidas" => [ "M6 8h12l-2 13H8L6 8Z M5 8h14 M12 8l3-6h4", "drinks" ],
+    "Limpeza" => [ "M8 10h8l3 4v7H5v-7l3-4Z M10 10V6h4v4 M10 6V3h7l2 2 M8 16h8", "cleaning" ],
+    "Higiene" => [ "M8 8h8l2 4v9H6v-9l2-4Z M10 8V4h4v4 M10 4V2h7 M10 15h4 M12 13v4", "hygiene" ]
   }.freeze
-  DEFAULT_CATEGORY_ICON = [ "📦", "bg-zinc-500/15" ].freeze
+  DEFAULT_CATEGORY_ICON = [ "M3 7l9-5 9 5v10l-9 5-9-5V7Z M3 7l9 5 9-5 M12 12v10 M7 4l10 6", "other" ].freeze
 
   def category_icon(category)
-    emoji, background = CATEGORY_ICONS.fetch(category&.name, DEFAULT_CATEGORY_ICON)
-    tag.span emoji, class: "grid size-7 place-items-center rounded-lg text-sm #{background}", aria: { hidden: true }
+    path, tone = CATEGORY_ICONS.fetch(category&.name, DEFAULT_CATEGORY_ICON)
+    tag.span class: "category-icon", data: { tone: tone }, aria: { hidden: true } do
+      tag.svg(viewBox: "0 0 24 24", fill: "none", stroke: "currentColor",
+        "stroke-width": "1.6", "stroke-linecap": "round", "stroke-linejoin": "round",
+        focusable: "false") { tag.path(d: path) }
+    end
   end
 
   # "6 pendentes · 2 comprados"; the purchased part only once something was

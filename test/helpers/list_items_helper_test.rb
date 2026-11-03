@@ -15,13 +15,16 @@ class ListItemsHelperTest < ActionView::TestCase
     assert_equal "Nada na lista", list_summary_text(0, 0)
   end
 
-  test "category icon uses the category's emoji" do
-    assert_dom_equal %(<span class="grid size-7 place-items-center rounded-lg text-sm bg-emerald-500/15" aria-hidden="true">🥬</span>),
-      category_icon(categories(:produce))
-  end
-
-  test "category icon falls back for uncategorized items" do
-    assert_includes category_icon(nil), "📦"
+  test "categories have decorative vector icons including unknown and missing categories" do
+    (Category.all.to_a + [ nil, Category.new(name: "Desconhecida") ]).each do |category|
+      fragment = Nokogiri::HTML.fragment(category_icon(category))
+      assert_equal "true", fragment.at_css(".category-icon")["aria-hidden"]
+      assert_equal "false", fragment.at_css("svg")["focusable"]
+      assert fragment.at_css("svg path")["d"].present?
+      assert_empty fragment.text.strip
+    end
+    assert_includes category_icon(categories(:produce)), 'data-tone="produce"'
+    assert_includes category_icon(nil), 'data-tone="other"'
   end
 
   def result(outcome, name = "Item", category: nil)

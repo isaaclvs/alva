@@ -9,6 +9,7 @@
  * is rendered from the device's theme cookie (see ApplicationHelper).
  */
 @theme {
+  --font-sans: "Nunito Sans", ui-sans-serif, system-ui, sans-serif;
   --color-canvas: #09090b;
   --color-surface: #18181b;
   --color-surface-2: #232327;
@@ -227,3 +228,25 @@ html[data-shopping-mode="on"] #list_search_panel > .relative { background: var(-
 .list-screen-header { position: relative; flex-shrink: 0; }
 #list_items { flex: 1; min-height: 0; overflow-y: auto; align-content: start; }
 
+/* Muted category cues share a single rounded outline style. */
+.category-icon {
+  display: inline-grid; place-items: center; flex-shrink: 0;
+  width: 1.75rem; height: 1.75rem; border-radius: .6rem;
+  color: var(--color-ink-soft); background: var(--color-surface-2);
+}
+.category-icon svg { width: 1.05rem; height: 1.05rem; }
+.category-icon[data-tone="produce"] { --category-hue: 148; }
+.category-icon[data-tone="dairy"] { --category-hue: 240; }
+.category-icon[data-tone="pantry"], .category-icon[data-tone="bakery"] { --category-hue: 75; }
+.category-icon[data-tone="meat"] { --category-hue: 15; }
+.category-icon[data-tone="drinks"] { --category-hue: 205; }
+.category-icon[data-tone="cleaning"] { --category-hue: 285; }
+.category-icon[data-tone="hygiene"] { --category-hue: 340; }
+.category-icon:not([data-tone="other"]) {
+  color: oklch(78% .07 var(--category-hue));
+  background: oklch(78% .07 var(--category-hue) / .12);
+}
+html[data-theme="light"] .category-icon:not([data-tone="other"]) {
+  color: oklch(46% .07 var(--category-hue));
+  background: oklch(65% .07 var(--category-hue) / .10);
+}

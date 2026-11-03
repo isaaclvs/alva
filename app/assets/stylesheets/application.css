@@ -8,3 +8,17 @@
  *
  * Consider organizing styles into separate files for maintainability.
  */
+
+/* Nunito Sans, SIL Open Font License; served by this app. */
+@font-face {
+  font-family: "Nunito Sans"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url("nunito-sans-regular.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Nunito Sans"; font-style: normal; font-weight: 600; font-display: swap;
+  src: url("nunito-sans-semibold.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Nunito Sans"; font-style: normal; font-weight: 700; font-display: swap;
+  src: url("nunito-sans-bold.woff2") format("woff2");
+}
