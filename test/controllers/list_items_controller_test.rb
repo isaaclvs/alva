@@ -255,31 +255,31 @@ class ListItemsControllerTest < ActionDispatch::IntegrationTest
     end
 
     banana = ListItem.find_by!(name: "Banana")
-    assert_select "turbo-stream[action=update][target=recent_adds]" do
+    assert_select "turbo-stream[action=prepend][target=recent_adds_list]" do
       assert_select "li##{ActionView::RecordIdentifier.dom_id(banana, :recent)}", text: /Banana/
       assert_select "form[action='#{list_item_path(banana)}'] input[name=from][value=recent]"
       assert_select "select[name='list_item[category_id]'] option[selected][value=?]", categories(:produce).id.to_s
     end
-    assert streams.none? { |stream| stream["target"] == "recent_adds" }
+    assert streams.none? { |stream| stream["target"].in?(%w[recent_adds recent_adds_list]) }
   end
 
   test "an unknown name lands in Outros and its picker asks for a look" do
     post list_items_path, params: { list_item: { name: "Tahine" } }, as: :turbo_stream
 
-    assert_select "turbo-stream[target=recent_adds] select.border-warn"
+    assert_select "turbo-stream[target=recent_adds_list] select.border-warn"
   end
 
   test "create with several names lists only the added ones as just added" do
     post list_items_path, params: { list_item: { name: "Banana, Leite" } }, as: :turbo_stream
 
-    assert_select "turbo-stream[target=recent_adds] li", count: 1
-    assert_select "turbo-stream[target=recent_adds] li", text: /Banana/
+    assert_select "turbo-stream[target=recent_adds_list] li", count: 1
+    assert_select "turbo-stream[target=recent_adds_list] li", text: /Banana/
   end
 
   test "a duplicate leaves the just-added list alone" do
     post list_items_path, params: { list_item: { name: "Leite" } }, as: :turbo_stream
 
-    assert_select "turbo-stream[target=recent_adds]", count: 0
+    assert_select "turbo-stream[target=recent_adds_list]", count: 0
   end
 
   test "picking a category under just added moves the item, learns it and refreshes that row" do

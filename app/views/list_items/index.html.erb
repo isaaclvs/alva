@@ -30,10 +30,9 @@
       <%= render "list_items/menu" %>
     </header>
 
-    <%# Filled by the add responses (never by broadcasts), like #add_feedback. %>
-    <div id="recent_adds" class="mt-6"></div>
-
     <div class="add-screen-content mt-auto pt-6">
+      <%# Local add feedback stays with the input, not pinned under the header. %>
+      <div id="recent_adds" data-controller="recent-adds"><%= render "recent_adds", items: [] %></div>
       <h1 id="add_screen_title" class="text-2xl font-semibold tracking-tight">O que está faltando em casa?</h1>
       <p class="mt-0.5 text-sm text-ink-soft">Lembrou, adicionou.</p>
 
@@ -90,7 +89,7 @@
                   data-action="list-filter#clear" class="absolute inset-y-0 right-0 w-11 text-ink-soft">×</button>
         </div>
         <div class="list-filter-options flex items-center justify-between gap-3"><label class="flex min-h-11 shrink-0 items-center gap-2 text-sm text-ink-soft">
-          <input type="checkbox" data-list-filter-target="pending" data-action="change->list-filter#apply" class="size-4 accent-accent">
+          <input type="checkbox" role="switch" data-list-filter-target="pending" data-action="change->list-filter#apply" class="pending-switch">
           Só pendentes
         </label><span class="text-xs text-ink-faint">Seções · A–Z</span></div>
       </div>

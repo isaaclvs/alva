@@ -86,4 +86,16 @@ class ListFilterTest < ApplicationSystemTestCase
     click_button "Sair das compras"
     assert_field "Buscar na lista"
   end
+  test "pending switch can be changed with the keyboard" do
+    visit_list
+    switch = find('input[role="switch"]')
+    assert_unchecked_field "Só pendentes"
+    assert_button "Detergente"
+    switch.send_keys :space
+    assert_checked_field "Só pendentes"
+    assert_no_button "Detergente"
+    switch.send_keys :space
+    assert_unchecked_field "Só pendentes"
+    assert_button "Detergente"
+  end
 end
