@@ -4,13 +4,46 @@
     android:layout_height="match_parent"
     android:gravity="center"
     android:orientation="horizontal"
-    android:padding="12dp"
+    android:padding="10dp"
     android:background="@drawable/quick_add_widget_bg">
     <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="+ Adicionar"
-        android:textColor="#FFFFFF"
-        android:textSize="16sp"
+        android:layout_width="34dp"
+        android:layout_height="34dp"
+        android:layout_marginEnd="10dp"
+        android:background="@drawable/quick_add_mark_bg"
+        android:gravity="center"
+        android:text="a"
+        android:textColor="#B4477A"
+        android:textSize="20sp"
         android:textStyle="bold" />
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:letterSpacing="0.08"
+            android:text="ALVA"
+            android:textColor="#9F7186"
+            android:textSize="10sp"
+            android:textStyle="bold" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="O que acabou?"
+            android:textColor="#9B8590"
+            android:textSize="13sp" />
+    </LinearLayout>
+    <TextView
+        android:layout_width="34dp"
+        android:layout_height="34dp"
+        android:background="@drawable/quick_add_button_bg"
+        android:gravity="center"
+        android:text="+"
+        android:textColor="#FFFFFF"
+        android:textSize="24sp"
+        android:fontFamily="sans" />
 </LinearLayout>
