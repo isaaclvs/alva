@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:background="@drawable/quick_add_sheet_bg" android:fillViewport="true">
+  <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:orientation="vertical" android:paddingLeft="20dp" android:paddingRight="20dp" android:paddingTop="12dp" android:paddingBottom="20dp">
+    <View android:layout_width="30dp" android:layout_height="3dp" android:layout_gravity="center_horizontal"
+        android:background="#EFDEE6" android:importantForAccessibility="no"/>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:gravity="center_vertical">
+      <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+          android:text="@string/quick_add_brand" android:textSize="11sp" android:textStyle="bold" android:letterSpacing="0.14" android:textColor="#A93F70"/>
+      <Button android:id="@+id/quick_add_close" android:layout_width="48dp" android:layout_height="48dp"
+          android:text="@string/quick_add_close_symbol" android:textSize="24sp" android:textColor="#846674" android:background="?android:attr/selectableItemBackgroundBorderless"
+          android:contentDescription="@string/quick_add_close_label" android:minWidth="0dp" android:padding="0dp"/>
+    </LinearLayout>
+    <LinearLayout android:id="@+id/quick_add_form" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+      <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/quick_add_title"
+          android:textSize="26sp" android:textStyle="bold" android:fontFamily="sans-serif-medium" android:textColor="#392430"/>
+      <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp"
+          android:layout_marginBottom="22dp" android:text="@string/quick_add_subtitle" android:textSize="13sp" android:textColor="#846674"/>
+      <EditText android:id="@+id/quick_add_product" android:layout_width="match_parent" android:layout_height="wrap_content"
+          android:minHeight="56dp" android:padding="16dp" android:background="@drawable/quick_add_input_bg"
+          android:hint="@string/quick_add_hint"
+          android:textSize="16sp" android:textColor="#392430" android:textColorHint="#846674"
+          android:inputType="textCapSentences" android:singleLine="true" android:imeOptions="actionDone"/>
+      <EditText android:id="@+id/quick_add_password" android:layout_width="match_parent" android:layout_height="wrap_content"
+          android:layout_marginTop="10dp" android:minHeight="56dp" android:padding="16dp"
+          android:background="@drawable/quick_add_input_bg" android:hint="@string/quick_add_password_hint"
+          android:textSize="16sp" android:textColor="#392430"
+          android:textColorHint="#846674" android:inputType="textPassword" android:singleLine="true"
+          android:saveEnabled="false" android:imeOptions="actionDone" android:visibility="gone"/>
+      <TextView android:id="@+id/quick_add_status" android:layout_width="match_parent" android:layout_height="wrap_content"
+          android:layout_marginTop="10dp" android:textColor="#846674" android:textSize="12sp"
+          android:accessibilityLiveRegion="polite" android:visibility="gone"/>
+      <Button android:id="@+id/quick_add_submit" android:layout_width="match_parent" android:layout_height="wrap_content"
+          android:minHeight="56dp" android:layout_marginTop="10dp" android:padding="14dp"
+          android:background="@drawable/quick_add_submit_bg" android:backgroundTint="@null" android:text="@string/quick_add_submit_label"
+          android:textSize="14sp" android:textStyle="bold" android:textColor="#FFFFFF" android:textAllCaps="false"/>
+      <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp"
+          android:gravity="center" android:text="@string/quick_add_multiple_hint" android:textColor="#846674" android:textSize="11sp"/>
+    </LinearLayout>
+    <LinearLayout android:id="@+id/quick_add_success" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical" android:gravity="center" android:paddingTop="24dp" android:paddingBottom="24dp" android:visibility="gone">
+      <TextView android:layout_width="56dp" android:layout_height="56dp" android:background="@drawable/quick_add_success_bg"
+          android:gravity="center" android:text="@string/quick_add_success_symbol" android:textSize="26sp" android:textColor="#A93F70" android:importantForAccessibility="no"/>
+      <TextView android:id="@+id/quick_add_success_message" android:layout_width="match_parent" android:layout_height="wrap_content"
+          android:layout_marginTop="14dp" android:gravity="center" android:textSize="19sp" android:textStyle="bold"
+          android:textColor="#392430" android:accessibilityLiveRegion="polite"/>
+      <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp"
+          android:text="@string/quick_add_success_hint" android:gravity="center" android:textSize="12sp" android:textColor="#846674"/>
+    </LinearLayout>
+  </LinearLayout>
+</ScrollView>

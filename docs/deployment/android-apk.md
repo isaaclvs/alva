@@ -20,7 +20,10 @@ existente. A chave de assinatura é independente da senha de entrada da casa.
 ## Widget Adicionar
 
 A versão `1.2` refina o widget rosa com marca discreta, convite para adicionar e
-atalho circular de inclusão. Ele abre uma janela compacta para digitar produtos.
+atalho circular de inclusão. A versão `1.3` mantém esse widget e passa a abrir
+um painel rosa na parte inferior da tela (opção A, "Ao alcance"), acima do
+teclado. O envio bloqueia toques repetidos, confirma o resultado e fecha a janela
+após 1,5 segundo. Fechar pelo × cancela apenas a janela; não envia produtos.
 No primeiro uso, a pessoa informa a senha da casa uma vez; o app
 guarda uma credencial limitada à inclusão, criptografada pelo Android Keystore.
 O widget precisa de internet e do Alva disponível. Se o envio falhar, o texto

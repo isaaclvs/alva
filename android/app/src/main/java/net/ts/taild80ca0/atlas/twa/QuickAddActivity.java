@@ -2,11 +2,16 @@ package net.ts.taild80ca0.atlas.twa;
 
 import android.app.Activity;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.View;
+import android.view.WindowManager;
+import android.view.inputmethod.InputMethodManager;
+import android.content.Context;
 import android.view.Gravity;
 import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.security.crypto.EncryptedSharedPreferences;
@@ -32,6 +37,8 @@ public class QuickAddActivity extends Activity {
   private TextView status;
   private Button submit;
   private boolean enrolling;
+  private boolean busy;
+  private final Handler handler = new Handler(Looper.getMainLooper());
 
   @Override public void onCreate(Bundle state) {
     super.onCreate(state);
@@ -40,51 +47,57 @@ public class QuickAddActivity extends Activity {
   }
 
   private void buildForm() {
-    LinearLayout root = new LinearLayout(this);
-    root.setOrientation(LinearLayout.VERTICAL);
-    root.setPadding(dp(24), dp(20), dp(24), dp(18));
-    root.setBackgroundColor(0xFFFFF7FA);
-    TextView title = new TextView(this);
-    title.setText("Alva"); title.setTextSize(19); title.setTextColor(0xFF34212B);
-    root.addView(title);
-    status = new TextView(this); status.setTextColor(0xFF604653);
-    root.addView(status);
-    input = new EditText(this);
-    input.setSingleLine(true); input.setHint("O que acabou?");
-    input.setImeOptions(EditorInfo.IME_ACTION_DONE);
-    root.addView(input);
-    password = new EditText(this);
-    password.setSingleLine(true); password.setHint("Senha da casa");
-    password.setInputType(129);
-    root.addView(password);
-    submit = new Button(this); submit.setTextColor(0xFFFFFFFF);
-    submit.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFFD9468D));
-    root.addView(submit);
-    setContentView(root);
+    setContentView(R.layout.quick_add_sheet);
+    input = findViewById(R.id.quick_add_product);
+    password = findViewById(R.id.quick_add_password);
+    status = findViewById(R.id.quick_add_status);
+    submit = findViewById(R.id.quick_add_submit);
+    findViewById(R.id.quick_add_close).setOnClickListener(v -> finish());
     submit.setOnClickListener(v -> send());
-    getWindow().setLayout((int)(getResources().getDisplayMetrics().widthPixels * .92), -2);
-    input.setOnEditorActionListener((v, action, event) -> {
+    TextView.OnEditorActionListener done = (v, action, event) -> {
       if (action == EditorInfo.IME_ACTION_DONE) { send(); return true; }
       return false;
-    });
+    };
+    input.setOnEditorActionListener(done);
+    password.setOnEditorActionListener(done);
+  }
+
+  @Override protected void onStart() {
+    super.onStart();
+    getWindow().setGravity(Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+    getWindow().setLayout(getResources().getDisplayMetrics().widthPixels - dp(24),
+        WindowManager.LayoutParams.WRAP_CONTENT);
+    WindowManager.LayoutParams attributes = getWindow().getAttributes();
+    attributes.y = dp(12);
+    getWindow().setAttributes(attributes);
   }
 
   private void showForm() {
     enrolling = token().isEmpty();
-    password.setVisibility(enrolling ? android.view.View.VISIBLE : android.view.View.GONE);
-    status.setText(enrolling ? "Conecte este aparelho à casa uma vez." : "");
-    submit.setText(enrolling ? "Conectar e adicionar" : "Adicionar");
-    input.setHint(enrolling ? "Produto para adicionar" : "O que acabou?");
+    password.setVisibility(enrolling ? View.VISIBLE : View.GONE);
+    setStatus(enrolling ? "Conecte este aparelho à casa uma vez." : "", false);
+    setBusy(false);
     input.requestFocus();
   }
 
+  private void setStatus(String message, boolean error) {
+    status.setText(message);
+    status.setTextColor(error ? 0xFFA32636 : 0xFF846674);
+    status.setVisibility(message.isEmpty() ? View.GONE : View.VISIBLE);
+  }
+
   private void send() {
+    if (busy) return;
     String name = input.getText().toString().trim();
     if (name.isEmpty()) { input.setError("Digite um produto"); return; }
+    if (enrolling && password.getText().toString().isEmpty()) {
+      password.setError("Digite a senha da casa"); password.requestFocus(); return;
+    }
+    final String housePassword = password.getText().toString();
     setBusy(true);
     worker.execute(() -> {
       try {
-        if (token().isEmpty()) enroll();
+        if (token().isEmpty()) enroll(housePassword);
         JSONObject body = new JSONObject().put("name", name);
         JSONObject result = request("/api/quick_add", body, token());
         org.json.JSONArray results = result.optJSONArray("results");
@@ -95,22 +108,36 @@ public class QuickAddActivity extends Activity {
         }
         final boolean anyAdded = added;
         runOnUiThread(() -> {
-          status.setText(anyAdded ? "Adicionado à lista" : "Já estava na lista");
-          input.setText("");
-          setBusy(false);
-          input.requestFocus();
+          if (isFinishing() || isDestroyed()) return;
+          InputMethodManager keyboard = (InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE);
+          keyboard.hideSoftInputFromWindow(input.getWindowToken(), 0);
+          findViewById(R.id.quick_add_form).setVisibility(View.GONE);
+          TextView message = findViewById(R.id.quick_add_success_message);
+          message.setText(anyAdded ? "Adicionado à lista" : "Já estava na lista");
+          findViewById(R.id.quick_add_success).setVisibility(View.VISIBLE);
+          message.sendAccessibilityEvent(android.view.accessibility.AccessibilityEvent.TYPE_ANNOUNCEMENT);
+          handler.postDelayed(this::finish, 1500);
         });
       } catch (Exception error) {
-        runOnUiThread(() -> { status.setText("Não foi possível enviar. Confira a conexão e tente de novo."); setBusy(false); });
+        runOnUiThread(() -> {
+          if (isFinishing() || isDestroyed()) return;
+          setStatus("Não foi possível enviar. Confira a conexão e tente de novo.", true);
+          setBusy(false);
+        });
       }
     });
   }
 
-  private void enroll() throws Exception {
+  private void enroll(String housePassword) throws Exception {
     JSONObject response = request("/api/android/devices", new JSONObject()
-        .put("password", password.getText().toString()).put("name", "Android widget"), null);
+        .put("password", housePassword).put("name", "Android widget"), null);
     saveToken(response.getString("token"));
-    runOnUiThread(() -> password.setVisibility(android.view.View.GONE));
+    runOnUiThread(() -> {
+      if (isFinishing() || isDestroyed()) return;
+      enrolling = false;
+      password.setText("");
+      password.setVisibility(View.GONE);
+    });
   }
 
   private JSONObject request(String path, JSONObject body, String bearer) throws Exception {
@@ -128,7 +155,7 @@ public class QuickAddActivity extends Activity {
     while ((count = stream.read(buffer)) != -1) bytes.write(buffer, 0, count);
     connection.disconnect();
     if (code < 200 || code >= 300) throw new IllegalStateException("HTTP " + code);
-    return new JSONObject(bytes.toString(StandardCharsets.UTF_8));
+    return new JSONObject(new String(bytes.toByteArray(), StandardCharsets.UTF_8));
   }
 
   private String token() {
@@ -141,7 +168,14 @@ public class QuickAddActivity extends Activity {
         EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
         EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM);
   }
-  private void setBusy(boolean busy) { submit.setEnabled(!busy); submit.setText(busy ? "Enviando…" : enrolling ? "Conectar e adicionar" : "Adicionar"); }
+  private void setBusy(boolean busy) {
+    this.busy = busy;
+    submit.setEnabled(!busy);
+    input.setEnabled(!busy);
+    password.setEnabled(!busy);
+    submit.setAlpha(busy ? .65f : 1f);
+    submit.setText(busy ? "Enviando…" : enrolling ? "Conectar e adicionar" : "Adicionar à lista +");
+  }
   private int dp(int v) { return (int)(v * getResources().getDisplayMetrics().density); }
-  @Override protected void onDestroy() { worker.shutdownNow(); super.onDestroy(); }
+  @Override protected void onDestroy() { handler.removeCallbacksAndMessages(null); worker.shutdownNow(); super.onDestroy(); }
 }

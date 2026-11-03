@@ -1,8 +1,12 @@
 <resources>
     <style name="QuickAddDialog" parent="android:style/Theme.Material.Light.Dialog.Alert">
-        <item name="android:windowMinWidthMajor">90%</item>
-        <item name="android:windowMinWidthMinor">90%</item>
-        <item name="android:colorAccent">#D9468D</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:backgroundDimEnabled">true</item>
+        <item name="android:backgroundDimAmount">0.18</item>
+        <item name="android:colorAccent">#A93F70</item>
+        <item name="android:fontFamily">sans-serif</item>
         <item name="android:windowSoftInputMode">stateAlwaysVisible|adjustResize</item>
     </style>
 </resources>

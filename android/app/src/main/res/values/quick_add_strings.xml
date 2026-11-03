@@ -1,0 +1,13 @@
+<resources>
+    <string name="quick_add_brand">ALVA</string>
+    <string name="quick_add_close_symbol">×</string>
+    <string name="quick_add_close_label">Fechar</string>
+    <string name="quick_add_title">O que acabou?</string>
+    <string name="quick_add_subtitle">Lembrou? Já deixa na lista.</string>
+    <string name="quick_add_hint">Ex.: café, leite, pão</string>
+    <string name="quick_add_password_hint">Senha da casa</string>
+    <string name="quick_add_submit_label">Adicionar à lista +</string>
+    <string name="quick_add_multiple_hint">Vários produtos? Separe por vírgula.</string>
+    <string name="quick_add_success_symbol">✓</string>
+    <string name="quick_add_success_hint">Pronto. Pode continuar o seu dia.</string>
+</resources>
