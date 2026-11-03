@@ -4,21 +4,21 @@ class ThemeTest < ApplicationSystemTestCase
   test "starts dark" do
     visit root_path
     assert_selector "html[data-theme=dark]"
-    assert_button "Tema claro"
+    assert_selector "button[aria-label='Tema claro']", visible: :all
   end
 
   test "toggling switches the theme and survives a reload" do
     visit root_path
 
-    click_button "Tema claro"
+    toggle_theme "Tema claro"
     assert_selector "html[data-theme=light]"
-    assert_button "Tema escuro"
+    assert_selector "button[aria-label='Tema escuro']", visible: :all
     assert_equal "#F4F4F5", page.evaluate_script("document.querySelector('meta[name=theme-color]').content")
 
     visit root_path
     assert_selector "html[data-theme=light]"
 
-    click_button "Tema escuro"
+    toggle_theme "Tema escuro"
     assert_selector "html[data-theme=dark]"
     assert_equal "#09090B", page.evaluate_script("document.querySelector('meta[name=theme-color]').content")
 
@@ -28,26 +28,26 @@ class ThemeTest < ApplicationSystemTestCase
 
   test "both screens share the theme and their toggles stay in sync" do
     visit root_path
-    within("#add_screen") { click_button "Tema claro" }
+    within("#add_screen") { toggle_theme "Tema claro" }
     assert_selector "html[data-theme=light]"
 
     show_list
-    within("#list_screen") { click_button "Tema escuro" }
+    within("#list_screen") { toggle_theme "Tema escuro" }
     assert_selector "html[data-theme=dark]"
 
     show_add
-    within("#add_screen") { assert_button "Tema claro" }
+    within("#add_screen") { assert_selector "button[aria-label='Tema claro']", visible: :all }
   end
 
   test "the theme survives a list refresh" do
     visit root_path
-    click_button "Tema claro"
+    toggle_theme "Tema claro"
 
     add_item "maçã"
 
     assert_text "maçã adicionado"
     assert_selector "html[data-theme=light]"
-    assert_button "Tema escuro"
+    assert_selector "button[aria-label='Tema escuro']", visible: :all
   end
 
   test "the theme is per device: changing it here leaves the other device alone" do
@@ -57,14 +57,14 @@ class ThemeTest < ApplicationSystemTestCase
     end
 
     visit root_path
-    click_button "Tema claro"
+    toggle_theme "Tema claro"
     add_item "Banana"
     assert_text "Banana adicionado"
 
     using_session(:other) do
       within("#category_#{categories(:produce).id}") { assert_text "Banana" }
       assert_selector "html[data-theme=dark]"
-      assert_button "Tema claro"
+      assert_selector "button[aria-label='Tema claro']", visible: :all
     end
   end
 
@@ -75,8 +75,7 @@ class ThemeTest < ApplicationSystemTestCase
     end
 
     visit root_path
-    within("#add_screen") { find('summary[title="Personalizar"]').click }
-    click_button "Cor Rosa"
+    within("#add_screen") { open_menu { click_button "Cor Rosa" } }
     assert_selector 'html[data-color="pink"]'
     assert_equal "rgb(21, 16, 20)", page.evaluate_script("getComputedStyle(document.body).backgroundColor")
     assert_selector 'button[title="Cor Rosa"][aria-pressed="true"]', visible: :all
@@ -84,18 +83,17 @@ class ThemeTest < ApplicationSystemTestCase
     show_list
     within("#list_screen") { assert_selector 'button[title="Cor Rosa"][aria-pressed="true"]', visible: :all }
 
-    click_button "Tema claro"
+    within("#list_screen") { toggle_theme "Tema claro" }
     assert_equal "#fcf8fa", page.evaluate_script("document.querySelector('meta[name=theme-color]').content")
     visit root_path
     assert_selector 'html[data-color="pink"][data-theme="light"]'
     assert_equal "rgb(252, 248, 250)", page.evaluate_script("getComputedStyle(document.body).backgroundColor")
     within("#list_screen") do
-      find('summary[title="Personalizar"]').click
-      click_button "Cor Teal"
+      open_menu { click_button "Cor Teal" }
+      toggle_theme "Tema escuro"
     end
-    click_button "Tema escuro"
     assert_equal "#09090B", page.evaluate_script("document.querySelector('meta[name=theme-color]').content")
-    click_button "Tema claro"
+    within("#list_screen") { toggle_theme "Tema claro" }
     assert_equal "#F4F4F5", page.evaluate_script("document.querySelector('meta[name=theme-color]').content")
 
     using_session(:other_color_device) do

@@ -19,10 +19,38 @@ export default class extends Controller {
     this.observer = new MutationObserver(() => this.syncEditing())
     this.observer.observe(this.element, { childList: true, subtree: true })
     this.syncEditing()
+
+    // In the store the phone sits in one hand between ticks: keep the screen
+    // on, and confirm each tick with a short buzz.
+    this.onVisible = () => { if (document.visibilityState === "visible") this.syncWakeLock() }
+    this.onTick = (event) => { if (this.active && event.target.closest(".shopping-toggle")) navigator.vibrate?.(10) }
+    document.addEventListener("visibilitychange", this.onVisible)
+    this.element.addEventListener("click", this.onTick)
+    this.syncWakeLock()
   }
 
   disconnect() {
     this.observer?.disconnect()
+    document.removeEventListener("visibilitychange", this.onVisible)
+    this.element.removeEventListener("click", this.onTick)
+    this.releaseWakeLock()
+  }
+
+  // The browser drops the lock whenever the page is hidden, so it is asked
+  // for again on every return. Unsupported or refused: the list still works.
+  async syncWakeLock() {
+    if (!this.active) return this.releaseWakeLock()
+    if (this.wakeLock && !this.wakeLock.released) return
+    try {
+      this.wakeLock = await navigator.wakeLock?.request("screen")
+    } catch {
+      this.wakeLock = null
+    }
+  }
+
+  releaseWakeLock() {
+    this.wakeLock?.release().catch(() => {})
+    this.wakeLock = null
   }
 
   get active() {
@@ -51,11 +79,13 @@ export default class extends Controller {
     if (focused?.matches("input, select, textarea")) focused.blur()
     window.scrollTo({ top: 0 })
     this.titleTarget.focus()
+    this.syncWakeLock()
   }
 
   exit() {
     document.cookie = `${COOKIE_NAME}=; Max-Age=0; Path=/; SameSite=Lax`
     delete document.documentElement.dataset.shoppingMode
+    this.releaseWakeLock()
     this.dispatch("exited")
     window.scrollTo({ top: 0 })
     const next = this.hasStartTarget ? this.startTarget : document.getElementById("list_screen_title")

@@ -1,4 +1,4 @@
-<%= turbo_frame_tag dom_id(@list_item, :row), class: "flex min-w-0 flex-1 items-center" do %>
+<%= turbo_frame_tag dom_id(@list_item, :row), class: "relative flex min-w-0 flex-1 flex-col bg-surface" do %>
   <%# namespace: field ids must not clash with the add field (list_item_name). %>
   <%= form_with model: @list_item, namespace: dom_id(@list_item, :edit), class: "flex w-full flex-col gap-2 p-3",
         data: { list_refresh_correction: true } do |form| %>
@@ -18,11 +18,19 @@
       <p class="px-1 text-sm text-danger" role="status">Digite um nome</p>
     <% end %>
 
-    <div class="flex justify-end gap-2">
+    <div class="flex items-center justify-end gap-2">
+      <%# Removing lives here (and in the row's swipe), not as an always-visible
+          button next to every name. The form attribute keeps the button inside
+          this layout while it submits the separate delete form below. %>
+      <button type="submit" form="<%= dom_id(@list_item, :remove) %>" aria-label="Remover <%= @list_item.name %>" title="Remover <%= @list_item.name %>"
+              class="mr-auto rounded-xl px-3 py-2 text-sm font-medium text-danger active:bg-surface-2">Remover</button>
       <%= link_to "Cancelar", list_item_path(@list_item),
             class: "rounded-xl px-4 py-2 text-sm font-medium text-ink-soft active:bg-surface-2" %>
       <%= form.submit "Salvar",
             class: "rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-accent-ink active:opacity-80" %>
     </div>
+  <% end %>
+  <%= form_with url: list_item_path(@list_item), method: :delete, id: dom_id(@list_item, :remove), class: "hidden" do %>
+    <%= hidden_field_tag :lock_version, @list_item.lock_version %>
   <% end %>
 <% end %>

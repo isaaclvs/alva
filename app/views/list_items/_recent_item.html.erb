@@ -1,0 +1,20 @@
+<%# Landing in the fallback category means the dictionary did not know the
+    name: worth a look, so its picker stands out. %>
+<% uncategorized = item.category.nil? %>
+<% unknown = uncategorized || item.category.name == ItemCategorizer::FALLBACK_CATEGORY %>
+<%= tag.li id: dom_id(item, :recent), class: "flex items-center gap-3 py-2 pr-2 pl-3" do %>
+  <%= category_icon(item.category) %>
+  <span class="min-w-0 flex-1 truncate text-base"><%= item.name %></span>
+  <%= form_with model: item, namespace: dom_id(item, :recent), class: "relative", data: { controller: "auto-submit" } do |form| %>
+    <%= hidden_field_tag :from, "recent", id: nil %>
+    <%= form.hidden_field :name %>
+    <%= form.hidden_field :lock_version %>
+    <%= form.label :category_id, "Categoria de #{item.name}", class: "sr-only" %>
+    <%= form.collection_select :category_id, Category.order(:position), :id, :name,
+          { include_blank: (Category::NONE_LABEL if uncategorized) },
+          data: { action: "auto-submit#submit" },
+          class: class_names("max-w-40 appearance-none truncate rounded-full border bg-canvas py-1.5 pr-8 pl-3 text-sm",
+                   "border-line text-ink-soft": !unknown, "border-warn text-warn": unknown) %>
+    <svg class="pointer-events-none absolute top-1/2 right-3 size-3.5 -translate-y-1/2 <%= unknown ? "text-warn" : "text-ink-faint" %>" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
+  <% end %>
+<% end %>

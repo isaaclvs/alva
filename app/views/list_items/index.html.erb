@@ -15,33 +15,41 @@
     </button>
   </div>
 
-  <section id="add_screen" aria-labelledby="add_screen_title" class="add-screen px-5 pt-5 pb-28"
+  <%# Adicionar: on phones the field sits at the bottom, next to the thumb and
+      the keyboard; what was just added shows above it with its category. %>
+  <section id="add_screen" aria-labelledby="add_screen_title" class="add-screen flex flex-col px-5 pt-5 pb-24"
            data-screen-target="panel" data-screen-name="add" <%= "hidden" unless screen == "add" %>>
     <header class="flex items-center justify-between gap-3">
       <div class="flex items-center gap-2.5">
-        <span class="grid size-9 place-items-center rounded-xl bg-surface-2" aria-hidden="true"><%= render "brand_mark", css_class: "size-7" %></span>
+        <span class="grid size-9 place-items-center text-accent" aria-hidden="true"><%= render "brand_mark", css_class: "size-7" %></span>
         <div class="leading-tight">
           <p class="text-sm font-semibold">Alva</p>
           <p class="text-xs text-ink-faint">Nossa casa</p>
         </div>
       </div>
-      <div class="flex items-center gap-2"><%= render "list_items/theme_toggle" %></div>
+      <%= render "list_items/menu" %>
     </header>
 
-    <div class="add-screen-content">
-      <h1 id="add_screen_title" class="text-2xl font-bold tracking-tight">O que está faltando em casa?</h1>
-      <p class="mt-1 text-ink-soft">Lembrou, adicionou.</p>
+    <%# Filled by the add responses (never by broadcasts), like #add_feedback. %>
+    <div id="recent_adds" class="mt-6"></div>
 
-      <div class="mt-5">
+    <div class="add-screen-content mt-auto pt-6">
+      <h1 id="add_screen_title" class="text-2xl font-semibold tracking-tight">O que está faltando em casa?</h1>
+      <p class="mt-0.5 text-sm text-ink-soft">Lembrou, adicionou.</p>
+
+      <div class="mt-4">
+        <%= render "buy_again", suggestions: @suggestions %>
+      </div>
+
+      <div class="mt-3">
         <%= render "form", list_item: @list_item, autofocus: screen == "add" %>
-        <p id="add_hint" class="mt-2 px-1 text-xs text-ink-faint">Dica: separe por vírgula para adicionar vários.</p>
+        <p id="add_hint" class="mt-2 px-1 text-xs text-ink-faint">Separe por vírgula para adicionar vários.</p>
         <%# Filled by the add responses (never by broadcasts): only this device
             hears what it just added. %>
         <p id="add_feedback" role="status" aria-live="polite" class="mt-1 min-h-5 px-1 text-sm font-medium"></p>
       </div>
 
-      <div class="mt-5 space-y-3">
-        <%= render "buy_again", suggestions: @suggestions %>
+      <div class="mt-2">
         <%= render "habitual_items/panel", household: @household, habitual_item: @habitual_item %>
       </div>
     </div>
@@ -49,24 +57,30 @@
 
   <section id="list_screen" aria-labelledby="list_screen_title" class="shopping-screen pb-28" data-controller="list-filter" data-action="shopping:exited@window->list-filter#reset"
            data-screen-target="panel" data-screen-name="list" <%= "hidden" unless screen == "list" %>>
-    <header class="sticky top-0 z-10 bg-canvas/95 px-4 pt-5 pb-3 backdrop-blur">
+    <header class="list-screen-header sticky top-0 z-10 bg-canvas px-4 pt-5 pb-3">
+      <div class="list-brand-row mb-5 flex items-center gap-2.5">
+        <span class="text-accent" aria-hidden="true"><%= render "brand_mark", css_class: "size-8" %></span>
+        <div class="leading-tight"><p class="text-sm font-semibold">Alva</p><p class="mt-0.5 text-xs text-ink-faint">Nossa casa</p></div>
+          <button type="button" class="shopping-only ml-auto min-h-11 shrink-0 rounded-full border border-line px-4 text-sm font-semibold text-ink-soft active:bg-surface-2"
+                  data-action="shopping#exit">Sair das compras</button>
+      </div>
       <div class="flex items-center justify-between gap-2">
-        <h1 id="list_screen_title" tabindex="-1" class="shopping-hide text-2xl font-bold tracking-tight">Lista de compras</h1>
-        <h1 id="shopping_title" tabindex="-1" class="shopping-only text-2xl font-bold tracking-tight" data-shopping-target="title">Em compras</h1>
-        <div class="shopping-hide flex items-center gap-1">
-          <%= link_to list_export_path, title: "Baixar PDF", aria: { label: "Baixar PDF" }, download: true, data: { turbo: false },
-                class: "grid size-9 shrink-0 place-items-center rounded-full text-ink-soft active:bg-surface-2" do %>
-            <svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M10 3v9m0 0-3.5-3.5M10 12l3.5-3.5M4 14v1.5A1.5 1.5 0 0 0 5.5 17h9a1.5 1.5 0 0 0 1.5-1.5V14" />
+        <h1 id="list_screen_title" tabindex="-1" class="shopping-hide text-2xl font-semibold tracking-tight">Lista de compras</h1>
+        <h1 id="shopping_title" tabindex="-1" class="shopping-only text-2xl font-semibold tracking-tight" data-shopping-target="title">Em compras</h1>
+        <div class="flex items-center gap-1">
+          <button type="button" title="Buscar" aria-label="Buscar" aria-controls="list_search_panel" aria-expanded="true"
+                  class="grid size-10 shrink-0 place-items-center rounded-full text-ink-soft active:bg-surface-2 aria-expanded:bg-surface-2 aria-expanded:text-ink"
+                  data-list-filter-target="toggle" data-action="list-filter#toggle">
+            <svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true">
+              <circle cx="9" cy="9" r="5.25" /><path d="m13 13 4 4" />
             </svg>
-          <% end %>
-          <%= render "list_items/theme_toggle" %>
+          </button>
+          <%= render "list_items/menu", pdf: true %>
+
         </div>
-        <button type="button" class="shopping-only min-h-11 shrink-0 rounded-full border border-line px-4 text-sm font-semibold text-ink-soft active:bg-surface-2"
-                data-action="shopping#exit">Sair das compras</button>
       </div>
       <%= render "summary", groups: @groups %>
-      <div class="mt-3 flex items-center gap-2">
+      <div id="list_search_panel" data-list-filter-target="panel" class="mt-3 flex flex-col items-stretch gap-3">
         <div class="relative min-w-0 flex-1">
           <label for="list_search" class="sr-only">Buscar na lista</label>
           <input id="list_search" type="search" placeholder="Buscar na lista" autocomplete="off"
@@ -75,10 +89,10 @@
           <button type="button" aria-label="Limpar busca" title="Limpar busca" hidden data-list-filter-target="clear"
                   data-action="list-filter#clear" class="absolute inset-y-0 right-0 w-11 text-ink-soft">×</button>
         </div>
-        <label class="flex min-h-11 shrink-0 items-center gap-2 text-sm text-ink-soft">
+        <div class="list-filter-options flex items-center justify-between gap-3"><label class="flex min-h-11 shrink-0 items-center gap-2 text-sm text-ink-soft">
           <input type="checkbox" data-list-filter-target="pending" data-action="change->list-filter#apply" class="size-4 accent-accent">
           Só pendentes
-        </label>
+        </label><span class="text-xs text-ink-faint">Seções · A–Z</span></div>
       </div>
     </header>
 
@@ -87,7 +101,7 @@
   </section>
 
   <nav aria-label="Telas" class="app-navigation fixed inset-x-0 bottom-0 z-20 border-t border-line bg-canvas/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
-    <div class="desktop-brand hidden px-4 pb-6"><p class="flex items-center gap-2 text-xl font-bold tracking-tight"><%= render "brand_mark", css_class: "size-8 shrink-0" %>Alva</p><p class="mt-1 text-xs text-ink-faint">Nossa casa</p></div>
+    <div class="desktop-brand hidden px-4 pb-6"><p class="flex items-center gap-2 text-2xl font-semibold tracking-tight"><%= render "brand_mark", css_class: "size-8 shrink-0" %>Alva</p><p class="mt-1 text-xs text-ink-faint">Nossa casa</p></div>
     <div class="navigation-items mx-auto grid max-w-md grid-cols-2 gap-1 px-3 py-1.5">
       <% [ [ "add", "nav_add", "Adicionar" ], [ "list", "nav_list", "Lista" ] ].each do |name, id, label| %>
         <%= tag.button type: "button", id: id,

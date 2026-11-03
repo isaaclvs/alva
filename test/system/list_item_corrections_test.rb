@@ -24,7 +24,7 @@ class ListItemCorrectionsTest < ApplicationSystemTestCase
     within("#category_#{categories(:produce).id}") { assert_text "Ração" }
     assert_no_field "Categoria"
 
-    click_button "Remover Ração"
+    remove_item "Ração"
     show_add
     add_item "rações"
     assert_text "rações adicionado em Hortifruti"

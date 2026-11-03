@@ -3,8 +3,15 @@
   <h2 class="mb-1.5 flex items-center gap-2 px-1 text-sm font-semibold text-ink-soft">
     <%= category_icon(category) %>
     <%= Category.label_for(category) %>
-    <span class="ml-auto text-xs font-medium text-ink-faint tabular-nums" aria-label="<%= purchased_in_group %> de <%= items.size %> comprados">
-      <%= purchased_in_group %>/<%= items.size %>
+    <%# Normal list: progress only once something here is bought. Shopping:
+        what is left in this aisle. %>
+    <% if purchased_in_group.positive? %>
+      <span class="shopping-hide ml-auto text-xs font-medium text-ink-faint tabular-nums" aria-label="<%= purchased_in_group %> de <%= items.size %> comprados">
+        <%= purchased_in_group %>/<%= items.size %>
+      </span>
+    <% end %>
+    <span class="shopping-only ml-auto text-xs font-medium tabular-nums <%= purchased_in_group == items.size ? "text-accent-strong" : "text-ink-faint" %>">
+      <%= purchased_in_group == items.size ? "tudo pego" : pluralize(items.size - purchased_in_group, "restante") %>
     </span>
   </h2>
   <ul class="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">

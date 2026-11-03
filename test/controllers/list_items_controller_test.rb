@@ -249,6 +249,53 @@ class ListItemsControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes streams.map(&:to_html).join, "adicionado em"
   end
 
+  test "create shows what was just added, with a category picker, only to this device" do
+    streams = capture_turbo_stream_broadcasts(households(:home)) do
+      post list_items_path, params: { list_item: { name: "Banana" } }, as: :turbo_stream
+    end
+
+    banana = ListItem.find_by!(name: "Banana")
+    assert_select "turbo-stream[action=update][target=recent_adds]" do
+      assert_select "li##{ActionView::RecordIdentifier.dom_id(banana, :recent)}", text: /Banana/
+      assert_select "form[action='#{list_item_path(banana)}'] input[name=from][value=recent]"
+      assert_select "select[name='list_item[category_id]'] option[selected][value=?]", categories(:produce).id.to_s
+    end
+    assert streams.none? { |stream| stream["target"] == "recent_adds" }
+  end
+
+  test "an unknown name lands in Outros and its picker asks for a look" do
+    post list_items_path, params: { list_item: { name: "Tahine" } }, as: :turbo_stream
+
+    assert_select "turbo-stream[target=recent_adds] select.border-warn"
+  end
+
+  test "create with several names lists only the added ones as just added" do
+    post list_items_path, params: { list_item: { name: "Banana, Leite" } }, as: :turbo_stream
+
+    assert_select "turbo-stream[target=recent_adds] li", count: 1
+    assert_select "turbo-stream[target=recent_adds] li", text: /Banana/
+  end
+
+  test "a duplicate leaves the just-added list alone" do
+    post list_items_path, params: { list_item: { name: "Leite" } }, as: :turbo_stream
+
+    assert_select "turbo-stream[target=recent_adds]", count: 0
+  end
+
+  test "picking a category under just added moves the item, learns it and refreshes that row" do
+    post list_items_path, params: { list_item: { name: "Tahine" } }, as: :turbo_stream
+    tahine = ListItem.find_by!(name: "Tahine")
+
+    patch list_item_path(tahine), as: :turbo_stream, params: { from: "recent",
+      list_item: { name: "Tahine", category_id: categories(:dairy).id, lock_version: tahine.lock_version } }
+
+    assert_response :success
+    assert_equal categories(:dairy), tahine.reload.category
+    assert_equal categories(:dairy), ItemCategorizer.call("tahine")
+    assert_select "turbo-stream[action=replace][target=list_items]"
+    assert_select "turbo-stream[action=replace][target=#{ActionView::RecordIdentifier.dom_id(tahine, :recent)}] option[selected][value=?]", categories(:dairy).id.to_s
+  end
+
   test "create with a pending duplicate keeps one item and points to it" do
     assert_no_difference "ListItem.count" do
       post list_items_path, params: { list_item: { name: "leite" } }, as: :turbo_stream

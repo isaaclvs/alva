@@ -22,6 +22,7 @@ class ListItemsController < ApplicationController
       @groups = current_household.list_items_by_category
       @suggestions = BuyAgainSuggestions.call(current_household)
       @revived_item = result.item if result.outcome == :revived
+      @added_item = result.item
       @feedback = add_feedback_stream(helpers.add_item_notice(result), :added)
       respond_to do |format|
         format.turbo_stream
@@ -69,7 +70,9 @@ class ListItemsController < ApplicationController
       end
     end
 
-    render_list
+    # From "Acabou de adicionar": that row shows the new category too.
+    recent = turbo_stream.replace(helpers.dom_id(@list_item, :recent), partial: "recent_item", locals: { item: @list_item }) if params[:from] == "recent"
+    render_list(extra: recent)
   rescue ListItem::StaleAction
     stale_list_action
   end
@@ -157,11 +160,12 @@ class ListItemsController < ApplicationController
   # Purchases refresh one category and shared counts; structural changes use
   # the whole list. `toast` (locals for _toast, or :clear) also
   # fills or empties the toast, but only in this response: it is not broadcast.
-  def render_list(toast: nil, category: :all)
+  def render_list(toast: nil, category: :all, extra: nil)
     respond_to do |format|
       format.turbo_stream do
         streams = [ list_refresh_stream(category: category) ]
         streams << toast_stream(toast) if toast
+        streams << extra if extra
         render turbo_stream: streams
       end
       format.html { redirect_to root_path }

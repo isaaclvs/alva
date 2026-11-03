@@ -1,6 +1,7 @@
 <%= render "refresh", groups: @groups, suggestions: @suggestions, household: current_household %>
 <%= turbo_stream.replace "list_item_form", partial: "form", locals: { list_item: ListItem.new } %>
 <%= @feedback %>
+<%= turbo_stream.update "recent_adds", partial: "recent_adds", locals: { items: @results.select { |result| result.outcome.in?(%i[created revived]) }.map(&:item) } %>
 <% @results.each do |result| %>
   <%= turbo_stream.replace result.item, partial: "list_item", locals: { list_item: result.item, highlight: true } %>
 <% end %>

@@ -1,9 +1,11 @@
 import { Controller } from "@hotwired/stimulus"
+import { plain } from "text_plain"
 
 // Controls stay outside broadcast fragments. Reapply local filters whenever
 // Turbo replaces the list, without replacing the search field or its focus.
+// Search and pending controls remain visible. The header shortcut focuses search.
 export default class extends Controller {
-  static targets = ["query", "pending", "clear", "empty"]
+  static targets = ["query", "pending", "clear", "empty", "panel", "toggle"]
 
   connect() {
     this.observer = new MutationObserver(() => this.apply())
@@ -16,7 +18,7 @@ export default class extends Controller {
   }
 
   apply() {
-    const query = this.queryTarget.value.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().trim().replace(/\s+/g, " ")
+    const query = plain(this.queryTarget.value)
     let visible = 0
     this.element.querySelectorAll(".shopping-category").forEach((category) => {
       let matches = 0
@@ -31,6 +33,16 @@ export default class extends Controller {
     this.emptyTarget.hidden = visible > 0 || (!query && !this.pendingTarget.checked)
   }
 
+  toggle() {
+    this.open()
+  }
+
+  open() {
+    this.panelTarget.hidden = false
+    this.toggleTarget.setAttribute("aria-expanded", "true")
+    this.queryTarget.focus()
+  }
+
   clear() {
     this.queryTarget.value = ""
     this.apply()
@@ -40,6 +52,8 @@ export default class extends Controller {
   reset() {
     this.queryTarget.value = ""
     this.pendingTarget.checked = false
+    this.panelTarget.hidden = false
+    this.toggleTarget.setAttribute("aria-expanded", "true")
     this.apply()
   }
 }

@@ -1,0 +1,11 @@
+<%# What this device just added, each with the category it landed in and a
+    picker to fix it on the spot (the correction teaches the dictionary, like
+    the pencil on the list). Only in the add responses, never broadcast. %>
+<% if items.any? %>
+  <section aria-labelledby="recent_adds_title">
+    <h2 id="recent_adds_title" class="px-1 text-xs font-medium text-ink-faint">Acabou de adicionar</h2>
+    <ul class="mt-1.5 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
+      <%= render partial: "list_items/recent_item", collection: items, as: :item %>
+    </ul>
+  </section>
+<% end %>

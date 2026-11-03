@@ -19,10 +19,10 @@ class DesktopLayoutTest < ApplicationSystemTestCase
     click_button "Banana"
     assert_selector "#list_items .line-through", text: "Banana"
 
-    click_button "Tema claro"
+    toggle_theme "Tema claro"
     assert_selector "html[data-theme=light]"
     assert_no_horizontal_overflow
-    click_button "Tema escuro"
+    toggle_theme "Tema escuro"
     assert_selector "html[data-theme=dark]"
     assert_no_horizontal_overflow
 

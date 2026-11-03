@@ -9,7 +9,7 @@ class NavigationTest < ApplicationSystemTestCase
       assert_text "Nossa casa"
       assert_selector "h1", text: "O que está faltando em casa?"
       assert_text "Lembrou, adicionou."
-      assert_text "separe por vírgula para adicionar vários"
+      assert_text "Separe por vírgula para adicionar vários"
       assert_selector "#habitual_items details:not([open])"
     end
     assert_equal "list_item_name", focused_element_id
@@ -105,7 +105,7 @@ class NavigationTest < ApplicationSystemTestCase
     click_button "Salvar"
     assert_selector "#category_#{categories(:produce).id}", text: "Leite corrigido"
 
-    click_button "Remover Leite corrigido"
+    remove_item "Leite corrigido"
     click_button "Desfazer"
     assert_selector "#category_#{categories(:produce).id}", text: "Leite corrigido"
 

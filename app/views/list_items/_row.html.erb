@@ -22,12 +22,10 @@
     <path d="M10.5 2.5l3 3L6 13H3v-3l7.5-7.5z" />
   </svg>
 <% end %>
-<%= button_to list_item_path(list_item), method: :delete,
-      title: "Remover #{list_item.name}", aria: { label: "Remover #{list_item.name}" },
-      form: { class: "shopping-hide" },
-      class: "grid size-11 shrink-0 place-items-center text-ink-faint active:text-danger" do %>
+<%# Swiping the row left (swipe_controller.js) submits this form; the visible
+    way to remove is "Remover" in the edit form, so it stays reachable without
+    gestures. Never in the shopping checklist. %>
+<%= button_to list_item_path(list_item), method: :delete, tabindex: -1,
+      aria: { hidden: true }, form: { hidden: true, class: "shopping-hide", data: { swipe_target: "remove" } } do %>
   <%= hidden_field_tag :lock_version, list_item.lock_version %>
-  <svg class="size-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-    <path d="M4 4l8 8M12 4l-8 8" />
-  </svg>
 <% end %>

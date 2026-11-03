@@ -178,12 +178,14 @@ class MutationFailuresTest < ApplicationSystemTestCase
 
   test "remove failure keeps the item available and a retry removes it" do
     visit_list
+    click_link "Editar Leite"
     make_next_request_fail(:network)
 
     click_button "Remover Leite"
 
     assert_text RESYNCED_ERROR
-    assert_selector "li", text: "Leite"
+    # The resync keeps the open correction form, so the retry is right there.
+    assert_selector "##{dom_id(list_items(:milk))} input[value=Leite]"
 
     click_button "Remover Leite"
 

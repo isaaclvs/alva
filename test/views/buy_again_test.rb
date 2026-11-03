@@ -7,7 +7,7 @@ class BuyAgainViewTest < ActionView::TestCase
     BuyAgainSuggestions::Suggestion.new(name, category, 1, Time.current)
   end
 
-  test "renders one add button per suggestion with its category icon" do
+  test "renders one add button per suggestion with a quiet add affordance" do
     render partial: "list_items/buy_again", locals: { suggestions: [ suggestion("Leite", categories(:dairy)), suggestion("Arroz") ] }
 
     assert_select "#buy_again [role=group][aria-labelledby=buy_again_title]"
@@ -15,8 +15,8 @@ class BuyAgainViewTest < ActionView::TestCase
     assert_select "#buy_again form[action='#{list_items_path}'][method=post]", count: 2
     assert_select "#buy_again input[name='list_item[name]'][value=Leite]"
     assert_select "#buy_again button", text: /Leite/
-    assert_select "#buy_again button", text: /🧀/
-    assert_select "#buy_again button", text: /📦/
+    assert_select "#buy_again button", text: /Arroz/
+    assert_select "#buy_again button span[aria-hidden=true]", text: "+", count: 2
   end
 
   test "renders only the empty placeholder without suggestions" do

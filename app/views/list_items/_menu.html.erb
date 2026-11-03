@@ -1,0 +1,40 @@
+<%# The "⋯" menu on each screen: device preferences (theme and color), the PDF
+    on the list screen and leaving a password-protected install. Kept out of
+    the way so the headers only carry what is used every day. %>
+<details class="shopping-hide relative" data-controller="color-picker" data-action="click->color-picker#select">
+  <summary title="Mais opções" aria-label="Mais opções"
+           class="grid size-10 cursor-pointer list-none place-items-center rounded-full text-ink-soft active:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+    <svg class="size-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+      <circle cx="4.5" cy="10" r="1.5" /><circle cx="10" cy="10" r="1.5" /><circle cx="15.5" cy="10" r="1.5" />
+    </svg>
+  </summary>
+  <div class="absolute right-0 z-30 mt-2 w-56 rounded-2xl border border-line bg-surface p-1.5 shadow-lg shadow-black/20">
+    <%= render "list_items/theme_toggle" %>
+
+    <div class="flex items-center gap-2 px-3 py-2" role="group" aria-label="Cor do tema">
+      <span class="flex-1 text-sm text-ink-soft">Cor</span>
+      <% [["teal", "Teal", "#0f766e"], ["pink", "Rosa", "#b73570"]].each do |value, label, swatch| %>
+        <button type="button" aria-pressed="<%= color_name == value %>" aria-label="Cor <%= label %>" title="Cor <%= label %>"
+                class="grid size-8 place-items-center rounded-full border-2 border-transparent aria-pressed:border-accent"
+                data-color-picker-value-param="<%= value %>">
+          <span aria-hidden="true" class="size-5 rounded-full" style="background-color: <%= swatch %>"></span>
+        </button>
+      <% end %>
+    </div>
+
+    <% if local_assigns[:pdf] %>
+      <%= link_to list_export_path, title: "Baixar PDF", aria: { label: "Baixar PDF" }, download: true, data: { turbo: false },
+            class: "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-ink active:bg-surface-2" do %>
+        <svg class="size-5 text-ink-soft" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M10 3v9m0 0-3.5-3.5M10 12l3.5-3.5M4 14v1.5A1.5 1.5 0 0 0 5.5 17h9a1.5 1.5 0 0 0 1.5-1.5V14" />
+        </svg>
+        Baixar PDF
+      <% end %>
+    <% end %>
+
+    <% if HouseholdAccess.enabled? %>
+      <%= button_to "Sair", logout_path, method: :delete, data: { turbo: false }, form: { class: "border-t border-line mt-1 pt-1" },
+            class: "w-full rounded-xl px-3 py-2.5 text-left text-sm text-ink-soft active:bg-surface-2" %>
+    <% end %>
+  </div>
+</details>

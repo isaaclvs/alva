@@ -53,6 +53,9 @@ Referências SHO neste documento são decisões históricas do MVP.
 - **Corrigir item no lugar:** o lápis troca a linha, dentro de um Turbo Frame
   (`dom_id(item, :row)`), por nome + categoria (`ListItem#correct`). Nome novo
   sem categoria escolhida é recategorizado como se fosse digitado de novo.
+  O botão **Remover** fica nesse formulário (não há × em cada linha); no
+  celular, deslizar a linha para a esquerda também remove (`swipe_controller.js`,
+  só toque e nunca em compras). Os dois passam pelo mesmo desfazer.
 - **Deploy self-hosted**, não é para publicar na Play Store agora — distribuição
   é via PWA (acesso remoto via Tailscale). App nativo/APK fica em aberto para o
   futuro, se fizer sentido depois do teste com o usuário real.
@@ -113,10 +116,12 @@ da lista ou histórico. O refresh também atualiza `#habitual_items_list`; o
 formulário, o painel aberto e as seleções sobreviventes são preservados.
 
 **Duas telas, navegação local:** a página tem dois espaços, `#add_screen`
-(Adicionar, a inicial: cabeçalho Alva/Nossa casa, campo, dica de vírgula,
-Comprar de novo e Habituais recolhido — sem a lista) e `#list_screen` (Lista de
-compras: resumo pendentes/comprados, categorias, edição, desfazer e Compra
-feita). A navegação inferior ("Adicionar" e "Lista" com `#list_counter` de
+(Adicionar, a inicial: cabeçalho Alva/Nossa casa com menu ⋯, "Acabou de
+adicionar", e embaixo, perto do polegar e do teclado, Comprar de novo, campo,
+dica de vírgula e Habituais recolhido — sem a lista) e `#list_screen` (Lista de
+compras: cabeçalho com busca visível e menu ⋯, resumo pendentes/comprados,
+Iniciar compras, categorias, edição, desfazer e Compra feita). O menu ⋯
+(`list_items/_menu`) reúne tema, cor, PDF (só na Lista) e Sair. A navegação inferior ("Adicionar" e "Lista" com `#list_counter` de
 pendentes) troca de tela no cliente (`screen_controller.js`), sem request. A
 tela aberta é preferência do aparelho (cookie `screen`, sem broadcast); a
 renderização inicial respeita o cookie e só dá autofocus no campo quando abre
@@ -125,6 +130,19 @@ escolher uma tela (o modo mercado foi absorvido pela tela Lista). Broadcasts
 atualizam as duas telas (escondida ou não), mas nunca navegação, tema ou o
 retorno de adicionar: `#add_feedback` (live region) só é preenchido na resposta
 HTTP de quem adicionou.
+
+**Acabou de adicionar:** a resposta de adicionar (nunca o broadcast) preenche
+`#recent_adds` com os itens criados ou revividos, cada um com a categoria num
+seletor; trocar ali envia `PATCH list_items/:id` com `from=recent`, que corrige
+e ensina o dicionário como o lápis e devolve a linha atualizada. Item que caiu
+em "Outros" tem o seletor destacado. Enquanto se digita, `duplicate_hint_controller.js`
+avisa quais nomes já estão pendentes na lista (comparação sem acento/caixa via
+`text_plain.js`, o par de `TextNormalizer.plain`); é só uma dica, o servidor
+continua decidindo (e pega plurais que a dica não pega).
+
+**Busca na Lista:** campo e "Só pendentes" sempre visíveis. A lupa foca o campo
+sem limpar os filtros (`list_filter_controller.js`). No modo compras, o campo
+fica fixo próximo ao rodapé; sair do modo limpa os filtros e mantém a busca visível.
 
 **Iniciar compras:** botão no resumo da Lista (só com itens na lista viva, também
 quando todos já estão marcados) que a transforma em checklist. A preferência é do
@@ -138,11 +156,15 @@ teclado) e `current_screen` passa a ser sempre `list`, sem mexer no cookie
 e o toast com Desfazer. Como a marcação dos fragments de broadcast não depende do
 cookie, lista atualizada por outro aparelho nunca traz controles de volta. Com um
 formulário de correção aberto o botão fica `aria-disabled` com a dica "Salve ou
-cancele a edição" (e o foco vai para o campo), para não perder o rascunho. Iniciar
+cancele a edição" (e o foco vai para o campo), para não perder o rascunho. Em compras,
+cada categoria mostra quantos itens faltam ("2 restantes", "tudo pego"; fora de
+compras só aparece "x/y" quando algo já foi comprado), "Compra feita" fica fixo
+no rodapé, a tela fica acesa (Wake Lock API, pedido de novo ao voltar ao app) e
+marcar vibra rapidamente quando o aparelho suporta. Iniciar
 e sair só mudam a tela: nada é alterado nos itens nem finalizado. Compra feita
 mantém o modo. `screen#show` ignora trocas de tela enquanto o modo está ativo.
 
-**Tema:** escuro (padrão) e claro, alternados pelo botão em cada tela e salvos
+**Tema:** escuro (padrão) e claro, alternados pelo item do menu ⋯ em cada tela e salvos
 por aparelho no cookie `theme` (`<html data-theme>` vem do servidor). As cores
 são tokens semânticos em `app/assets/tailwind/application.css` (`canvas`,
 `surface`, `line`, `ink`, `accent`…), redefinidos por `html[data-theme=light]`.

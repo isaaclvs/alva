@@ -8,6 +8,7 @@ class PurchaseUndoTest < ApplicationSystemTestCase
     end
     visit_list
     click_button "Iniciar compras"
+    open_search
     check "Só pendentes"
     click_button "Leite"
     assert_no_button "Leite"

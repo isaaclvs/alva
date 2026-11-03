@@ -3,12 +3,12 @@
 <div id="buy_again">
   <% if suggestions.any? %>
     <div role="group" aria-labelledby="buy_again_title">
-      <h2 id="buy_again_title" class="mb-2 text-sm font-medium text-ink-soft">Comprar de novo</h2>
+      <h2 id="buy_again_title" class="mb-2 text-xs font-medium tracking-wider text-ink-soft">Comprar de novo</h2>
       <div class="flex flex-wrap gap-2">
         <% suggestions.each do |suggestion| %>
           <%= button_to list_items_path, params: { list_item: { name: suggestion.name } }, form: { class: "contents" },
-                class: "flex items-center gap-1.5 rounded-full border border-line bg-surface py-1 pr-3 pl-1 text-sm text-ink active:bg-surface-2" do %>
-            <%= category_icon(suggestion.category) %>
+                class: "flex items-center gap-1.5 rounded-full border border-line bg-surface py-2 pr-3 pl-3 text-xs text-ink active:bg-surface-2" do %>
+            <span class="text-accent" aria-hidden="true">+</span>
             <%= suggestion.name %>
           <% end %>
         <% end %>

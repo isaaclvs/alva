@@ -1,21 +1,22 @@
 <% items = groups.flat_map(&:last) %>
 <% purchased_count = items.count(&:purchased?) %>
 <div id="list_summary" class="mt-1">
-  <div class="flex items-center justify-between gap-3">
-    <p class="text-sm text-ink-soft"><%= list_summary_text(items.size - purchased_count, purchased_count) %></p>
-    <%# Only with something on the list; shopping_controller.js disables it
-        (aria-disabled) while a correction form is open. %>
-    <% if items.any? %>
-      <button type="button" class="shopping-hide min-h-11 shrink-0 rounded-full border border-accent bg-accent-soft px-4 text-sm font-semibold text-accent-strong active:opacity-80 aria-disabled:opacity-50"
-              aria-describedby="shopping_editing_hint" data-shopping-target="start" data-action="shopping#start">Iniciar compras</button>
-    <% end %>
-  </div>
-  <p id="shopping_editing_hint" hidden class="shopping-hide mt-1 text-xs text-warn" data-shopping-target="hint">Salve ou cancele a edição para iniciar as compras.</p>
+  <p class="text-sm text-ink-soft"><%= list_summary_text(items.size - purchased_count, purchased_count) %></p>
   <% if items.any? %>
-    <%= tag.div class: "mt-2.5 h-1 overflow-hidden rounded-full bg-surface-2", role: "progressbar",
+    <%= tag.div class: "mt-2 h-1 overflow-hidden rounded-full bg-surface-2", role: "progressbar",
           aria: { label: "Itens comprados", valuemin: 0, valuemax: items.size, valuenow: purchased_count } do %>
       <div class="h-full rounded-full bg-accent transition-[width] duration-300"
            style="width: <%= purchased_count * 100 / items.size %>%"></div>
     <% end %>
+    <%# The screen's main action. shopping_controller.js disables it
+        (aria-disabled) while a correction form is open. %>
+    <button type="button" class="shopping-hide mt-3 flex min-h-11 w-full items-center justify-start gap-2 rounded-xl bg-accent-soft px-4 text-sm font-semibold text-accent-strong active:opacity-80 aria-disabled:opacity-50"
+            aria-describedby="shopping_editing_hint" data-shopping-target="start" data-action="shopping#start">
+      <svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M2.5 3.5h2l1.8 9h9l1.7-6.5H6" /><circle cx="7.5" cy="16" r="1" /><circle cx="14.5" cy="16" r="1" />
+      </svg>
+      Iniciar compras
+    </button>
   <% end %>
+  <p id="shopping_editing_hint" hidden class="shopping-hide mt-1 text-xs text-warn" data-shopping-target="hint">Salve ou cancele a edição para iniciar as compras.</p>
 </div>

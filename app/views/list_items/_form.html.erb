@@ -1,10 +1,11 @@
 <%# `autofocus` is off when the page opens on the list screen, so the keyboard
     does not pop up there. Responses to an add re-render it focused. %>
-<%= form_with model: list_item, id: "list_item_form" do |form| %>
+<%= form_with model: list_item, id: "list_item_form", data: { controller: "duplicate-hint" } do |form| %>
   <div class="flex items-center gap-2 rounded-2xl border border-line bg-surface py-2 pr-2 pl-4 shadow-sm focus-within:border-accent focus-within:ring-4 focus-within:ring-accent-soft">
     <%= form.label :name, "Item", class: "sr-only" %>
     <%= form.text_field :name, autofocus: local_assigns.fetch(:autofocus, true), required: true, autocomplete: "off",
-          list: "list_item_name_suggestions", enterkeyhint: "done", aria: { describedby: "add_hint" },
+          list: "list_item_name_suggestions", enterkeyhint: "done", aria: { describedby: "add_hint add_duplicate_hint" },
+          data: { duplicate_hint_target: "input", action: "input->duplicate-hint#check" },
           placeholder: "Ex.: leite, pão, café",
           class: "min-w-0 flex-1 bg-transparent py-2 text-lg placeholder:text-ink-faint focus:outline-none" %>
     <%= name_suggestions_datalist("list_item_name_suggestions") %>
@@ -15,6 +16,8 @@
       </svg>
     <% end %>
   </div>
+
+  <p id="add_duplicate_hint" hidden class="mt-2 px-1 text-xs font-medium text-warn" data-duplicate-hint-target="hint"></p>
 
   <% if list_item.errors.any? %>
     <p class="mt-2 px-1 text-sm text-danger" role="alert"><%= list_item.errors.full_messages.to_sentence %></p>

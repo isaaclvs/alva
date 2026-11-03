@@ -4,7 +4,9 @@ class ListExportTest < ApplicationSystemTestCase
   test "the list header has a download link to the PDF" do
     visit_list
 
-    assert_selector "#list_screen header a[href='/lista.pdf'][title='Baixar PDF'][aria-label='Baixar PDF']"
+    within("#list_screen header") do
+      open_menu { assert_selector "a[href='/lista.pdf'][title='Baixar PDF'][aria-label='Baixar PDF']" }
+    end
   end
 
   test "download link survives list updates" do
@@ -12,6 +14,6 @@ class ListExportTest < ApplicationSystemTestCase
 
     click_button "Leite"
 
-    assert_selector "#list_screen header a[href='/lista.pdf']"
+    within("#list_screen header") { open_menu { assert_selector "a[href='/lista.pdf']" } }
   end
 end

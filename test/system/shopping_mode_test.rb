@@ -9,7 +9,7 @@ class ShoppingModeSystemTest < ApplicationSystemTestCase
     before = ListItem.order(:id).pluck(:id, :name, :status, :lock_version, :shopping_trip_id)
     visit_list
     assert_link "Editar Leite"
-    assert_link "Baixar PDF"
+    open_menu { assert_link "Baixar PDF" }
 
     click_button "Iniciar compras"
 
@@ -21,6 +21,7 @@ class ShoppingModeSystemTest < ApplicationSystemTestCase
     assert_no_link "Editar Leite"
     assert_no_button "Remover Leite"
     assert_no_link "Baixar PDF"
+    assert_no_selector "summary[aria-label='Mais opções']"
     assert_no_button "Tema claro"
     assert_no_selector "nav[aria-label=Telas]"
     assert_no_button "Adicionar"
@@ -34,7 +35,7 @@ class ShoppingModeSystemTest < ApplicationSystemTestCase
     assert_no_selector "html[data-shopping-mode]"
     assert_selector "h1", text: "Lista de compras"
     assert_link "Editar Leite"
-    assert_link "Baixar PDF"
+    assert_selector "#list_screen summary[aria-label='Mais opções']"
     assert_selector "nav[aria-label=Telas]"
     assert_equal "Iniciar compras", page.evaluate_script("document.activeElement.textContent.trim()")
     assert_selector "#list_screen:not([hidden])"
@@ -206,7 +207,7 @@ class ShoppingModeSystemTest < ApplicationSystemTestCase
     assert_equal 2, page.evaluate_script("getComputedStyle(document.querySelector('.shopping-categories')).gridTemplateColumns.split(' ').length")
 
     click_button "Sair das compras"
-    click_button "Tema claro"
+    toggle_theme "Tema claro"
     click_button "Iniciar compras"
     assert_selector "html[data-theme=light][data-shopping-mode=on]"
     assert page.evaluate_script("document.documentElement.scrollWidth <= window.innerWidth")
@@ -217,5 +218,22 @@ class ShoppingModeSystemTest < ApplicationSystemTestCase
 
   def row_height(name)
     page.evaluate_script("Array.from(document.querySelectorAll('#list_items button')).find((b) => b.textContent.includes(#{name.to_json})).getBoundingClientRect().height")
+  end
+
+  test "each aisle says what is left while shopping, and the list only counts once something is bought" do
+    households(:home).list_items.create!(name: "Iogurte", category: categories(:dairy))
+    visit_list
+    within("#category_#{categories(:dairy).id} h2") { assert_no_text "/" }
+
+    click_button "Iniciar compras"
+    within("#category_#{categories(:dairy).id} h2") { assert_text "2 restantes" }
+
+    click_button "Leite"
+    within("#category_#{categories(:dairy).id} h2") { assert_text "1 restante" }
+    click_button "Iogurte"
+    within("#category_#{categories(:dairy).id} h2") { assert_text "tudo pego" }
+
+    click_button "Sair das compras"
+    within("#category_#{categories(:dairy).id} h2") { assert_text "2/2" }
   end
 end

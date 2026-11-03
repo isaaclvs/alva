@@ -1,35 +1,17 @@
-<%# Shows the sun in the dark theme (switches to light) and the moon in the
-    light one. Each screen has one; theme_controller.js keeps them in sync. %>
+<%# A row of the "⋯" menu. Shows the sun in the dark theme (switches to light)
+    and the moon in the light one. Each screen has one; theme_controller.js
+    keeps their labels in sync. %>
 <% label = theme_name == "dark" ? "Tema claro" : "Tema escuro" %>
 <%= tag.button type: "button", title: label, aria: { label: label },
-      class: "grid size-9 shrink-0 place-items-center rounded-full text-ink-soft active:bg-surface-2",
+      class: "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-ink active:bg-surface-2",
       data: { controller: "theme", action: "theme#toggle" } do %>
-  <svg class="size-5 in-data-[theme=light]:hidden" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true">
+  <svg class="size-5 text-ink-soft in-data-[theme=light]:hidden" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true">
     <circle cx="10" cy="10" r="3.5" />
     <path d="M10 2.5v1.5M10 16v1.5M2.5 10H4M16 10h1.5M4.7 4.7l1.05 1.05M14.25 14.25l1.05 1.05M4.7 15.3l1.05-1.05M14.25 5.75l1.05-1.05" />
   </svg>
-  <svg class="hidden size-5 in-data-[theme=light]:block" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <svg class="hidden size-5 text-ink-soft in-data-[theme=light]:block" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
     <path d="M16.5 11.5A6.5 6.5 0 0 1 8.5 3.5a6.5 6.5 0 1 0 8 8z" />
   </svg>
+  <span class="in-data-[theme=light]:hidden" aria-hidden="true">Tema claro</span>
+  <span class="hidden in-data-[theme=light]:inline" aria-hidden="true">Tema escuro</span>
 <% end %>
-<details class="shopping-hide relative" data-controller="color-picker" data-action="click->color-picker#select">
-  <summary title="Personalizar" aria-label="Personalizar" class="grid size-9 cursor-pointer list-none place-items-center rounded-full border border-line text-ink-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
-    <svg class="size-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-      <path d="M10 3a7 7 0 1 0 0 14h1a2 2 0 0 0 1-3.7.9.9 0 0 1 .5-1.7H14a3 3 0 0 0 3-3C17 5.5 14 3 10 3z"/>
-      <circle cx="6" cy="9" r=".7"/><circle cx="9" cy="6.5" r=".7"/><circle cx="12.5" cy="7" r=".7"/>
-    </svg>
-    <span class="sr-only">Personalizar</span>
-  </summary>
-  <div class="absolute right-0 z-20 mt-2 flex min-w-max gap-2 rounded-xl border border-line bg-surface p-2 shadow-lg" role="group" aria-label="Cor do tema">
-    <% [["teal", "Teal"], ["pink", "Rosa"]].each do |value, label| %>
-      <button type="button" aria-pressed="<%= color_name == value %>" aria-label="Cor <%= label %>" title="Cor <%= label %>" class="rounded-lg border border-line px-3 py-2 text-sm text-ink aria-pressed:border-accent aria-pressed:bg-surface-2 inline-flex items-center gap-2" data-color-picker-value-param="<%= value %>">
-        <span aria-hidden="true" class="size-3 rounded-full" style="background-color: <%= value == "pink" ? "#b73570" : "#0f766e" %>"></span>
-        <%= label %>
-      </button>
-    <% end %>
-    <% if HouseholdAccess.enabled? %>
-      <%= button_to "Sair", logout_path, method: :delete, data: { turbo: false },
-            class: "rounded-lg px-3 py-2 text-sm text-ink-soft" %>
-    <% end %>
-  </div>
-</details>

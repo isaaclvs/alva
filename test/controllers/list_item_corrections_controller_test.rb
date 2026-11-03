@@ -16,6 +16,18 @@ class ListItemCorrectionsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "removing lives in the correction form, not next to every name" do
+    item = list_items(:milk)
+
+    get edit_list_item_path(item), headers: FRAME
+    assert_select "form##{ActionView::RecordIdentifier.dom_id(item, :remove)}[action='#{list_item_path(item)}'] input[name=_method][value=delete]"
+    assert_select "button[form=#{ActionView::RecordIdentifier.dom_id(item, :remove)}][aria-label='Remover Leite']", text: "Remover"
+
+    get root_path
+    assert_select "##{ActionView::RecordIdentifier.dom_id(item)} form[hidden][data-swipe-target=remove]"
+    assert_select "##{ActionView::RecordIdentifier.dom_id(item)} form:not([hidden]) button[aria-label='Remover Leite']", count: 0
+  end
+
   test "edit offers Sem categoria only for an uncategorized item" do
     get edit_list_item_path(list_items(:milk)), headers: FRAME
     assert_select "option", text: Category::NONE_LABEL, count: 0

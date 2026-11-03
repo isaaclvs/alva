@@ -73,10 +73,12 @@ input[list]::-webkit-calendar-picker-indicator {
   display: none !important;
 }
 
-/* Keep the add controls in the comfortable thumb zone on phones. The available
-   space above them contracts when the on-screen keyboard is open. */
+/* On phones the add screen fills the viewport and its controls (mt-auto) sit
+   at the bottom, by the thumb. With interactive-widget=resizes-content in the
+   viewport meta, the on-screen keyboard shrinks the viewport, so the field
+   stays right above it. */
 @media (max-width: 767px) {
-  .add-screen-content { margin-top: max(1.25rem, calc(50dvh - 10rem)); }
+  .add-screen { min-height: 100dvh; }
 }
 
 /* "Iniciar compras" turns the list into a checklist. <html data-shopping-mode>
@@ -98,9 +100,11 @@ html[data-shopping-mode="on"] .shopping-check {
   width: 1.75rem;
   height: 1.75rem;
 }
-/* No bottom navigation to clear: the toast sits near the edge. */
+/* The fixed search occupies the lower edge in the focused checklist. */
+
+/* Leave room above the fixed search for local feedback. */
 html[data-shopping-mode="on"] #toast {
-  padding-bottom: calc(env(safe-area-inset-bottom) + 1rem);
+  padding-bottom: calc(env(safe-area-inset-bottom) + 5rem);
 }
 
 /* Desktop keeps the same two spaces, with persistent side navigation and
@@ -150,3 +154,76 @@ html[data-color="pink"] .navigation-items > button[aria-current="page"] {
   color: var(--color-accent);
   background-color: var(--color-accent-soft);
 }
+
+html[data-shopping-mode="on"] #list_search_panel > .relative {
+  position: fixed;
+  bottom: calc(env(safe-area-inset-bottom) + 1rem);
+  left: 1rem;
+  right: 1rem;
+  max-width: 58rem;
+  margin-inline: auto;
+  z-index: 20;
+  box-shadow: 0 4px 20px rgb(0 0 0 / .08);
+}
+.shopping-category > ul { border: 0; background: transparent; border-radius: 0; }
+
+/* The approved app prototype: a quieter frame, flat aisles and a distinct
+   primary input, using the existing device theme and color preferences. */
+.add-screen-content { padding-bottom: .5rem; }
+#add_screen_title { font-size: 1.75rem; font-weight: 600; letter-spacing: -.045em; }
+#add_screen header > .flex { gap: .6rem; }
+#list_screen_title, #shopping_title { font-size: 1.75rem; letter-spacing: -.045em; line-height: 1.2; }
+.list-screen-header { padding: 1.5rem 1.25rem 1rem; }
+.list-brand-row { padding-bottom: .25rem; }
+#list_summary > p { font-size: .8rem; margin-top: .4rem; }
+#list_summary > [role="progressbar"] { display: none; }
+#list_summary > button { margin-top: 1.25rem; border-radius: .9rem; }
+#list_search_panel { border: 0; padding-top: .25rem; gap: .25rem; }
+#list_search_panel input[type="search"] { min-height: 3rem; border-radius: .9rem; padding-left: 2.6rem; }
+#list_search_panel > .relative::before {
+  content: ""; pointer-events: none; position: absolute; left: 1rem; top: 50%;
+  width: .8rem; height: .8rem; border: 1.5px solid var(--color-ink-soft);
+  border-radius: 50%; transform: translateY(-65%); z-index: 1;
+}
+#list_search_panel > .relative::after {
+  content: ""; pointer-events: none; position: absolute; left: 1.75rem; top: 57%;
+  width: .4rem; height: 1.5px; background: var(--color-ink-soft); transform: rotate(45deg); z-index: 1;
+}
+.list-filter-options label { font-size: .75rem; }
+.list-filter-options > span { font-size: .65rem; }
+.shopping-categories { padding-inline: 1.25rem; }
+.shopping-category { margin-bottom: 1.6rem; }
+.shopping-category > h2 { letter-spacing: .04em; font-size: .65rem; padding-bottom: .5rem; }
+.shopping-category > h2 > span:last-child { font-size: .65rem; }
+.shopping-toggle { padding-left: .35rem; font-size: .9rem; }
+.shopping-toggle > span:last-child { font-size: .95rem; }
+.shopping-check { border-width: 1.5px; width: 1.4rem; height: 1.4rem; }
+.navigation-items > button[aria-current="page"] { color: var(--color-accent-strong); background: var(--color-accent-soft); }
+.navigation-items > button { min-height: 2.8rem; border-radius: .85rem; font-size: .8rem; }
+html[data-shopping-mode="on"] #list_summary > [role="progressbar"] { display: block; }
+html[data-shopping-mode="on"] .list-brand-row { margin-bottom: 1rem; }
+html[data-shopping-mode="on"] .list-finish { position: static; padding-bottom: 1rem; background: none; }
+html[data-shopping-mode="on"] #list_search_panel > .relative { background: var(--color-surface); border-radius: .9rem; }
+@media (min-width: 1024px) {
+  .app-shell { padding-top: 0; padding-bottom: 0; }
+  .app-navigation { top: 0; bottom: 0; padding: 2.5rem 1rem; border-right: 1px solid var(--color-line); }
+  .desktop-brand { padding-inline: .5rem; padding-bottom: 2.5rem; }
+  .desktop-brand > p:first-child { font-size: 1.3rem; font-weight: 600; }
+  .add-screen { min-height: 100dvh; padding-top: 2rem; padding-bottom: 2rem; }
+  .add-screen > header > .flex { visibility: hidden; }
+  .add-screen-content { width: 100%; max-width: 28rem; margin: auto; }
+  .list-screen-header { padding-top: 2.5rem; }
+  .list-brand-row { display: none; }
+  html[data-shopping-mode="on"] .list-brand-row { display: flex; }
+}
+
+/* Keep the list in its own scroll area: the pinned controls never cover
+   a row or an inline correction form, even when the browser reveals focus. */
+#list_screen:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+}
+.list-screen-header { position: relative; flex-shrink: 0; }
+#list_items { flex: 1; min-height: 0; overflow-y: auto; align-content: start; }
+

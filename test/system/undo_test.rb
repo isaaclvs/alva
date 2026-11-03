@@ -10,7 +10,7 @@ class UndoTest < ApplicationSystemTestCase
     assert_selector "#{dairy}:nth-child(1)", exact_text: "Iogurte"
     assert_selector "#{dairy}:nth-child(2)", exact_text: "Leite"
 
-    click_button "Remover Leite"
+    remove_item "Leite"
 
     within("#toast") do
       assert_selector "[role=status]", text: "Leite removido"
@@ -32,7 +32,7 @@ class UndoTest < ApplicationSystemTestCase
     detergent = list_items(:detergent)
     visit_list
 
-    click_button "Remover Detergente"
+    remove_item "Detergente"
     assert_selector "#toast", text: "Detergente removido"
     click_button "Desfazer"
 
@@ -59,7 +59,7 @@ class UndoTest < ApplicationSystemTestCase
 
   test "the toast goes away by itself" do
     visit_list
-    click_button "Remover Leite"
+    remove_item "Leite"
     assert_selector "#toast [role=status]"
 
     # The controller's default delay is 5 seconds.
@@ -70,9 +70,9 @@ class UndoTest < ApplicationSystemTestCase
   test "a new toast replaces the previous one" do
     visit_list
 
-    click_button "Remover Leite"
+    remove_item "Leite"
     assert_selector "#toast", text: "Leite removido"
-    click_button "Remover Detergente"
+    remove_item "Detergente"
 
     assert_selector "#toast", text: "Detergente removido"
     assert_selector "#toast [role=status]", count: 1
@@ -87,7 +87,7 @@ class UndoTest < ApplicationSystemTestCase
     end
 
     visit_list
-    click_button "Remover Leite"
+    remove_item "Leite"
     assert_selector "#toast", text: "Leite removido"
 
     using_session(:other) do

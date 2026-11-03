@@ -30,7 +30,7 @@ class HouseholdAccessTest < ApplicationSystemTestCase
     using_session(:other_household_device) { assert_text "Banana" }
     visit root_path
     assert_selector "#add_screen"
-    find('summary[title="Personalizar"]').click
+    open_menu
     click_button "Sair", exact: true
     assert_text "Entre na lista de casa"
     visit root_path

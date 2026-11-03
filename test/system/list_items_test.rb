@@ -454,7 +454,7 @@ class ListItemsTest < ApplicationSystemTestCase
   test "removing an item added by mistake" do
     visit_list
 
-    click_button "Remover Leite"
+    remove_item "Leite"
     assert_no_selector "#list_items", text: "Leite"
     assert_text "Detergente"
   end

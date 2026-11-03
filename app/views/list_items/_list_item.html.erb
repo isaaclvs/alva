@@ -1,5 +1,7 @@
-<%= tag.li id: dom_id(list_item), data: { search_name: TextNormalizer.plain(list_item.name), purchased: list_item.purchased? }, class: class_names("flex items-center", "animate-highlight": local_assigns[:highlight] || list_item.just_listed?) do %>
-  <%= turbo_frame_tag dom_id(list_item, :row), class: "flex min-w-0 flex-1 items-center" do %>
+<%= tag.li id: dom_id(list_item), data: { search_name: TextNormalizer.plain(list_item.name), purchased: list_item.purchased?, controller: "swipe" },
+      class: class_names("relative touch-pan-y", "animate-highlight": local_assigns[:highlight] || list_item.just_listed?) do %>
+  <div class="absolute inset-0 flex items-center justify-end bg-danger px-5 text-sm font-semibold text-canvas" aria-hidden="true" hidden data-swipe-target="behind">Remover</div>
+  <%= turbo_frame_tag dom_id(list_item, :row), class: "relative flex min-w-0 flex-1 items-center", data: { swipe_target: "row" } do %>
     <%= render "list_items/row", list_item: list_item %>
   <% end %>
 <% end %>
