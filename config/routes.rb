@@ -13,6 +13,9 @@ Rails.application.routes.draw do
   post "entrar", to: "sessions#create"
   delete "sair", to: "sessions#destroy", as: :logout
 
+  post "api/android/devices", to: "android_devices#create"
+  post "api/quick_add", to: "quick_add#create"
+
   # Defines the root path route ("/")
   resources :list_items, only: [ :show, :create, :edit, :update, :destroy ] do
     patch :toggle, on: :member

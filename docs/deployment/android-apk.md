@@ -17,6 +17,22 @@ chaves ou senhas para o Git. Atualizações do APK devem reutilizar a mesma chav
 e incrementar o código de versão; recriar a chave impede atualizar a instalação
 existente. A chave de assinatura é independente da senha de entrada da casa.
 
+## Widget Adicionar
+
+A versão `1.1` inclui um widget rosa que abre uma janela compacta para adicionar
+produtos. No primeiro uso, a pessoa informa a senha da casa uma vez; o app
+guarda uma credencial limitada à inclusão, criptografada pelo Android Keystore.
+O widget precisa de internet e do Alva disponível. Se o envio falhar, o texto
+fica na janela para nova tentativa.
+
+A fonte Android versionada está em `android/`. Para gerar um APK release, use um
+JDK 21 e o Android SDK. Configure `ALVA_ANDROID_KEYSTORE`,
+`ALVA_ANDROID_STORE_PASSWORD`, `ALVA_ANDROID_KEY_ALIAS` e
+`ALVA_ANDROID_KEY_PASSWORD` somente no ambiente local de build e rode
+`./gradlew assembleRelease` dentro de `android/`. Nunca coloque os valores ou a
+keystore no repositório. O arquivo de saída é
+`android/app/build/outputs/apk/release/app-release.apk`.
+
 Deploys do Rails atualizam o conteúdo aberto pelo app. Alterações do domínio,
 metadados Android ou recursos do invólucro podem exigir um novo APK. O app
 continua dependente de internet, Atlas ligado e navegador Android compatível.
