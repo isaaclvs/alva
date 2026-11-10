@@ -5,6 +5,8 @@ propostas para validação na implementação. Sem mudanças de execução nesta
 Decisão: [ADR 0001](../adr/0001-android-offline-com-rails.md).
 Acompanhamento solicitado pelo usuário no GitHub:
 [Alva nativo offline — #33](https://github.com/isaaclvs/alva/issues/33).
+Contrato de sincronização: [android-sync-contract-v1.md](android-sync-contract-v1.md).
+Inventário de paridade: [android-parity-inventory.md](android-parity-inventory.md).
 
 ## Fluxo de entrega
 
