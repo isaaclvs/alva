@@ -16,7 +16,8 @@ class SyncCommandProcessor
   # type => executor. Each business command registers here in the task that
   # introduces it.
   EXECUTORS = {
-    "add_items" => SyncCommands::AddItems
+    "add_items" => SyncCommands::AddItems,
+    "set_item_state" => SyncCommands::SetItemState
   }.freeze
 
   # `dependency` is the ledger row (SyncCommand) of the command named by

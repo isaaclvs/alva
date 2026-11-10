@@ -65,7 +65,8 @@ class SyncCommands::AddItemsTest < ActiveSupport::TestCase
     assert_equal ana_id, second[:data]["items"].first["canonical_public_id"]
     assert_equal 1, @home.list_items.where(normalized_name: "tapioca").count
 
-    assert_equal ana_id, SyncAlias.find_by!(public_id: isaac_id).canonical_public_id
+    submit(@isaac, set_item_state_command(isaac_id, "purchased", lock_version: 0))
+    assert_equal "purchased", @home.list_items.find_by!(public_id: ana_id).status
   end
 
   test "a name that comes back as a purchased item needs the purchase the phone saw" do
