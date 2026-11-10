@@ -179,9 +179,19 @@ class ShoppingScreensTest {
     @Test fun repeatedNavigationOnlyFocusesTheAttachedAddField() {
         launch()
         repeat(10) {
-            compose.onNodeWithTag("nav-list").performClick()
+            // Exercise attachment, not touch coordinates moving with IME animation.
+            // The main end-to-end flow above still navigates with real taps.
+            compose.onNodeWithTag("nav-list").performSemanticsAction(
+                androidx.compose.ui.semantics.SemanticsActions.OnClick,
+            ) { it() }
+            compose.waitUntil(10_000) {
+                compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isEmpty()
+            }
+            compose.onNodeWithTag("nav-list").assertIsSelected()
             compose.onNodeWithTag("add-input").assertDoesNotExist()
-            compose.onNodeWithTag("nav-add").performClick()
+            compose.onNodeWithTag("nav-add").performSemanticsAction(
+                androidx.compose.ui.semantics.SemanticsActions.OnClick,
+            ) { it() }
             compose.waitUntil(10_000) {
                 compose.onAllNodes(hasTestTag("add-input") and SemanticsMatcher.expectValue(
                     androidx.compose.ui.semantics.SemanticsProperties.Focused, true,
