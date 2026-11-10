@@ -16,6 +16,13 @@ Rails.application.routes.draw do
   post "api/android/devices", to: "android_devices#create"
   post "api/quick_add", to: "quick_add#create"
 
+  namespace :api do
+    namespace :v1 do
+      # Explicit sync enrollment; the protected sync endpoints come with their tasks.
+      resources :devices, only: :create
+    end
+  end
+
   # Defines the root path route ("/")
   resources :list_items, only: [ :show, :create, :edit, :update, :destroy ] do
     patch :toggle, on: :member
