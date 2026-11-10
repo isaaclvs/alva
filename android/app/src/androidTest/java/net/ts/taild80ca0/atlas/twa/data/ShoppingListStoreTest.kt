@@ -10,10 +10,12 @@ import net.ts.taild80ca0.atlas.twa.data.db.ConfirmedItemEntity
 import net.ts.taild80ca0.atlas.twa.data.db.ItemStatusCodes
 import net.ts.taild80ca0.atlas.twa.data.db.SubjectRole
 import net.ts.taild80ca0.atlas.twa.data.db.SyncStateEntity
+import net.ts.taild80ca0.atlas.twa.data.list.AddOutcome
 import net.ts.taild80ca0.atlas.twa.data.list.CommandStatus
 import net.ts.taild80ca0.atlas.twa.data.list.CommandTypes
 import net.ts.taild80ca0.atlas.twa.data.list.IntentResult
 import net.ts.taild80ca0.atlas.twa.data.list.InvalidReason
+import net.ts.taild80ca0.atlas.twa.data.list.ItemAddition
 import net.ts.taild80ca0.atlas.twa.data.list.ItemStatus
 import net.ts.taild80ca0.atlas.twa.data.list.ListIntent
 import org.json.JSONObject
@@ -32,7 +34,17 @@ class ShoppingListStoreTest : DatabaseTest() {
 
         val result = store.execute(ListIntent.AddItems(listOf("  Leite ", "Pão", "   ")))
 
-        assertEquals(IntentResult.Saved("cmd-1", listOf("leite-id", "pao-id")), result)
+        assertEquals(
+            IntentResult.Saved(
+                "cmd-1",
+                listOf("leite-id", "pao-id"),
+                listOf(
+                    ItemAddition("Leite", AddOutcome.CREATED, "leite-id"),
+                    ItemAddition("Pão", AddOutcome.CREATED, "pao-id"),
+                ),
+            ),
+            result,
+        )
         val state = store.observe().first()
         assertEquals(listOf("Leite", "Pão"), state.items.map { it.name })
         assertEquals(listOf("leite-id", "pao-id"), state.items.map { it.publicId })
