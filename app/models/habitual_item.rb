@@ -1,4 +1,6 @@
 class HabitualItem < ApplicationRecord
+  include HasPublicId
+
   belongs_to :household
 
   validates :name, presence: true

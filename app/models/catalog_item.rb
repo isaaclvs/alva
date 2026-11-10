@@ -1,4 +1,6 @@
 class CatalogItem < ApplicationRecord
+  include HasPublicId
+
   belongs_to :category
 
   before_validation :normalize_name

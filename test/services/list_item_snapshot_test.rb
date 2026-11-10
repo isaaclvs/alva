@@ -7,6 +7,7 @@ class ListItemSnapshotTest < ActiveSupport::TestCase
     snapshot = ListItemSnapshot.load(ListItemSnapshot.dump(item))
 
     assert_equal item.id, snapshot["id"]
+    assert_equal item.public_id, snapshot["public_id"]
     assert_equal item.household_id, snapshot["household_id"]
     assert_equal "Detergente", snapshot["name"]
     assert_equal "purchased", snapshot["status"]

@@ -1,4 +1,6 @@
 class Household < ApplicationRecord
+  include HasPublicId
+
   has_many :list_items
   has_many :shopping_trips
   has_many :habitual_items, dependent: :destroy

@@ -1,4 +1,6 @@
 class Category < ApplicationRecord
+  include HasPublicId
+
   # Heading for items without a category (only items added before
   # categorization existed). Distinct from the real "Outros" category.
   NONE_LABEL = "Sem categoria".freeze
