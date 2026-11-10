@@ -139,7 +139,7 @@ class Household < ApplicationRecord
       trip
     end
 
-    broadcast_list if trip
+    broadcast_list_after_commit if trip
     trip
   end
 
@@ -165,7 +165,7 @@ class Household < ApplicationRecord
       true
     end
 
-    broadcast_list if undone
+    broadcast_list_after_commit if undone
     undone
   end
 
@@ -201,6 +201,14 @@ class Household < ApplicationRecord
   def broadcast_list
     Turbo::StreamsChannel.broadcast_render_to self, partial: "list_items/refresh",
       locals: { groups: list_items_by_category, suggestions: BuyAgainSuggestions.call(self), household: self }
+  end
+
+  # The same broadcast, but only once every transaction open around the caller
+  # has committed (immediately when none is open). A rolled-back change is never
+  # announced: this is what a sync command, which runs inside the transaction of
+  # the ledger row, needs. Inside batch_list_broadcasts it joins the batch.
+  def broadcast_list_after_commit
+    ActiveRecord.after_all_transactions_commit { list_changed }
   end
 
   # Checking a row only changes its category, counts and the finish button.
