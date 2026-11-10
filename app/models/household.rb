@@ -99,6 +99,15 @@ class Household < ApplicationRecord
     end
   end
 
+  # One name of a sync command, through the same matching, categorization and
+  # revival rules as add_item, but with the identity (`public_id`) the phone
+  # generated for it. It takes no lock and publishes no revision: the sync
+  # executor already holds the list lock in its transaction and publishes one
+  # revision for the whole command.
+  def add_item_for_sync(name, public_id:)
+    add_one_item(name, public_id: public_id)
+  end
+
   # Adds every name typed in the add field (see ItemNameSplitter for the
   # separators and limits) through the same rules as add_item, and returns
   # their AddResults in order. The list is broadcast once for the whole batch
@@ -277,7 +286,7 @@ class Household < ApplicationRecord
   # - :invalid   nothing saved; `item.errors` says why (e.g. blank name).
   # It never publishes a revision itself: the caller owns that, so a batch of
   # names counts as one shared change.
-  def add_one_item(name)
+  def add_one_item(name, public_id: nil)
     existing = pending_item_named(name)
     return AddResult.new(existing, :duplicate) if existing
 
@@ -291,7 +300,7 @@ class Household < ApplicationRecord
       return AddResult.new(purchased, :revived)
     end
 
-    item = list_items.new(name: name)
+    item = list_items.new(name: name, public_id: public_id)
     begin
       AddResult.new(item, item.save ? :created : :invalid)
     rescue ActiveRecord::RecordNotUnique

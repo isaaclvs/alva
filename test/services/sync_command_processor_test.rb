@@ -267,9 +267,10 @@ class SyncCommandProcessorTest < ActiveSupport::TestCase
     assert_equal "duplicate", submit(command(id, names: [ "Tapioca" ]), executors: {}).first[:status]
   end
 
-  test "the production registry is empty until a business command registers" do
-    assert_empty SyncCommandProcessor::EXECUTORS
-    assert_equal "unsupported_command", SyncCommandProcessor.new(device: @device).call([ command(SecureRandom.uuid) ]).first[:error]
+  test "the production registry has only the commands that were implemented" do
+    assert_equal %w[add_items], SyncCommandProcessor::EXECUTORS.keys.sort
+    not_yet = command(SecureRandom.uuid, type: "finish_shopping")
+    assert_equal "unsupported_command", SyncCommandProcessor.new(device: @device).call([ not_yet ]).first[:error]
   end
 
   test "an executor sees the ledger row of its dependency, and only once it was applied" do

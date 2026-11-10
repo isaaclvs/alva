@@ -13,8 +13,11 @@
 # transaction. An executor that returns :conflict or :rejected must not have
 # needed its writes: they are rolled back anyway.
 class SyncCommandProcessor
-  # type => executor. Empty on purpose until the first business command lands.
-  EXECUTORS = {}.freeze
+  # type => executor. Each business command registers here in the task that
+  # introduces it.
+  EXECUTORS = {
+    "add_items" => SyncCommands::AddItems
+  }.freeze
 
   # `dependency` is the ledger row (SyncCommand) of the command named by
   # `depends_on`, set only once the processor has checked that it was applied
