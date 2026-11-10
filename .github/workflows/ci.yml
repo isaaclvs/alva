@@ -174,9 +174,9 @@ jobs:
         with:
           name: android-debug
           path: |
-            app/build/outputs/apk/debug/*.apk
-            app/build/reports/lint-results-debug.html
-            app/build/reports/tests
+            android/app/build/outputs/apk/debug/*.apk
+            android/app/build/reports/lint-results-debug.html
+            android/app/build/reports/tests
           if-no-files-found: ignore
 
   android-instrumented:
