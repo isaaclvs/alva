@@ -70,7 +70,9 @@ negócio segue proposto; o ledger e o processador estão implementados na #38.
 - Toda resposta de `/api/v1` usa `Cache-Control: no-store`.
 - Primeira carga exige rede. Depois a cópia local funciona offline. Não
   restaurar credenciais cegamente por backup Android: reinstalar exige
-  reautorização e nova carga.
+  reautorização e nova carga. O lado do aparelho (cofre no Keystore, regras de
+  backup, reconexão com `previous_token` e vínculo da casa) está implementado na
+  variante debug e descrito em [android-house-access.md](android-house-access.md).
 
 ### Emissão, revogação e rotação
 
