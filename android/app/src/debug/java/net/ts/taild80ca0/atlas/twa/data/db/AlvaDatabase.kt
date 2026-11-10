@@ -11,6 +11,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     entities = [
         SyncStateEntity::class,
         CategoryEntity::class,
+        CatalogItemEntity::class,
+        CatalogStateEntity::class,
         ConfirmedItemEntity::class,
         ListItemEntity::class,
         CommandEntity::class,
@@ -22,6 +24,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 abstract class AlvaDatabase : RoomDatabase() {
     abstract fun syncState(): SyncStateDao
     abstract fun categories(): CategoryDao
+    abstract fun catalog(): CatalogDao
     abstract fun confirmedItems(): ConfirmedItemDao
     abstract fun listItems(): ListItemDao
     abstract fun commands(): CommandDao
@@ -42,10 +45,34 @@ abstract class AlvaDatabase : RoomDatabase() {
  *   changes copy data into the new shape inside the migration.
  */
 object AlvaMigrations {
-    const val CURRENT_VERSION = 1
+    const val CURRENT_VERSION = 2
 
-    /** Contiguous chain from version 1 to [CURRENT_VERSION]; empty while the schema is at 1. */
-    val ALL: Array<Migration> = emptyArray()
+    /**
+     * 1 -> 2 (issue #42, local matching): additive only. The synced dictionary gets
+     * its table and revision row, and each command subject can remember the category
+     * the device applied. Nothing existing is rewritten, so the list, the queue and
+     * their UUIDs are exactly as they were; old subjects simply have no category.
+     */
+    val MIGRATION_1_2: Migration = object : Migration(1, 2) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `catalog_items` (`public_id` TEXT NOT NULL, `name` TEXT NOT NULL, " +
+                    "`normalized_name` TEXT NOT NULL, `category_public_id` TEXT NOT NULL, `learned` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`public_id`))",
+            )
+            db.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS `index_catalog_items_normalized_name` ON `catalog_items` (`normalized_name`)",
+            )
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `catalog_state` (`id` INTEGER NOT NULL, " +
+                    "`dictionary_revision` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+            )
+            db.execSQL("ALTER TABLE `command_subjects` ADD COLUMN `category_public_id` TEXT")
+        }
+    }
+
+    /** Contiguous chain from version 1 to [CURRENT_VERSION]. */
+    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2)
 }
 
 object AlvaDatabaseFactory {

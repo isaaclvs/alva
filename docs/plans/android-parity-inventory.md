@@ -16,9 +16,9 @@ etapa de transição.
 | Funcionalidade | Hoje (PWA + APK conectado) | Destino Android offline | Sync implicado | Task |
 | --- | --- | --- | --- | --- |
 | Adicionar item | Campo aceita vírgula/ponto e vírgula/linha, máx. 30, dedup por nome normalizado | Mesmo campo, gravando local primeiro | `add_items` idempotente | #43 |
-| Dica de duplicado ao digitar | `duplicate_hint_controller.js` compara com pendentes (sem acento/caixa) | Mesma dica sobre o banco local | Só dica; servidor decide | #42 |
+| Dica de duplicado ao digitar | `duplicate_hint_controller.js` compara com pendentes (sem acento/caixa) | Mesma dica sobre o banco local (`DuplicateHint`, módulo pronto; a tela é da #43) | Só dica; servidor decide | #42 |
 | Acabou de adicionar | Itens criados/revividos com seletor de categoria (`from=recent`) | Mesmo retorno, só no aparelho que adicionou | Resposta HTTP, nunca broadcast | #43 |
-| Categorização automática | `ItemCategorizer` sobre `CatalogItem`, fallback "Outros" | Módulo Kotlin equivalente, fixtures compartilhadas | Dicionário sincronizado | #42 |
+| Categorização automática | `ItemCategorizer` sobre `CatalogItem`, fallback "Outros" | Módulo Kotlin equivalente (`data/matching`), corpus compartilhado, dicionário no Room | Dicionário sincronizado | #42 |
 | Corrigir nome/categoria | Lápis troca a linha; categoria à mão ensina o dicionário | Mesmo formulário local, rascunho preservado | `correct_item` + `learn` | #47, #48 |
 | Aprender categoria | `CatalogItem` `learned: true`, `db:seed` não sobrescreve | Grava localmente e envia aprendizado | Precondição de revisão do dicionário | #42, #47 |
 | Marcar/desmarcar | Checkbox grava `status` + `purchased_at`; vira checklist no modo compras | Estado local imediato | `set_item_state` (estado, nunca toggle) | #39, #43 |

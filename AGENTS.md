@@ -255,7 +255,11 @@ acoplar o dicionário à lista viva.
   usuário (labels, categorias, seeds) em português.
 - Normalização de texto para matching (categorização automática e detecção de
   duplicados) deve reaproveitar uma única implementação — não duplicar lógica
-  de "remover acento + downcase" em vários lugares.
+  de "remover acento + downcase" em vários lugares. No Android há um par Kotlin
+  (`android/.../data/matching`, usado por telas e widget); os dois lados são
+  verificados pelos mesmos exemplos em `test/fixtures/files/matching_corpus.json`.
+  Mudou `TextNormalizer`, `ItemCategorizer`, `ItemNameSplitter` ou a regra de
+  adicionar (`Household#add_one_item`)? Atualize o corpus e rode as duas suítes.
 - Lógica de categorização vive em um service/PORO dedicado (`ItemCategorizer`),
   não direto no controller ou callback do model.
 - UI mobile-first em duas telas (Adicionar e Lista, ver acima), substituindo a
