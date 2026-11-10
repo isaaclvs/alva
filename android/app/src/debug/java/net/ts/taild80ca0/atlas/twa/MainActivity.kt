@@ -16,21 +16,27 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import net.ts.taild80ca0.atlas.twa.access.AccessGraph
+import net.ts.taild80ca0.atlas.twa.access.AccessMessages
+import net.ts.taild80ca0.atlas.twa.access.AccessScreen
 
 /**
  * Native development entry point.
  *
- * It only exists in the debug variant (see `src/debug`) and is intentionally
- * empty: the offline client is built in the following issues. The production
- * launcher remains the Trusted Web Activity until the explicit transition.
+ * It only exists in the debug variant (see `src/debug`). Right now it hosts the
+ * one-time connection to the household: the first launch asks for the shared
+ * password, every later launch opens straight past it. The list screens are
+ * built in the following issues. The production launcher remains the Trusted
+ * Web Activity until the explicit transition.
  */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val access = AccessGraph.houseAccess(this)
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    DevelopmentHome()
+                    AccessScreen(access = access, connected = { DevelopmentHome() })
                 }
             }
         }
@@ -40,9 +46,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun DevelopmentHome(modifier: Modifier = Modifier) {
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(24.dp),
+        modifier = modifier.padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -51,7 +55,11 @@ private fun DevelopmentHome(modifier: Modifier = Modifier) {
             style = MaterialTheme.typography.headlineMedium,
         )
         Text(
-            text = "${BuildConfig.APPLICATION_ID} ${BuildConfig.VERSION_NAME}",
+            text = AccessMessages.CONNECTED_TITLE,
+            style = MaterialTheme.typography.titleMedium,
+        )
+        Text(
+            text = AccessMessages.CONNECTED_HELP,
             style = MaterialTheme.typography.bodyMedium,
         )
     }

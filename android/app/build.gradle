@@ -176,6 +176,11 @@ android {
             resValue "string", "launcherName", "Alva Dev"
             // Own FileProvider authority, otherwise both installs would collide.
             resValue "string", "providerAuthority", twaManifest.applicationId + '.debug.fileprovider'
+            // The server the native debug client connects to. Defaults to the real host
+            // (https). `-PalvaServerUrl=http://127.0.0.1:3000` points it at a local Rails
+            // reached through `adb reverse`; only https or loopback is ever accepted.
+            def serverUrl = project.findProperty('alvaServerUrl') ?: ('https://' + twaManifest.hostName)
+            buildConfigField 'String', 'SERVER_URL', "\"${serverUrl}\""
         }
         release {
             // Only attach the signing config when the local keystore is available,
@@ -202,6 +207,10 @@ android {
         // migration tests read it as assets, so a version bump without its
         // schema file and migration fails.
         androidTest.assets.srcDirs += files("$projectDir/schemas")
+        // Scenarios shared by the JVM tests (in-memory storage) and the instrumented
+        // ones (real Keystore and Room): the same behavior must hold on both.
+        testDebug.java.srcDirs += 'src/sharedTest/java'
+        androidTest.java.srcDirs += 'src/sharedTest/java'
 
         // The matching corpus shared with the Rails suite (TextNormalizer,
         // ItemCategorizer, ItemNameSplitter, add rules): the JVM and instrumented
@@ -292,6 +301,12 @@ dependencies {
     androidTestImplementation 'androidx.test:runner:1.7.0'
     androidTestImplementation 'androidx.test.ext:junit:1.3.0'
     androidTestImplementation 'androidx.room:room-testing:2.7.2'
+    androidTestImplementation platform('androidx.compose:compose-bom:2025.05.01')
+    androidTestImplementation 'androidx.compose.ui:ui-test-junit4'
+
+    // A real HTTP server on loopback for the pairing/identification tests (test-only).
+    testImplementation 'com.squareup.okhttp3:mockwebserver:4.12.0'
+    androidTestImplementation 'com.squareup.okhttp3:mockwebserver:4.12.0'
 }
 
 // Verifies the effective merged manifest of each variant: exactly one launcher
@@ -345,6 +360,40 @@ abstract class VerifyLauncherEntry extends DefaultTask {
     }
 }
 
+// The native client's backup policy and loopback-only cleartext rule belong to the
+// debug variant (docs/plans/android-house-access.md). Checks the effective merged
+// manifest: debug carries all three attributes, release carries none of them, so
+// the production TWA's backup and network behavior is exactly what it was.
+abstract class VerifyAccessPolicy extends DefaultTask {
+    @InputFile
+    abstract RegularFileProperty getMergedManifest()
+
+    @Input
+    abstract Property<Boolean> getExpectPolicy()
+
+    @TaskAction
+    void verify() {
+        def text = mergedManifest.get().asFile.getText('UTF-8')
+        def required = [
+            'android:dataExtractionRules="@xml/alva_data_extraction_rules"',
+            'android:fullBackupContent="@xml/alva_backup_rules"',
+            'android:networkSecurityConfig="@xml/alva_network_security_config"',
+        ]
+        required.each { attribute ->
+            def present = text.contains(attribute)
+            if (expectPolicy.get() && !present) {
+                throw new GradleException("Debug manifest must declare ${attribute}")
+            }
+            if (!expectPolicy.get() && present) {
+                throw new GradleException("Release manifest must not declare ${attribute}")
+            }
+        }
+        if (!text.contains('android:allowBackup="true"')) {
+            throw new GradleException('allowBackup must stay as it was (the rules decide what is excluded)')
+        }
+    }
+}
+
 androidComponents {
     onVariants(selector().all()) { variant ->
         def capitalized = variant.name.capitalize()
@@ -352,6 +401,11 @@ androidComponents {
             mergedManifest.set(variant.artifacts.get(
                 com.android.build.api.artifact.SingleArtifact.MERGED_MANIFEST.INSTANCE))
             expectNativeEntry.set(variant.name == 'debug')
+        }
+        tasks.register("verify${capitalized}AccessPolicy", VerifyAccessPolicy) {
+            mergedManifest.set(variant.artifacts.get(
+                com.android.build.api.artifact.SingleArtifact.MERGED_MANIFEST.INSTANCE))
+            expectPolicy.set(variant.name == 'debug')
         }
     }
 }
@@ -381,7 +435,8 @@ tasks.register('verifyReleaseHasNoLocalPersistence') {
 }
 
 tasks.register('verifyVariants') {
-    dependsOn 'verifyDebugManifest', 'verifyReleaseManifest', 'verifyReleaseHasNoLocalPersistence'
+    dependsOn 'verifyDebugManifest', 'verifyReleaseManifest', 'verifyReleaseHasNoLocalPersistence',
+        'verifyDebugAccessPolicy', 'verifyReleaseAccessPolicy'
 }
 
 tasks.named('check') {
