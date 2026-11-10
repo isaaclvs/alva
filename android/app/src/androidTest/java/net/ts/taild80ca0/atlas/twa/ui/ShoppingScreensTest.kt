@@ -1,8 +1,6 @@
 package net.ts.taild80ca0.atlas.twa.ui
 
 import androidx.compose.ui.test.*
-import androidx.compose.ui.graphics.asAndroidBitmap
-import java.io.File
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
@@ -74,9 +72,11 @@ class ShoppingScreensTest {
     }
 
     private fun capture(name: String) {
-        File(context.cacheDir, name).outputStream().use {
-            compose.onRoot().captureToImage().asAndroidBitmap().compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
-        }
+        compose.waitForIdle()
+        // Public emulator output survives the runner uninstalling the test APK.
+        val descriptor = InstrumentationRegistry.getInstrumentation().uiAutomation
+            .executeShellCommand("screencap -p /sdcard/Download/$name")
+        android.os.ParcelFileDescriptor.AutoCloseInputStream(descriptor).use { it.readBytes() }
     }
 
     private fun add(text: String) {
