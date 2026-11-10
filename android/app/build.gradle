@@ -202,6 +202,12 @@ android {
         // migration tests read it as assets, so a version bump without its
         // schema file and migration fails.
         androidTest.assets.srcDirs += files("$projectDir/schemas")
+
+        // The matching corpus shared with the Rails suite (TextNormalizer,
+        // ItemCategorizer, ItemNameSplitter, add rules): the JVM and instrumented
+        // tests read the very same file, test/fixtures/files/matching_corpus.json.
+        test.resources.srcDirs += files("$rootDir/../test/fixtures/files")
+        androidTest.assets.srcDirs += files("$rootDir/../test/fixtures/files")
     }
 }
 
