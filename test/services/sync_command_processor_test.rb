@@ -267,9 +267,32 @@ class SyncCommandProcessorTest < ActiveSupport::TestCase
     assert_equal "duplicate", submit(command(id, names: [ "Tapioca" ]), executors: {}).first[:status]
   end
 
-  test "the production registry is empty until a business command registers" do
-    assert_empty SyncCommandProcessor::EXECUTORS
-    assert_equal "unsupported_command", SyncCommandProcessor.new(device: @device).call([ command(SecureRandom.uuid) ]).first[:error]
+  test "the production registry has only the commands that were implemented" do
+    assert_equal %w[add_items set_item_state], SyncCommandProcessor::EXECUTORS.keys.sort
+    not_yet = command(SecureRandom.uuid, type: "finish_shopping")
+    assert_equal "unsupported_command", SyncCommandProcessor.new(device: @device).call([ not_yet ]).first[:error]
+  end
+
+  test "an executor sees the ledger row of its dependency, and only once it was applied" do
+    seen = []
+    executors = { "add_items" => SyncCommandExecutors::ADD_ITEMS,
+                  "probe" => lambda { |cmd| seen << cmd.dependency; Outcome.noop } }
+    first = SecureRandom.uuid
+
+    submit([ command(SecureRandom.uuid, type: "probe").merge("depends_on" => first) ], executors:)
+    submit(command(first), executors:)
+    submit([ command(SecureRandom.uuid, type: "probe").merge("depends_on" => first),
+             command(SecureRandom.uuid, type: "probe") ], executors:)
+
+    assert_equal [ SyncCommand.find_by!(command_id: first), nil ], seen
+    assert_equal first, seen.first.command_id
+  end
+
+  test "the list is broadcast once per applied command, after it committed" do
+    streams = assert_list_broadcast(@home) { submit(command(SecureRandom.uuid, names: [ "Tapioca", "Polvilho" ])) }
+    assert_includes streams[1].to_html, "Polvilho"
+
+    assert_empty capture_turbo_stream_broadcasts(@home) { submit(command(SecureRandom.uuid, type: "conflict"), executors: { "conflict" => SyncCommandExecutors::CONFLICT }) }
   end
 
   test "the same id in another household is an independent command" do

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_10_000003) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_10_000004) do
   create_table "android_devices", force: :cascade do |t|
     t.integer "household_id", null: false
     t.string "name", null: false
@@ -101,6 +101,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_10_000003) do
     t.index ["public_id"], name: "index_shopping_trips_on_public_id", unique: true
   end
 
+  create_table "sync_aliases", force: :cascade do |t|
+    t.integer "household_id", null: false
+    t.string "public_id", null: false
+    t.string "canonical_public_id", null: false
+    t.string "command_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["household_id", "canonical_public_id"], name: "index_sync_aliases_on_household_id_and_canonical_public_id"
+    t.index ["public_id"], name: "index_sync_aliases_on_public_id", unique: true
+  end
+
   create_table "sync_commands", force: :cascade do |t|
     t.integer "household_id", null: false
     t.string "command_id", null: false
@@ -147,6 +158,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_10_000003) do
   add_foreign_key "list_items", "households"
   add_foreign_key "list_items", "shopping_trips"
   add_foreign_key "shopping_trips", "households"
+  add_foreign_key "sync_aliases", "households"
   add_foreign_key "sync_commands", "android_devices"
   add_foreign_key "sync_commands", "households"
   add_foreign_key "sync_tombstones", "households"

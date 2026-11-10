@@ -13,10 +13,20 @@
 # transaction. An executor that returns :conflict or :rejected must not have
 # needed its writes: they are rolled back anyway.
 class SyncCommandProcessor
-  # type => executor. Empty on purpose until the first business command lands.
-  EXECUTORS = {}.freeze
+  # type => executor. Each business command registers here in the task that
+  # introduces it.
+  EXECUTORS = {
+    "add_items" => SyncCommands::AddItems,
+    "set_item_state" => SyncCommands::SetItemState
+  }.freeze
 
-  Command = Data.define(:id, :type, :depends_on, :observed_revision, :preconditions, :payload, :household)
+  # `dependency` is the ledger row (SyncCommand) of the command named by
+  # `depends_on`, set only once the processor has checked that it was applied
+  # and belongs to the same lineage; nil otherwise. It is read-only context for
+  # the executor — what the earlier command produced (ids, versions) — and the
+  # content of this command is never rewritten with it.
+  Command = Data.define(:id, :type, :depends_on, :observed_revision, :preconditions, :payload, :household,
+    :dependency)
 
   # applied: the effect happened. noop: the state was already the desired one.
   # Both consume the command. conflict: a precondition failed. rejected: the
@@ -62,13 +72,18 @@ class SyncCommandProcessor
     return failure(raw_id(raw), :rejected, "malformed_command") unless command
 
     result = nil
-    # requires_new makes this a real transaction (or savepoint) even when the
-    # caller is already inside one. The Rollback is raised here and not inside
-    # with_list_lock: a Rollback in a joined transaction is swallowed there and
-    # undoes nothing.
-    ActiveRecord::Base.transaction(requires_new: true) do
-      result, commit = household.with_list_lock { SyncCommand.uncached { run(command, digest) } }
-      raise ActiveRecord::Rollback unless commit
+    # The batch spans the transaction on purpose: the list is broadcast once,
+    # after the commit, and only if something committed. A command that rolls
+    # back never reaches its after_commit callbacks, so it announces nothing.
+    household.batch_list_broadcasts do
+      # requires_new makes this a real transaction (or savepoint) even when the
+      # caller is already inside one. The Rollback is raised here and not inside
+      # with_list_lock: a Rollback in a joined transaction is swallowed there and
+      # undoes nothing.
+      ActiveRecord::Base.transaction(requires_new: true) do
+        result, commit = household.with_list_lock { SyncCommand.uncached { run(command, digest) } }
+        raise ActiveRecord::Rollback unless commit
+      end
     end
     result
   end
@@ -82,9 +97,10 @@ class SyncCommandProcessor
 
     executor = executors[command.type]
     return [ failure(command.id, :rejected, "unsupported_command"), false ] unless executor
-    return [ blocked(command), false ] unless dependency_applied?(command)
+    dependency = dependency_for(command)
+    return [ blocked(command), false ] if command.depends_on && !dependency
 
-    outcome = executor.call(command)
+    outcome = executor.call(command.with(dependency:))
     return [ failure(command.id, outcome.status, outcome.error, outcome.data), false ] unless outcome.consumed?
 
     data = JSON.parse(JSON.generate(outcome.data))
@@ -108,9 +124,10 @@ class SyncCommandProcessor
   # A command depends on one the same lineage already got applied (or found
   # satisfied). One that never arrived, conflicted or was rejected has no row,
   # so what depends on it waits; the retry of both resolves it.
-  def dependency_applied?(command)
-    command.depends_on.nil? ||
-      SyncCommand.exists?(household_id: household.id, command_id: command.depends_on, lineage_id: device.lineage_id)
+  def dependency_for(command)
+    return unless command.depends_on
+
+    SyncCommand.find_by(household_id: household.id, command_id: command.depends_on, lineage_id: device.lineage_id)
   end
 
   def blocked(command)
@@ -148,7 +165,7 @@ class SyncCommandProcessor
     digest = SyncCommand.content_digest(type: raw["type"], depends_on:, observed_revision: own_revision,
       preconditions:, payload:)
     [ Command.new(id:, type: raw["type"], depends_on:, observed_revision: own_revision || default_revision,
-      preconditions:, payload:, household:), digest ]
+      preconditions:, payload:, household:, dependency: nil), digest ]
   end
 
   def uuid(value)

@@ -528,4 +528,47 @@ class HouseholdTest < ActiveSupport::TestCase
 
     assert_list_broadcast(households(:home)) { households(:home).undo_shopping!(trip) }
   end
+
+  test "finish_shopping! inside a transaction announces nothing until it commits" do
+    household = households(:home)
+
+    streams = capture_turbo_stream_broadcasts(household) do
+      Household.transaction do
+        household.finish_shopping!
+        assert_empty broadcasts(stream_name_from(household)), "nothing may be broadcast before the commit"
+      end
+    end
+
+    assert_equal 5, streams.size
+  end
+
+  test "finish_shopping! rolled back by an outer transaction never broadcasts the reverted state" do
+    household = households(:home)
+
+    streams = capture_turbo_stream_broadcasts(household) do
+      Household.transaction do
+        household.finish_shopping!
+        raise ActiveRecord::Rollback
+      end
+    end
+
+    assert_empty streams
+    assert_empty ShoppingTrip.where(household: household)
+    assert list_items(:detergent).reload.shopping_trip_id.nil?
+  end
+
+  test "undo_shopping! rolled back by an outer transaction never broadcasts the reverted state" do
+    household = households(:home)
+    trip = household.finish_shopping!
+
+    streams = capture_turbo_stream_broadcasts(household) do
+      Household.transaction do
+        household.undo_shopping!(trip)
+        raise ActiveRecord::Rollback
+      end
+    end
+
+    assert_empty streams
+    assert ShoppingTrip.exists?(trip.id)
+  end
 end
