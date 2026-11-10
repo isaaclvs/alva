@@ -136,9 +136,20 @@ sync uma vez só. Cada comando que teve efeito (`applied`/`noop`) grava um
 canônico, resultado) na mesma transação do efeito, sob o lock da casa; conflito,
 rejeição, bloqueio e exceção não deixam registro. `AndroidDevice#lineage_id`
 sobrevive à reautorização quando o pareamento traz o `previous_token`. Os
-registros nunca são podados. Ainda não há endpoint nem executor de negócio:
-cada comando futuro registra seu executor em `SyncCommandProcessor::EXECUTORS`.
-Regras em `docs/plans/android-sync-contract-v1.md`.
+registros nunca são podados. Cada comando registra seu executor em
+`SyncCommandProcessor::EXECUTORS`. Regras em `docs/plans/android-sync-contract-v1.md`.
+
+**Adicionar e marcar (issue #39):** `POST /api/v1/commands` (credencial `sync`)
+executa lotes de comandos com `SyncCommands::AddItems` e
+`SyncCommands::SetItemState`. `add_items` leva `payload.items: [{ public_id, name }]`
+(o item nasce com o UUID do aparelho); o nome que o servidor já tem vira **alias**
+do item canônico (`SyncAlias`, UUID reivindicável uma só vez em todas as casas,
+buscas restritas à casa). `set_item_state` envia o estado desejado (nunca
+toggle) e herda o `lock_version` do comando em `depends_on` quando este tocou o
+item. Comprado só volta por `add_items` com `revives` da compra vista; item
+arquivado/removido é `gone`. Executores rodam dentro da transação do ledger:
+broadcast só depois do commit (`Household#broadcast_list_after_commit`; o
+processador agrupa em um por comando).
 
 **Arquivados:** um `ListItem` com `shopping_trip_id` é histórico e não faz parte
 da lista viva. Toda query da lista viva (renderização, contadores, resumo,

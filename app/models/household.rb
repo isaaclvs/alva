@@ -99,6 +99,15 @@ class Household < ApplicationRecord
     end
   end
 
+  # One name of a sync command, through the same matching, categorization and
+  # revival rules as add_item, but with the identity (`public_id`) the phone
+  # generated for it. It takes no lock and publishes no revision: the sync
+  # executor already holds the list lock in its transaction and publishes one
+  # revision for the whole command.
+  def add_item_for_sync(name, public_id:)
+    add_one_item(name, public_id: public_id)
+  end
+
   # Adds every name typed in the add field (see ItemNameSplitter for the
   # separators and limits) through the same rules as add_item, and returns
   # their AddResults in order. The list is broadcast once for the whole batch
@@ -139,7 +148,7 @@ class Household < ApplicationRecord
       trip
     end
 
-    broadcast_list if trip
+    broadcast_list_after_commit if trip
     trip
   end
 
@@ -165,7 +174,7 @@ class Household < ApplicationRecord
       true
     end
 
-    broadcast_list if undone
+    broadcast_list_after_commit if undone
     undone
   end
 
@@ -201,6 +210,14 @@ class Household < ApplicationRecord
   def broadcast_list
     Turbo::StreamsChannel.broadcast_render_to self, partial: "list_items/refresh",
       locals: { groups: list_items_by_category, suggestions: BuyAgainSuggestions.call(self), household: self }
+  end
+
+  # The same broadcast, but only once every transaction open around the caller
+  # has committed (immediately when none is open). A rolled-back change is never
+  # announced: this is what a sync command, which runs inside the transaction of
+  # the ledger row, needs. Inside batch_list_broadcasts it joins the batch.
+  def broadcast_list_after_commit
+    ActiveRecord.after_all_transactions_commit { list_changed }
   end
 
   # Checking a row only changes its category, counts and the finish button.
@@ -269,7 +286,7 @@ class Household < ApplicationRecord
   # - :invalid   nothing saved; `item.errors` says why (e.g. blank name).
   # It never publishes a revision itself: the caller owns that, so a batch of
   # names counts as one shared change.
-  def add_one_item(name)
+  def add_one_item(name, public_id: nil)
     existing = pending_item_named(name)
     return AddResult.new(existing, :duplicate) if existing
 
@@ -283,7 +300,7 @@ class Household < ApplicationRecord
       return AddResult.new(purchased, :revived)
     end
 
-    item = list_items.new(name: name)
+    item = list_items.new(name: name, public_id: public_id)
     begin
       AddResult.new(item, item.save ? :created : :invalid)
     rescue ActiveRecord::RecordNotUnique

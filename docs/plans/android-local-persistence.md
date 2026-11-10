@@ -79,25 +79,43 @@ reconciliação (#45), widget (#56).
 ## Lacunas observadas no contrato v1 (para #37/#38/#39/#45)
 
 Nenhuma regra de servidor foi inventada; o cliente guarda o necessário para
-qualquer das saídas.
+qualquer das saídas. Situação após a #39 (detalhes em
+[android-sync-contract-v1.md](android-sync-contract-v1.md#comandos-v1)):
 
-1. `add_items` só define `payload.names`, mas o texto exige que o item nasça
-   com `public_id` gerado no aparelho. O payload não leva esses UUIDs; o cliente
-   os guarda em `command_subjects` (mesma ordem de `names`). O formato no fio
-   precisa ser decidido (ex.: `items: [{public_id, name}]`).
-2. `set_item_state` exige `preconditions.lock_version`, que não existe para um
-   item que o servidor ainda não viu. O cliente omite a chave e depende de
-   `depends_on`; o servidor precisa aceitar isso.
-3. Dois comandos seguidos sobre o mesmo item carregam o mesmo `lock_version`
-   confirmado, que fica velho depois do primeiro. O contrato precisa dizer que
-   um comando com `depends_on` aplicado herda a versão resultante.
-4. `correct_item` usa `category_id` (inteiro) enquanto o resto usa `public_id`;
-   `purchased_at` local é só para exibição, o servidor decide o valor.
-5. Limite de tamanho de nome (`invalid_name` fala em "longo demais") não está
-   definido; hoje o Rails só exige presença.
-6. A versão 1 do banco é a fundação da lista/fila, não o armazenamento completo
-   do snapshot. Antes de ingerir o documento em #45, estender o schema com os
-   campos/coleções necessários (incluindo `normalized_name`, `updated_at` e
-   ordem estável do servidor), com migração e testes. O snapshot usa microssegundos;
-   os campos locais atuais são milissegundos. Preservar a precisão necessária
-   aos desempates do histórico em #54, sem presumir equivalência entre eles.
+1. **Fechada (#39).** `add_items` leva `payload.items: [{ public_id, name }]`, na
+   ordem de `names` do rascunho. O cliente monta cada entrada com o UUID que já
+   guarda em `command_subjects` (papel `creates`, `ordinal` = índice) e a
+   resposta traz, por item, `public_id` (o do aparelho) e `canonical_public_id`
+   (o do servidor; diferente = alias). O cliente deve registrar o alias ao
+   reconciliar. O campo antigo `names` não existe mais no fio.
+2. **Fechada (#39).** O cliente omite `preconditions.lock_version` de um comando
+   sobre item que o servidor ainda não viu e depende do comando que o criou; o
+   servidor aceita e usa a versão que aquele comando deixou.
+3. **Fechada (#39).** Um comando com `depends_on` aplicado herda a versão
+   resultante *daquele* comando (do ledger); o conteúdo do comando enviado nunca
+   muda. Se o comando também tem uma versão explícita de snapshot, usar a
+   maior das duas: a versão do snapshot pode ser mais recente que o recibo.
+   Primeiro passo sobre item
+   conhecido de um snapshot leva o `lock_version` do snapshot. Atenção ao
+   `depends_on`: precisa ser o último comando da fila **sobre o mesmo item** (é o
+   que o Room já faz); um que só tocou outros itens não empresta versão.
+   Para trazer de volta um item comprado digitando o nome de novo, o item de
+   `add_items` leva `revives: { public_id, lock_version }` da compra vista
+   localmente; pode omitir `lock_version` quando `depends_on` fornece a versão
+   desse mesmo item. Isso cobre adicionar → marcar → digitar de novo sem rede
+   (ou o cliente usa `set_item_state` pending sobre o item).
+4. **Aberta** (`correct_item`, #47/#48): usa `category_id` (inteiro) enquanto o
+   resto usa `public_id`; `purchased_at` local é só para exibição, o servidor
+   decide o valor.
+5. **Fechada para `add_items` (#39).** Nome vazio após normalização é
+   `invalid_name`, como na PWA. Não foi introduzido limite de comprimento
+   exclusivo do sync; o cliente deve preservar a mesma regra de presença.
+6. **Aberta** (#45): a versão 1 do banco é a fundação da lista/fila, não o
+   armazenamento completo do snapshot. Antes de ingerir o documento em #45,
+   estender o schema com os campos/coleções necessários (incluindo
+   `normalized_name`, `updated_at` e ordem estável do servidor), com migração e
+   testes. O snapshot usa microssegundos; os campos locais atuais são
+   milissegundos. Preservar a precisão necessária aos desempates do histórico em
+   #54, sem presumir equivalência entre eles. Novo: guardar também os aliases
+   devolvidos por `add_items` (`public_id` → `canonical_public_id`), para que
+   comandos ainda na fila e telas encontrem o item canônico.

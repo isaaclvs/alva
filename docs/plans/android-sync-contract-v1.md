@@ -8,8 +8,9 @@ identidade pública, revisões e tombstones foram implementados na issue #36
 (migrações `AddPublicIds` e `AddSyncRevisions`); a persistência idempotente de
 comandos (ledger, linhagem do aparelho, ordem e retenção) foi implementada na
 issue #38 (migração `CreateSyncCommands`). O snapshot está implementado na
-issue #37. Endpoint e executores de comandos de negócio, aliases e cliente
-seguem propostos. O contrato dá um alvo versionado às tasks
+issue #37. O endpoint de comandos, os executores `add_items` e
+`set_item_state` e os aliases foram implementados na issue #39 (migração
+`CreateSyncAliases`); os demais comandos e o cliente seguem propostos. O contrato dá um alvo versionado às tasks
 do GitHub
 ([Alva nativo offline — #33](https://github.com/isaaclvs/alva/issues/33)), que
 podem refiná-lo com evidência de implementação.
@@ -35,8 +36,8 @@ regras de negócio (o que cada comando faz) continuam em
 ## Autenticação e autorização
 
 Implementado na issue #35 para pareamento, escopos e a barreira de acesso da
-`/api/v1`; o snapshot está implementado na issue #37. O endpoint de comandos de
-negócio segue proposto; o ledger e o processador estão implementados na #38.
+`/api/v1`; o snapshot está implementado na issue #37, o ledger e o processador na
+#38 e `POST /api/v1/commands` (com `add_items` e `set_item_state`) na #39.
 
 - Pareamento explícito de sync, online, com a senha compartilhada que já existe
   (`HouseholdAccess`): `POST /api/v1/devices` devolve `device_id` e o segredo em
@@ -109,7 +110,10 @@ versão.
 
 ## Envelope de comando
 
-Um lote de comandos de um mesmo aparelho, em ordem:
+`POST /api/v1/commands` (implementado na #39), `Authorization: Bearer <segredo>`
+de uma credencial `sync`, corpo JSON, sem sufixo de formato. Um lote de comandos
+de um mesmo aparelho, em ordem (exemplo real: adicionar offline → marcar →
+desmarcar, ver "Comandos v1"):
 
 ```json
 {
@@ -117,28 +121,29 @@ Um lote de comandos de um mesmo aparelho, em ordem:
   "observed_revision": 840,
   "commands": [
     {
-      "id": "5f0c2f0e-...-uuid",
+      "id": "5f0c2f0e-0000-4000-8000-000000000001",
       "type": "add_items",
-      "depends_on": "a1b2...-uuid-ou-null",
-      "observed_revision": 840,
-      "preconditions": { "lock_version": 7 },
-      "payload": { "names": ["Leite", "Pão"] }
+      "depends_on": null,
+      "payload": { "items": [ { "public_id": "9a1d0000-0000-4000-8000-000000000001", "name": "Leite" } ] }
     }
   ]
 }
 ```
 
-Resposta:
+Resposta (HTTP 200 para qualquer lote bem formado; `Cache-Control: no-store`):
 
 ```json
 {
   "revision": 841,
   "results": [
     {
-      "id": "5f0c2f0e-...-uuid",
+      "id": "5f0c2f0e-0000-4000-8000-000000000001",
       "status": "applied",
       "revision": 841,
-      "data": { "items": [ { "public_id": "...", "name": "Leite", "outcome": "created" } ] }
+      "data": { "items": [ { "public_id": "9a1d0000-0000-4000-8000-000000000001",
+                             "canonical_public_id": "9a1d0000-0000-4000-8000-000000000001",
+                             "name": "Leite", "status": "pending", "purchased_at": null,
+                             "lock_version": 0, "outcome": "created" } ] }
     }
   ],
   "snapshot_required": false
@@ -153,8 +158,11 @@ Regras do envelope:
 - `depends_on` referencia o comando anterior do mesmo aparelho do qual este
   depende causalmente (normalmente o comando imediatamente anterior; `null` se
   independente).
-- `observed_revision` é a revisão da casa que o aparelho conhecia; serve de
-  precondição quando o comando não manda uma precondição mais específica.
+- `observed_revision` é a revisão da casa que o aparelho conhecia. Entra no
+  digest do comando e fica à disposição de comandos que a usem; `add_items` e
+  `set_item_state` **não** a usam como precondição (qualquer mudança da casa a
+  invalidaria, inclusive as do próprio lote). A precondição deles é o
+  `lock_version` do item, explícito ou herdado (ver "Comandos v1").
 - `preconditions` é específico do comando (ex.: `lock_version` do item).
 - `status` de cada resultado: `applied`, `duplicate` (mesmo UUID já processado),
   `noop` (já estava no estado desejado), `conflict` (precondição falhou),
@@ -163,6 +171,14 @@ Regras do envelope:
   `revision` e `data` do resultado original; `conflict`, `rejected` e `blocked`
   levam `error` (código da tabela de erros ou `dependency_not_applied`).
 - A ordem dos `results` é a ordem dos comandos enviados.
+- `revision` do corpo é a revisão da casa depois do lote. `snapshot_required` é
+  `true` quando algum resultado mostra que a visão do aparelho está velha: um
+  `conflict`, ou uma rejeição `gone` ou `not_found`. O cliente então baixa um
+  snapshot antes de decidir o que reemitir; o fim do lote não depende disso.
+- Limites do envelope: de 1 a 50 comandos por requisição e `observed_revision`
+  inteiro ≥ 0 (ou ausente); fora disso a requisição inteira é `422
+  malformed_command`, sem efeito (assim como JSON inválido). Um comando mal
+  formado dentro de um lote bom falha sozinho, como `rejected`.
 - Um lote bem formado responde com os resultados por comando; os códigos HTTP
   da tabela de erros valem para a requisição inteira (autenticação, envelope
   malformado, limite, erro interno). Um erro interno no meio do lote não perde
@@ -170,17 +186,18 @@ Regras do envelope:
 
 ## Comandos v1
 
-Antes de implementar os executores de negócio (#39) e o envio/reconciliação
-(#45), fechar as lacunas de UUIDs e versões registradas em
-[android-local-persistence.md](android-local-persistence.md#lacunas-observadas-no-contrato-v1-para-37383945).
-O processador da #38 verifica a dependência, mas não herda versões do resultado
-anterior automaticamente; a integração precisa definir essa resolução sem
-alterar o conteúdo de um UUID de comando já enviado.
+`add_items` e `set_item_state` estão implementados (#39); os demais são o alvo
+das tasks seguintes. As lacunas de UUIDs e versões que a base Room registrou em
+[android-local-persistence.md](android-local-persistence.md#lacunas-observadas-no-contrato-v1-para-37383945)
+estão fechadas abaixo: o comando leva os UUIDs dos itens criados offline, um item
+ainda não visto é alcançado por `depends_on`, e a versão de cada passo da fila é
+herdada do resultado do passo anterior no servidor, sem reescrever o conteúdo de
+um comando já enviado.
 
 | `type` | `payload` | `preconditions` | Equivalente atual |
 | --- | --- | --- | --- |
-| `add_items` | `names: []` (já separados no aparelho) | — | `Household#add_items` |
-| `set_item_state` | `public_id`, `desired: "pending"\|"purchased"` | `lock_version` | `ListItem#toggle_purchased!` (estado desejado, nunca toggle) |
+| `add_items` | `items: [{ public_id, name, revives? }]` (já separados no aparelho, de 1 a 30) | `revives` por item, só para trazer de volta uma compra | `Household#add_items` (`#add_item_for_sync`) |
+| `set_item_state` | `public_id`, `desired: "pending"\|"purchased"` | `lock_version` (herdado de `depends_on` quando este tocou o item) | `ListItem#toggle_purchased!` (estado desejado, nunca toggle) |
 | `undo_item_state` | `public_id`, `status`, `purchased_at` | `lock_version` | `PurchaseUndo` / `#undo_purchase!` |
 | `correct_item` | `public_id`, `name`, `category_id?` | `lock_version` | `ListItem#correct` + `ItemCategorizer.learn` |
 | `remove_item` | `public_id` | `lock_version` | `ListItemSnapshot` + `destroy` |
@@ -190,6 +207,186 @@ alterar o conteúdo de um UUID de comando já enviado.
 | `create_habitual` | `name` | — | `HabitualItemsController#create` |
 | `remove_habitual` | `public_id` | — | `HabitualItemsController#destroy` |
 | `add_habituals` | `public_ids: []` ou `all: true` | — | `#add_selected` / `#add_all` |
+
+### `add_items`
+
+```json
+{
+  "id": "5f0c2f0e-0000-4000-8000-000000000001",
+  "type": "add_items",
+  "depends_on": null,
+  "payload": {
+    "items": [
+      { "public_id": "9a1d0000-0000-4000-8000-000000000001", "name": "Tapioca" },
+      { "public_id": "9a1d0000-0000-4000-8000-000000000002", "name": "Detergente",
+        "revives": { "public_id": "40000000-0000-4000-8000-000000000002", "lock_version": 0 } }
+    ]
+  }
+}
+```
+
+- `items` substitui o antigo `names`: cada nome viaja com o `public_id` (UUID em
+  qualquer caixa, normalizado para minúsculas) que o aparelho
+  gerou, na ordem de `payload.items`. O servidor cria a linha **com esse
+  mesmo UUID**; ele nunca é reescrito. De 1 a 30 itens, sem UUID repetido no
+  comando. O nome é normalizado com `squish` e não pode ficar vazio
+  (`invalid_name`, com `index` do item); não há limite de comprimento exclusivo
+  do sync. A categoria e a
+  duplicidade seguem as regras do Rails (`ItemCategorizer`, `TextNormalizer`,
+  `Household#add_item_for_sync`), como se o nome fosse digitado na PWA.
+- Resultado por item, em `data.items` (mesma ordem), com `outcome`:
+  - `created`: item novo, pendente, com o UUID enviado.
+  - `duplicate`: o nome já estava pendente na lista (ou o UUID já era deste
+    item). Nenhuma linha nova; o UUID enviado passa a ser **alias** do item
+    canônico (`canonical_public_id`).
+  - `revived`: o nome era de um item comprado e voltou a pendente; o UUID enviado
+    vira alias dele. Só acontece com `revives` (abaixo).
+- Cada entrada devolve `public_id` (o que o aparelho citou), `canonical_public_id`
+  (o registro do servidor; **diferente de `public_id` = é um alias**), `name`
+  (o do registro canônico), `status`, `purchased_at` e `lock_version` do item
+  **depois** do comando. É esse `lock_version` que o próximo comando da fila
+  herda.
+- `applied` se algo entrou na lista (`created`/`revived`, uma revisão para o
+  comando todo); `noop` se tudo já estava lá (só aliases, nenhuma revisão).
+- O comando é tudo ou nada. Qualquer item em conflito ou rejeitado desfaz o
+  comando inteiro (nada fica gravado, nem aliases) e o resultado traz `index` e
+  `public_id` do item que parou o lote.
+- **Comprado não volta sozinho.** Se o nome casa com um item *comprado*, o
+  servidor só o traz de volta quando o item diz qual compra o aparelho viu:
+  `revives: { public_id, lock_version }`. O item tem de estar na lista, comprado,
+  com aquele `lock_version`. Se `depends_on` devolveu uma versão desse mesmo
+  item, ela também vale para a reativação: usar a maior versão entre o recibo
+  e a explícita. Nesse caso a versão explícita pode ser omitida, permitindo
+  adicionar → marcar → adicionar de novo sem inventar versões no aparelho.
+  Sem versão explícita nem recibo relevante, é `rejected` / `malformed_command`.
+  Uma versão diferente da atual é `conflict` / `precondition_failed` com
+  `data.reason` `purchase_not_observed` (sem `revives`) ou `purchase_changed`
+  (`revives` velho) e `data.current` com o estado atual. `revives` apontando
+  para item arquivado/removido é `rejected` / `gone`, e para UUID desconhecido,
+  `rejected` / `not_found`. Assim um pedido antigo não reabre uma compra feita
+  há pouco; o aparelho mostra o estado atual e decide.
+- **UUID já usado.** Um UUID de item desta casa que já identifica um item
+  vivo com o mesmo nome (ou um alias dele) responde `duplicate`, sem efeito. Com
+  outro nome, ou se pertence a outra casa — item, alias ou tombstone —, é
+  `rejected` / `public_id_conflict`; a resposta é a mesma nos dois casos e não
+  diz de quem é o UUID. UUID de item removido ou arquivado desta casa é
+  `rejected` / `gone` (`data.reason`: `removed` ou `archived`); só um novo
+  `add_items` com **outro** UUID (ou `restore_item`) coloca o nome de volta.
+
+Dois aparelhos que adicionam o mesmo nome: o primeiro comando cria o item, o
+segundo recebe `noop` com `duplicate` e o UUID dele como alias. Exemplo real do
+segundo aparelho (item `…02` unificado com o canônico `…01`, que já estava na
+versão 2):
+
+```json
+{
+  "id": "5f0c2f0e-0000-4000-8000-000000000004",
+  "status": "noop",
+  "revision": 843,
+  "data": { "items": [ {
+    "public_id": "9a1d0000-0000-4000-8000-000000000002",
+    "canonical_public_id": "9a1d0000-0000-4000-8000-000000000001",
+    "name": "Tapioca", "status": "pending", "purchased_at": null,
+    "lock_version": 2, "outcome": "duplicate" } ] }
+}
+```
+
+### `set_item_state`
+
+```json
+{
+  "id": "5f0c2f0e-0000-4000-8000-000000000002",
+  "type": "set_item_state",
+  "depends_on": "5f0c2f0e-0000-4000-8000-000000000001",
+  "preconditions": {},
+  "payload": { "public_id": "9a1d0000-0000-4000-8000-000000000001", "desired": "purchased" }
+}
+```
+
+- `desired` é o **estado desejado**, nunca toggle: `purchased` ou `pending`. O
+  item já estar nesse estado é `noop` (nem muda `purchased_at` nem a revisão),
+  também quando a versão enviada está velha: o resultado que o aparelho queria
+  já existe. Reenviar o mesmo UUID devolve `duplicate`. `purchased_at` é a hora
+  do servidor.
+- `public_id` é o UUID do item **ou um alias** dele (resolvido na casa da
+  credencial). Item arquivado ou removido responde `rejected` / `gone`
+  (`data.reason`, `canonical_public_id`); UUID inexistente ou de outra casa,
+  `rejected` / `not_found`, com resposta idêntica; nada é recriado.
+- **Versão esperada (`lock_version`):**
+  1. Se o comando em `depends_on` mexeu neste item (o resultado dele, no ledger,
+     tem uma entrada para o item canônico), a versão **herdada** é o
+     `lock_version` que ele deixou. O servidor lê isso do resultado do passo
+     anterior; o conteúdo do comando nunca é reescrito. Se também houver
+     `preconditions.lock_version`, usar a **maior** das duas versões: um
+     snapshot mais recente pode ter chegado enquanto o recibo anterior ainda
+     aguardava confirmação. Uma versão explícita inválida é malformada mesmo
+     quando há versão herdada; uma versão acima da atual gera conflito.
+  2. Senão, `preconditions.lock_version` (inteiro ≥ 0) é obrigatório: a versão que
+     o aparelho viu no último snapshot. Ausente ou inválido é `rejected` /
+     `malformed_command` (`data.field`: `preconditions.lock_version`). Um
+     `depends_on` que tocou *outros* itens não empresta versão.
+  Versão diferente da atual é `conflict` / `precondition_failed`, com
+  `data.reason` `version_changed`, `data.expected_lock_version` e `data.current`
+  (estado atual do item); nada é sobrescrito.
+- Desmarcar um item quando já há outro pendente com o mesmo nome (a mesma regra
+  da caixinha da PWA) é `conflict` com `data.reason` `duplicate_pending`.
+- Efetivo: `applied`, uma revisão, e o resultado traz `data.item` com o estado e o
+  `lock_version` depois do comando.
+
+### Fila causal: adicionar → marcar → desmarcar
+
+O aparelho gera o UUID do item e três UUIDs de comando e envia, sem nenhuma
+versão (ele não as conhece), cada passo dependendo do anterior:
+
+```json
+{
+  "observed_revision": 840,
+  "commands": [
+    { "id": "5f0c2f0e-0000-4000-8000-000000000001", "type": "add_items", "depends_on": null,
+      "payload": { "items": [ { "public_id": "9a1d0000-0000-4000-8000-000000000001", "name": "Tapioca" } ] } },
+    { "id": "5f0c2f0e-0000-4000-8000-000000000002", "type": "set_item_state",
+      "depends_on": "5f0c2f0e-0000-4000-8000-000000000001",
+      "payload": { "public_id": "9a1d0000-0000-4000-8000-000000000001", "desired": "purchased" } },
+    { "id": "5f0c2f0e-0000-4000-8000-000000000003", "type": "set_item_state",
+      "depends_on": "5f0c2f0e-0000-4000-8000-000000000002",
+      "payload": { "public_id": "9a1d0000-0000-4000-8000-000000000001", "desired": "pending" } }
+  ]
+}
+```
+
+Resposta (resumida aos campos que importam): três `applied`, com revisões
+841, 842 e 843 e `lock_version` do item 0 → 1 → 2. O segundo passo esperou a
+versão 0 que o primeiro deixou; o terceiro, a versão 1 do segundo.
+
+```json
+{ "revision": 843, "snapshot_required": false,
+  "results": [
+    { "id": "…0001", "status": "applied", "revision": 841,
+      "data": { "items": [ { "public_id": "9a1d…0001", "canonical_public_id": "9a1d…0001", "name": "Tapioca",
+                             "status": "pending", "purchased_at": null, "lock_version": 0, "outcome": "created" } ] } },
+    { "id": "…0002", "status": "applied", "revision": 842,
+      "data": { "item": { "public_id": "9a1d…0001", "canonical_public_id": "9a1d…0001", "name": "Tapioca",
+                          "status": "purchased", "purchased_at": "2026-11-10T12:00:00.000000Z", "lock_version": 1 } } },
+    { "id": "…0003", "status": "applied", "revision": 843,
+      "data": { "item": { "public_id": "9a1d…0001", "canonical_public_id": "9a1d…0001", "name": "Tapioca",
+                          "status": "pending", "purchased_at": null, "lock_version": 2 } } } ] }
+```
+
+- Reenviar o lote inteiro depois de perder a resposta devolve três `duplicate`
+  (com `original_status` e os mesmos `data`) e o item continua pendente na versão 2:
+  nada é aplicado outra vez e o estado desejado não é invertido.
+- A herança vale entre lotes e entre credenciais da mesma linhagem: o resultado
+  vem do ledger. Se o passo `depends_on` ainda não foi registrado, o dependente é
+  `blocked` (`dependency_not_applied`) e se aplica quando o outro entrar.
+- Se outro aparelho mexeu no item no meio (a versão atual não é a que o passo
+  anterior deixou), o passo seguinte é `conflict` e os que dependem dele ficam
+  `blocked`: a fila nunca sobrescreve uma versão que o aparelho não viu.
+- Quando o primeiro passo da fila é sobre um item que o aparelho já conhecia (de
+  um snapshot), ele leva `preconditions.lock_version` explícito e os seguintes
+  continuam herdando.
+- Alias na mesma fila: se o `add_items` foi unificado (`canonical_public_id`
+  diferente), os passos seguintes continuam citando o UUID do aparelho e herdam a
+  versão do item canônico, que é o que o resultado do primeiro passo registra.
 
 Observações:
 
@@ -206,12 +403,11 @@ Observações:
 
 ## Idempotência e deduplicação
 
-Implementado na issue #38 (`SyncCommand`, `SyncCommandProcessor`). Ainda **não
-há endpoint de comandos nem executor de negócio** em produção: o processador é
-exercitado em testes com executores reais (efeitos em `Household`, revisão e
-tombstones) atrás da autenticação real da `/api/v1`. Os comandos de negócio
-registram seu executor em `SyncCommandProcessor::EXECUTORS` nas tasks que os
-introduzem.
+Implementado na issue #38 (`SyncCommand`, `SyncCommandProcessor`) e ligado ao
+endpoint `POST /api/v1/commands` na #39. Os comandos de negócio registram seu
+executor em `SyncCommandProcessor::EXECUTORS` nas tasks que os introduzem; hoje
+são `add_items` e `set_item_state` (`app/services/sync_commands/`). Um tipo ainda
+não implementado responde `rejected` / `unsupported_command`.
 
 ### O que é gravado, e quando
 
@@ -322,6 +518,22 @@ banco e não escrever fora da transação. Broadcast (Turbo/ActionCable) precisa
 acontecer **depois** do commit, nunca dentro do executor — um rollback posterior
 não pode ter anunciado algo que não existiu.
 
+- O processador envolve cada comando em `Household#batch_list_broadcasts`, que
+  engloba a transação: a lista é transmitida **uma vez**, depois do commit, e só
+  se algo foi confirmado. Conflito, rejeição, exceção ou qualquer rollback não
+  chegam ao `after_commit` e não anunciam nada.
+- Métodos do `Household` que transmitem explicitamente (`finish_shopping!`,
+  `undo_shopping!`) passam por `broadcast_list_after_commit`
+  (`ActiveRecord.after_all_transactions_commit`): sem transação aberta o
+  comportamento é o de sempre; dentro da transação do processador, a mensagem
+  espera o commit e é descartada num rollback. Executor novo que precise
+  transmitir deve usar esse método, nunca `broadcast_list`.
+- `command.dependency` é a linha do ledger (`SyncCommand`) do comando em
+  `depends_on`, já verificada como aplicada e da mesma linhagem (ou `nil`). É só
+  leitura: o executor lê dali o que o passo anterior produziu (UUIDs canônicos,
+  versões) — como o `set_item_state` herda o `lock_version` — e o conteúdo do
+  comando atual nunca é alterado.
+
 ## IDs públicos e aliases
 
 - Os IDs inteiros do Rails continuam válidos internamente; o contrato expõe um
@@ -332,12 +544,29 @@ não pode ter anunciado algo que não existiu.
   (snapshots assinados antes de #36 ganham um UUID novo ao voltar).
 - Item criado offline já nasce com `public_id` gerado no aparelho; o servidor
   cria a linha com esse mesmo `public_id`, para que comandos posteriores o
-  alcancem. O valor já enviado nunca é sobrescrito.
+  alcancem. O valor já enviado nunca é sobrescrito. **Implementado (#39):** o
+  UUID viaja em `add_items.payload.items[].public_id`.
 - Quando dois aparelhos adicionam o mesmo nome, o servidor mantém **um** item
   canônico. O `public_id` perdedor vira alias do canônico
-  (`sync_aliases`), e comandos que citam o alias são resolvidos para o canônico.
-- Aliases são mantidos pelo mesmo critério dos UUIDs de operação: enquanto
-  houver comando em trânsito que possa citá-los.
+  (`sync_aliases`: `household_id`, `public_id`, `canonical_public_id`,
+  `command_id` de origem), e comandos que citam o alias são resolvidos para o
+  canônico. Também vira alias o UUID de um nome que reviveu um item comprado.
+  **Implementado (#39).** O alias é criado na mesma transação do comando; o
+  resultado de `add_items` o devolve (`canonical_public_id` diferente de
+  `public_id`) e `set_item_state` o resolve.
+- **Namespace.** Um UUID só pode ser reivindicado uma vez, entre todos os itens,
+  aliases e tombstones de todas as casas (índices únicos globais, como nos itens).
+  Toda *busca* é restrita à casa da credencial: o UUID de outra casa responde
+  `not_found` (em `set_item_state`) como se não existisse, e tentar reivindicá-lo
+  em `add_items` responde `public_id_conflict`, sem dizer de quem é.
+- O alias aponta para o `public_id` canônico (texto, não chave estrangeira): se o
+  item canônico for arquivado ou removido, o alias continua respondendo `gone`.
+  Limite conhecido: o desfazer compra (#51) descarta duplicados e grava
+  tombstones; aliases que apontavam para um duplicado descartado passam a
+  responder `gone`, e a task que o implementa precisa decidir se os redireciona
+  para o item que ficou.
+- Aliases são mantidos pelo mesmo critério dos UUIDs de operação: nunca são
+  podados, pois pode haver comando em trânsito que os cite.
 
 ## Revisões
 
@@ -524,17 +753,25 @@ um item arquivado **não** gera tombstone.
 | `forbidden_scope` | 403 | não | Escopo `add_only` tentou sync; pedir autorização completa. |
 | `sync_unavailable` | 403 | não | Sem senha da casa configurada; pareamento de sync indisponível. |
 | `malformed_command` | 422 | não | Envelope/campos inválidos; corrigir e reenviar com novo status local. |
-| `invalid_name` | 422 | não | Nome vazio/longo demais; mostrar no item, não descartar o texto. |
+| `invalid_name` | 422 | não | Nome vazio após normalização, como na PWA; `data.index` diz qual item. Mostrar no item, não descartar o texto. |
 | `stale_revision` | 409 | sim, após novo snapshot | Precondição de revisão falhou; sincronizar e reavaliar. |
 | `precondition_failed` | 409 | sim, após novo snapshot | Item mudou; apresentar estado atual para revisão, sem sobrescrever. |
 | `not_found` | 404 | não | Registro inexistente nesta casa; remover da fila só após confirmar. |
 | `gone` | 410 | não | Item removido/arquivado; não recriar implicitamente. |
+| `public_id_conflict` | 409 (resultado `rejected`) | não | `add_items` reivindicou um UUID de item que já pertence a outro item desta casa (com outro nome) ou a outra casa; não revela de quem. Gerar outro UUID. |
 | `idempotency_conflict` | 409 | não | Mesmo `id` com conteúdo diferente ou de outra linhagem; erro de cliente, nunca aplicar. |
 | `dependency_not_applied` | — (resultado `blocked`) | sim, quando a dependência for registrada | `depends_on` ainda sem registro na mesma linhagem; sem efeito. |
 | `invalid_previous_token` | 422 | não | Pareamento com `previous_token` que não é de uma credencial `sync` desta casa. |
 | `unsupported_command` | 422 | não | Tipo desconhecido nesta versão; aparelho antigo deve avisar. |
 | `rate_limited` | 429 | sim | Aguardar e retentar com o mesmo `id`. |
 | `internal_error` | 500 | sim | Retentar com o mesmo `id`; a idempotência evita efeito duplo. |
+
+Dentro de um lote, os códigos aparecem como `error` do resultado do comando
+(`conflict` para `precondition_failed`, `rejected` para os demais) com HTTP 200 no
+lote; o HTTP da tabela vale quando é a requisição inteira que falha. `data`
+carrega o detalhe estruturado (`reason`, `index`, `public_id`, `field`,
+`current`, `expected_lock_version`) e só descreve registros da casa da
+credencial.
 
 Todo erro definitivo em um comando marca seus dependentes como `blocked` e
 preserva o rascunho/intenção local. No fluxo normal de adicionar, nada disso
@@ -557,8 +794,9 @@ conflito persistente, um aviso recuperável.
    recebem o mesmo `public_id` (o segundo por alias). Sem duplicata.
 2. **Nome comprado é digitado de novo.** Revive pela regra atual (categoria
    atual do dicionário), desde que o item não tenha sido alterado/arquivado
-   desde a observação local; senão, `precondition_failed` e o rascunho fica
-   para revisão — não revive silenciosamente uma compra nova.
+   desde a observação local (`revives` em `add_items`, com o `lock_version` visto);
+   senão, `precondition_failed` e o rascunho fica para revisão — não revive
+   silenciosamente uma compra nova.
 3. **Marcar/desmarcar reenviado.** Estado desejado idempotente: reenvio do mesmo
    UUID devolve `duplicate`; estar já no estado desejado é `noop`.
 4. **Duas marcações para o mesmo estado.** Sucesso sem nova transição, se o item
