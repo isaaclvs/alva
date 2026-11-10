@@ -1,4 +1,6 @@
 class ListItem < ApplicationRecord
+  include HasPublicId
+
   class StaleAction < StandardError; end
 
   belongs_to :household

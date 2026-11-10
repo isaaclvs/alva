@@ -13,6 +13,15 @@ class SeedsTest < ActiveSupport::TestCase
     assert CatalogItem.exists?(normalized_name: TextNormalizer.call("Pão"))
   end
 
+  test "running the seeds twice keeps every public_id" do
+    Rails.application.load_seed
+    public_ids = [ Household, Category, CatalogItem ].flat_map { |model| model.order(:id).pluck(:public_id) }
+
+    Rails.application.load_seed
+
+    assert_equal public_ids, [ Household, Category, CatalogItem ].flat_map { |model| model.order(:id).pluck(:public_id) }
+  end
+
   test "keeps a learned category instead of the catalog's" do
     Rails.application.load_seed
     hygiene = Category.find_by!(name: "Higiene")
