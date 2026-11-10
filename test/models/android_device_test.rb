@@ -105,8 +105,8 @@ class AndroidDeviceTest < ActiveSupport::TestCase
   test "the database defaults the scope to add_only and rejects unknown values" do
     now = Time.current.to_fs(:db)
     id = AndroidDevice.connection.insert(<<~SQL.squish)
-      INSERT INTO android_devices (household_id, name, token_digest, access_digest, created_at, updated_at)
-      VALUES (#{households(:home).id}, 'Legado', '#{SecureRandom.hex(32)}', '#{HouseholdAccess.token}', '#{now}', '#{now}')
+      INSERT INTO android_devices (household_id, name, token_digest, access_digest, lineage_id, created_at, updated_at)
+      VALUES (#{households(:home).id}, 'Legado', '#{SecureRandom.hex(32)}', '#{HouseholdAccess.token}', '#{SecureRandom.uuid}', '#{now}', '#{now}')
     SQL
 
     device = AndroidDevice.find(id)
@@ -115,5 +115,47 @@ class AndroidDeviceTest < ActiveSupport::TestCase
     assert_raises(ActiveRecord::StatementInvalid) { device.update_column(:scope, "admin") }
     assert_raises(ActiveRecord::StatementInvalid) { device.update_column(:scope, nil) }
     assert_equal AndroidDevice::ADD_ONLY, device.reload.scope
+  end
+
+  test "every credential has a lineage and distinct phones do not share one" do
+    first, = AndroidDevice.issue(household: households(:home), name: "A", scope: AndroidDevice::SYNC)
+    second, = AndroidDevice.issue(household: households(:home), name: "B", scope: AndroidDevice::SYNC)
+    widget, = AndroidDevice.issue(household: households(:home), name: "Widget")
+
+    assert_match(/\A\h{8}-\h{4}-\h{4}-\h{4}-\h{12}\z/, first.lineage_id)
+    assert_equal 3, [ first, second, widget ].map(&:lineage_id).uniq.size
+  end
+
+  test "a successor continues the predecessor lineage with its own identity and secret" do
+    old, old_secret = AndroidDevice.issue(household: households(:home), name: "Celular", scope: AndroidDevice::SYNC)
+    old.revoke!
+
+    new, new_secret = AndroidDevice.issue(household: households(:home), name: "Celular", scope: AndroidDevice::SYNC,
+      predecessor: AndroidDevice.predecessor_for(households(:home), old_secret))
+
+    assert_equal old.lineage_id, new.lineage_id
+    assert_not_equal old.id, new.id
+    assert_not_equal old_secret, new_secret
+    assert_equal new, AndroidDevice.authenticate(new_secret)
+  end
+
+  test "predecessor_for proves possession of a past sync secret of the same household only" do
+    home = households(:home)
+    old, old_secret = AndroidDevice.issue(household: home, name: "Celular", scope: AndroidDevice::SYNC)
+    old.revoke!
+    _, widget_secret = AndroidDevice.issue(household: home, name: "Widget")
+    other_house = Household.create!(name: "Praia")
+    _, other_secret = AndroidDevice.issue(household: other_house, name: "Outro", scope: AndroidDevice::SYNC)
+
+    assert_equal old, AndroidDevice.predecessor_for(home, old_secret), "a revoked secret still proves the phone"
+    ENV["ALVA_PASSWORD_DIGEST"] = BCrypt::Password.create("outra-senha", cost: 4).to_s
+    assert_equal old, AndroidDevice.predecessor_for(home, old_secret), "so does one outlived by a password rotation"
+
+    assert_nil AndroidDevice.predecessor_for(home, widget_secret)
+    assert_nil AndroidDevice.predecessor_for(home, other_secret)
+    assert_nil AndroidDevice.predecessor_for(home, "nao-existe")
+    assert_nil AndroidDevice.predecessor_for(home, "")
+    assert_nil AndroidDevice.predecessor_for(home, nil)
+    assert_nil AndroidDevice.predecessor_for(home, { "a" => "b" })
   end
 end

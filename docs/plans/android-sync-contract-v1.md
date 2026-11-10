@@ -5,9 +5,11 @@ arquitetural e a escolha de Kotlin estão aprovadas
 ([ADR 0001](../adr/0001-android-offline-com-rails.md)). Pareamento, escopos e a
 barreira de autenticação da `/api/v1` foram implementados na issue #35;
 identidade pública, revisões e tombstones foram implementados na issue #36
-(migrações `AddPublicIds` e `AddSyncRevisions`). O snapshot está implementado
-na issue #37. Envelope de comandos, aliases e cliente seguem propostos.
-O contrato dá um alvo versionado às tasks
+(migrações `AddPublicIds` e `AddSyncRevisions`); a persistência idempotente de
+comandos (ledger, linhagem do aparelho, ordem e retenção) foi implementada na
+issue #38 (migração `CreateSyncCommands`). O snapshot está implementado na
+issue #37. Endpoint e executores de comandos de negócio, aliases e cliente
+seguem propostos. O contrato dá um alvo versionado às tasks
 do GitHub
 ([Alva nativo offline — #33](https://github.com/isaaclvs/alva/issues/33)), que
 podem refiná-lo com evidência de implementação.
@@ -33,7 +35,8 @@ regras de negócio (o que cada comando faz) continuam em
 ## Autenticação e autorização
 
 Implementado na issue #35 para pareamento, escopos e a barreira de acesso da
-`/api/v1`; o snapshot está implementado na issue #37 e comandos continuam proposta.
+`/api/v1`; o snapshot está implementado na issue #37. O endpoint de comandos de
+negócio segue proposto; o ledger e o processador estão implementados na #38.
 
 - Pareamento explícito de sync, online, com a senha compartilhada que já existe
   (`HouseholdAccess`): `POST /api/v1/devices` devolve `device_id` e o segredo em
@@ -78,6 +81,17 @@ curl -sS -X POST https://<host>/api/v1/devices \
   -H 'Content-Type: application/json' \
   -d '{"password":"<senha da casa>","name":"Celular da Ana"}'
 ```
+
+Reautorização do mesmo aparelho (implementada na #38): o aparelho envia, além
+da senha, o segredo da credencial que tinha antes como `previous_token`. É a
+única prova de continuidade; `device_id`, `lineage_id` ou nome enviados pelo
+cliente não concedem nada. O novo registro `AndroidDevice` herda a **linhagem**
+(`lineage_id`) do anterior e passa a poder resolver os comandos que ele enviou
+(ver "Idempotência e deduplicação"). O segredo anterior vale mesmo revogado ou
+depois da rotação da senha — a senha nova continua sendo exigida —, mas só se
+for de uma credencial `sync` desta casa; senão o pareamento responde 422
+`invalid_previous_token` sem criar aparelho. O parâmetro é filtrado dos logs
+como os demais segredos.
 
 Revogação individual, no Rails console do servidor:
 
@@ -143,7 +157,14 @@ Regras do envelope:
 - `status` de cada resultado: `applied`, `duplicate` (mesmo UUID já processado),
   `noop` (já estava no estado desejado), `conflict` (precondição falhou),
   `rejected` (erro definitivo) ou `blocked` (dependente de comando não aplicado).
+  O resultado de `duplicate` leva `original_status` (`applied` ou `noop`),
+  `revision` e `data` do resultado original; `conflict`, `rejected` e `blocked`
+  levam `error` (código da tabela de erros ou `dependency_not_applied`).
 - A ordem dos `results` é a ordem dos comandos enviados.
+- Um lote bem formado responde com os resultados por comando; os códigos HTTP
+  da tabela de erros valem para a requisição inteira (autenticação, envelope
+  malformado, limite, erro interno). Um erro interno no meio do lote não perde
+  o que já foi confirmado: o reenvio do lote devolve `duplicate` para esses.
 
 ## Comandos v1
 
@@ -176,17 +197,121 @@ Observações:
 
 ## Idempotência e deduplicação
 
-- O servidor processa cada comando sob transação/lock da casa e guarda o
-  resultado por `(household_id, command_id)`, ligado a aparelho e ao digest do
-  conteúdo.
-- Reenvio do mesmo `id` com o mesmo conteúdo devolve o mesmo resultado
-  (`duplicate`), sem segundo efeito — inclusive depois de o cliente perder a
-  resposta já comprometida no servidor.
-- Reuso do mesmo `id` com conteúdo diferente é rejeitado (`idempotency_conflict`)
-  em vez de aplicar algo ambíguo.
-- UUIDs de operações e exclusões (tombs) são mantidos enquanto puderem ser
-  reenviados; nenhum prazo arbitrário que permita duplicar uma compra após um
-  período longo offline.
+Implementado na issue #38 (`SyncCommand`, `SyncCommandProcessor`). Ainda **não
+há endpoint de comandos nem executor de negócio** em produção: o processador é
+exercitado em testes com executores reais (efeitos em `Household`, revisão e
+tombstones) atrás da autenticação real da `/api/v1`. Os comandos de negócio
+registram seu executor em `SyncCommandProcessor::EXECUTORS` nas tasks que os
+introduzem.
+
+### O que é gravado, e quando
+
+O servidor executa cada comando numa transação própria, sob o lock da casa
+(`Household#with_list_lock`), e grava o registro idempotente `sync_commands` **na
+mesma transação do efeito**. Ou os dois são confirmados, ou nenhum. O registro
+guarda: casa, UUID do comando (`(household_id, command_id)` é único no banco),
+credencial de origem (`android_device_id`), linhagem do aparelho, tipo,
+`depends_on`, digest SHA-256 do conteúdo canônico, status (`applied`/`noop`),
+revisão da casa após o efeito e o resultado (`data`).
+
+Só **consomem** o UUID os resultados que realmente terminaram: `applied` e
+`noop`. `conflict`, `rejected`, `blocked`, `unsupported_command`,
+`malformed_command` e qualquer exceção revertem a transação e não deixam
+registro — o comando não foi consumido e pode ser reavaliado. Um `noop` é
+registrado porque reenviá-lo não pode executar depois o que a primeira
+avaliação deliberadamente não fez (estado que mudou entre as tentativas).
+
+| Resultado da primeira execução | Registro | Reenvio do mesmo `id` |
+| --- | --- | --- |
+| `applied`, `noop` | sim, com o efeito | `duplicate` com `original_status`, `revision` e `data` originais |
+| `conflict`, `rejected` (regra de negócio) | não | reavaliado; pode ser reenviado com conteúdo corrigido |
+| `blocked` (dependência sem registro) | não | aplicado assim que a dependência estiver registrada |
+| `malformed_command`, `unsupported_command` | não | reavaliado |
+| exceção (`internal_error`, banco ocupado) | não; tudo revertido | reavaliado, sem efeito pela metade |
+
+### Conteúdo canônico
+
+O digest cobre `type`, `depends_on`, `observed_revision` do próprio comando,
+`preconditions` e `payload`, com chaves ordenadas recursivamente (a ordem das
+chaves e símbolos versus strings não importa; a ordem de arrays importa). O UUID
+é a chave, não o conteúdo. Campos fora do contrato são ignorados: nem entram no
+digest nem chegam ao executor. O `observed_revision` do envelope é só o padrão
+entregue ao executor; não entra no digest, para que reenviar o comando em outro
+lote continue sendo um reenvio.
+
+### Reenvio, conflito e concorrência
+
+- Mesmo UUID, mesma casa, mesma linhagem e mesmo conteúdo: `duplicate`, sem
+  segundo efeito, mesmo se o cliente perdeu a resposta depois do commit.
+- Mesmo UUID com conteúdo diferente, ou de outra linhagem: `rejected` com
+  `idempotency_conflict`. O erro é o mesmo nos dois casos e não revela o
+  resultado original nem de quem ele é.
+- Dois envios simultâneos do mesmo UUID (conexões independentes) são
+  serializados pelo lock da casa: um aplica e o outro lê o registro e devolve
+  `duplicate`. Se o primeiro falhar e reverter, o segundo aplica. O índice único
+  do banco é a última barreira; a consulta ao registro ocorre dentro do lock.
+- UUIDs de casas diferentes são independentes.
+
+### Linhagem do aparelho e reautorização
+
+Reautorizar cria um novo `AndroidDevice` (novo id e segredo), então a identidade
+de um comando não pode ser só o id da credencial. A **linhagem**
+(`android_devices.lineage_id`, UUID gerado pelo servidor) acompanha o aparelho
+físico: nasce com a primeira credencial e é herdada apenas quando o pareamento
+traz o `previous_token` correspondente (ver "Autenticação e autorização").
+
+- A casa e a linhagem vêm sempre da credencial autenticada; nada do payload
+  (`household_id`, `device_id`, `lineage_id`) escolhe uma ou outra.
+- Uma credencial da mesma linhagem, inclusive a que reautorizou depois de
+  revogação ou rotação de senha, reenvia o comando antigo e recebe o resultado
+  original, sem duplicar o efeito. O registro continua apontando para a
+  credencial que o executou, como auditoria.
+- Outro aparelho — mesmo pareado com a senha da casa — tem outra linhagem: não
+  consegue reenviar, herdar nem tornar suas as operações alheias, nem
+  referenciá-las em `depends_on`.
+- Limite assumido: se o aparelho perdeu o segredo anterior (Keystore apagado,
+  reinstalação com a fila preservada), ele só consegue uma linhagem nova. Os
+  comandos antigos dele respondem `idempotency_conflict`; o cliente deve
+  sincronizar um snapshot, ver o que de fato foi aplicado e reemitir o que
+  faltar com UUIDs novos. Isso é uma decisão do cliente, não do servidor.
+
+### Ordem e dependências
+
+- Dentro de um lote os comandos são tentados na ordem enviada, cada um na sua
+  transação; um lote não é atômico. Entre lotes, a ordem de chegada é a do lock
+  da casa; a causalidade vem de `depends_on`, não da ordem de chegada.
+- `depends_on` só é satisfeito por um comando **registrado** da **mesma
+  linhagem** (aplicado ou `noop`). Dependência ainda não enviada, posterior no
+  mesmo lote, com conflito/rejeição ou de outra linhagem deixa o dependente
+  `blocked` (`dependency_not_applied`), sem efeito e sem registro. Quando a
+  dependência for registrada, o reenvio do dependente é aplicado.
+- Como o estado de um dependente deriva do registro, a decisão sobrevive a
+  respostas perdidas e a reautorização. `depends_on` igual ao próprio `id` é
+  `malformed_command`.
+- Comandos independentes (`depends_on: null`) não são bloqueados por falhas dos
+  outros.
+
+### Retenção
+
+Os registros **não expiram e não são podados**: nenhum prazo, nenhuma rotina de
+limpeza e nenhuma remoção ao revogar uma credencial. A fila do aparelho pode
+manter um comando por tempo ilimitado offline, e o servidor não sabe o que a
+fila ainda guarda; apagar o registro permitiria que uma compra fosse duplicada
+semanas depois. Os aparelhos (`AndroidDevice`) também nunca são apagados, só
+revogados, para que a linhagem continue resolvível. O custo é desprezível para
+uma casa e dois aparelhos (algumas centenas de bytes por comando). Podar só
+seria seguro com confirmação explícita do cliente (por exemplo, "já recebi o
+resultado de tudo até este UUID"), que seria uma mudança do contrato e não está
+em v1. Tombstones e aliases seguem o mesmo critério.
+
+### Para quem escreve um executor
+
+Um executor (`call(command)` devolvendo `SyncCommandProcessor::Outcome`) roda
+dentro da transação e do lock da casa: deve registrar a mudança com
+`Household#record_shared_change!` quando houver efeito, não capturar erros de
+banco e não escrever fora da transação. Broadcast (Turbo/ActionCable) precisa
+acontecer **depois** do commit, nunca dentro do executor — um rollback posterior
+não pode ter anunciado algo que não existiu.
 
 ## IDs públicos e aliases
 
@@ -395,7 +520,9 @@ um item arquivado **não** gera tombstone.
 | `precondition_failed` | 409 | sim, após novo snapshot | Item mudou; apresentar estado atual para revisão, sem sobrescrever. |
 | `not_found` | 404 | não | Registro inexistente nesta casa; remover da fila só após confirmar. |
 | `gone` | 410 | não | Item removido/arquivado; não recriar implicitamente. |
-| `idempotency_conflict` | 409 | não | Mesmo `id` com conteúdo diferente; erro de cliente, nunca aplicar. |
+| `idempotency_conflict` | 409 | não | Mesmo `id` com conteúdo diferente ou de outra linhagem; erro de cliente, nunca aplicar. |
+| `dependency_not_applied` | — (resultado `blocked`) | sim, quando a dependência for registrada | `depends_on` ainda sem registro na mesma linhagem; sem efeito. |
+| `invalid_previous_token` | 422 | não | Pareamento com `previous_token` que não é de uma credencial `sync` desta casa. |
 | `unsupported_command` | 422 | não | Tipo desconhecido nesta versão; aparelho antigo deve avisar. |
 | `rate_limited` | 429 | sim | Aguardar e retentar com o mesmo `id`. |
 | `internal_error` | 500 | sim | Retentar com o mesmo `id`; a idempotência evita efeito duplo. |
@@ -409,7 +536,7 @@ conflito persistente, um aviso recuperável.
 
 - O servidor aplica os comandos de um lote na ordem enviada e considera
   `depends_on`. Um comando que depende de outro não aplicado fica `blocked` sem
-  efeito.
+  efeito (regras completas em "Idempotência e deduplicação").
 - Conflito nunca sobrescreve silenciosamente uma versão desconhecida: o item
   entra em revisão com o estado atual e a intenção local preservada.
 - Marcar/desmarcar envia **estado desejado**, nunca toggle: reenvio não inverte
