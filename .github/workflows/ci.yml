@@ -141,6 +141,44 @@ jobs:
           path: ${{ github.workspace }}/tmp/screenshots
           if-no-files-found: ignore
 
+  android:
+    name: Android debug build, tests and lint
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up JDK
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+
+      # No release keystore is configured in CI: the release APK is built
+      # unsigned, only to catch problems that are exclusive to that variant.
+      - name: Build, test and lint
+        run: ./gradlew --no-daemon assembleDebug assembleRelease testDebugUnitTest lintDebug verifyVariants
+
+      - name: Keep the debug APK and reports
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: android-debug
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/reports/lint-results-debug.html
+            app/build/reports/tests
+          if-no-files-found: ignore
+
   database:
     name: migrations, seeds and autoloading
     runs-on: ubuntu-24.04
