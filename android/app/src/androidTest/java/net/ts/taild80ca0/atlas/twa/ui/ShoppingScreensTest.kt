@@ -176,6 +176,21 @@ class ShoppingScreensTest {
         compose.onNodeWithTag("add-input").assertDoesNotExist()
     }
 
+    @Test fun repeatedNavigationOnlyFocusesTheAttachedAddField() {
+        launch()
+        repeat(10) {
+            compose.onNodeWithTag("nav-list").performClick()
+            compose.onNodeWithTag("add-input").assertDoesNotExist()
+            compose.onNodeWithTag("nav-add").performClick()
+            compose.waitUntil(10_000) {
+                compose.onAllNodes(hasTestTag("add-input") and SemanticsMatcher.expectValue(
+                    androidx.compose.ui.semantics.SemanticsProperties.Focused, true,
+                )).fetchSemanticsNodes().isNotEmpty()
+            }
+        }
+        assertTrue(runBlocking { db.commands().inOrder().isEmpty() })
+    }
+
     @Test fun observesChangesFromAnotherStoreAndGroupsByCategory() {
         runBlocking {
             db.listItems().upsert(listOf(ListItemEntity("fruit", "Banana", "produce", 0, null, null, 1, null, null)))

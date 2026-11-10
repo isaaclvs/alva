@@ -68,11 +68,8 @@ fun ShoppingScreens(store: ShoppingListStore, modifier: Modifier = Modifier, acc
             readFailed = true
         }.collect { state = it }
     }
-    LaunchedEffect(screen, state != null) {
-        if (screen == "add" && state != null) {
-            focus.requestFocus()
-            keyboard?.show()
-        } else keyboard?.hide()
+    LaunchedEffect(screen) {
+        if (screen == "list") keyboard?.hide()
     }
 
     fun add() {
@@ -177,6 +174,12 @@ fun ShoppingScreens(store: ShoppingListStore, modifier: Modifier = Modifier, acc
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                         keyboardActions = KeyboardActions(onDone = { add() }), maxLines = 4,
                     )
+                    // Scaffold subcomposes its content during layout. Request focus
+                    // from this composition, after the field's node is attached.
+                    LaunchedEffect(Unit) {
+                        focus.requestFocus()
+                        keyboard?.show()
+                    }
                     Text("Separe por vírgula, ponto e vírgula ou quebra de linha.", style = MaterialTheme.typography.bodySmall)
                     Button(onClick = { add() }, enabled = !saving, modifier = Modifier.fillMaxWidth().testTag("save-add")) {
                         Text(if (saving) "Salvando…" else "Adicionar à lista")
