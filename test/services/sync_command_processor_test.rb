@@ -242,6 +242,7 @@ class SyncCommandProcessorTest < ActiveSupport::TestCase
       valid.merge("payload" => [ "Tapioca" ]),
       valid.merge("preconditions" => "x"),
       valid.merge("depends_on" => "nao-e-uuid"),
+      valid.merge("depends_on" => false),
       valid.merge("observed_revision" => -1),
       valid.merge("observed_revision" => "10"),
       "texto"

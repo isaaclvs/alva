@@ -141,7 +141,7 @@ class SyncCommandProcessor
     preconditions = raw["preconditions"].nil? ? {} : raw["preconditions"]
     payload = raw["payload"].nil? ? {} : raw["payload"]
     return unless id && raw["type"].is_a?(String) && TYPE.match?(raw["type"])
-    return if raw["depends_on"] && (depends_on.nil? || depends_on == id)
+    return if !raw["depends_on"].nil? && (depends_on.nil? || depends_on == id)
     return unless [ preconditions, payload ].all?(Hash)
     return unless own_revision.nil? || (own_revision.is_a?(Integer) && own_revision >= 0)
 
