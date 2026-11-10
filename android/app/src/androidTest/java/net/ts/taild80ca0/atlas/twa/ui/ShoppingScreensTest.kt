@@ -1,0 +1,155 @@
+package net.ts.taild80ca0.atlas.twa.ui
+
+import androidx.compose.ui.test.*
+import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.test.core.app.ActivityScenario
+import androidx.test.platform.app.InstrumentationRegistry
+import java.io.IOException
+import java.util.UUID
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.runBlocking
+import net.ts.taild80ca0.atlas.twa.MainActivity
+import net.ts.taild80ca0.atlas.twa.access.*
+import net.ts.taild80ca0.atlas.twa.data.db.*
+import net.ts.taild80ca0.atlas.twa.data.list.*
+import org.junit.After
+import org.junit.Assert.*
+import org.junit.Before
+import org.junit.Rule
+import org.junit.Test
+
+/** Real Room + installed Compose app, with a transport that must never be called. */
+class ShoppingScreensTest {
+    @get:Rule val compose = createEmptyComposeRule()
+    private val context = InstrumentationRegistry.getInstrumentation().targetContext
+    private val file = "screens-${UUID.randomUUID()}.db"
+    private lateinit var db: AlvaDatabase
+    private lateinit var store: RoomShoppingListStore
+    private var scenario: ActivityScenario<MainActivity>? = null
+    private val noNetwork = object : HouseAccessApi {
+        override suspend fun pair(password: String, deviceName: String, previousToken: String?): ApiResult<AccessCredential> = error("UI must not pair")
+        override suspend fun identifyHousehold(credential: AccessCredential): ApiResult<HouseholdIdentity> = error("UI must not use HTTP")
+    }
+
+    @Before fun prepare() {
+        db = AlvaDatabaseFactory.create(context, file)
+        store = RoomShoppingListStore(db)
+        runBlocking {
+            db.categories().upsert(listOf(CategoryEntity("produce", "Hortifruti", 1), CategoryEntity("other", "Outros", 2)))
+        }
+    }
+
+    private fun launch(using: ShoppingListStore = store) {
+        val vault = object : CredentialVault {
+            override fun read() = VaultRead.Found(StoredAccess(AccessCredential(1, "test-only")))
+            override fun write(access: StoredAccess) = error("opening must not write credentials")
+        }
+        AccessGraph.install(HouseAccess(vault, noNetwork, RoomHouseholdBinding(db)), using)
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    @After fun cleanup() {
+        scenario?.close()
+        AccessGraph.install(null)
+        db.close()
+        context.deleteDatabase(file)
+    }
+
+    private fun add(text: String) {
+        compose.onNodeWithTag("add-input").performTextInput(text)
+        compose.onNodeWithTag("save-add").performClick()
+        compose.waitUntil(10_000) {
+            compose.onAllNodes(hasTestTag("feedback") and hasText("Salvo neste aparelho", substring = true)).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    @Test fun addsMultipleNamesMarksAndReopensFromDiskWithoutNetwork() {
+        launch()
+        compose.onNodeWithTag("add-input").assertIsFocused()
+        add("Leite, Pão; Ovos\nLeite")
+        compose.onNodeWithTag("add-input").assert(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.EditableText, androidx.compose.ui.text.AnnotatedString("")))
+        compose.onNodeWithTag("nav-list").performClick()
+        compose.onNodeWithTag("list-summary").assertTextEquals("3 pendentes · 0 comprados")
+        val id = runBlocking { db.listItems().live().first { it.name == "Leite" }.publicId }
+        compose.onNodeWithTag("item-$id").performClick()
+        compose.onNodeWithTag("item-$id").assertIsOn()
+        compose.onNodeWithTag("list-summary").assertTextEquals("2 pendentes · 1 comprados")
+
+        scenario!!.close()
+        db.close()
+        db = AlvaDatabaseFactory.create(context, file)
+        store = RoomShoppingListStore(db)
+        launch()
+        compose.onNodeWithTag("nav-list").performClick()
+        compose.onNodeWithTag("item-$id").assertIsOn()
+        assertEquals(2, runBlocking { db.commands().inOrder().size })
+        compose.onNodeWithTag("item-$id").performClick()
+        compose.onNodeWithTag("item-$id").assertIsOff()
+    }
+
+    @Test fun warnsAboutDuplicatesAndPreservesInputWhenNothingIsAdded() {
+        runBlocking { store.execute(ListIntent.AddText("Leite")) }
+        launch()
+        compose.onNodeWithTag("add-input").performTextInput("leite")
+        compose.onNodeWithTag("duplicate-hint").assertTextContains("Já na lista: Leite")
+        compose.onNodeWithTag("save-add").performClick()
+        compose.onNodeWithTag("feedback").assertTextContains("Já está na lista: leite")
+        compose.onNodeWithTag("add-input").assertTextContains("leite")
+        assertEquals(1, runBlocking { db.commands().inOrder().size })
+    }
+
+    @Test fun storageFailureKeepsDraftAndNeverReportsSuccess() {
+        val failing = object : ShoppingListStore by store {
+            override suspend fun execute(intent: ListIntent) = IntentResult.Failed(IOException("test failure"))
+        }
+        launch(failing)
+        compose.onNodeWithTag("add-input").performTextInput("Café")
+        compose.onNodeWithTag("save-add").performClick()
+        compose.onNodeWithTag("feedback").assertTextContains("Não foi possível salvar", substring = true)
+        compose.onNodeWithTag("add-input").assertTextContains("Café")
+        assertTrue(runBlocking { db.commands().inOrder().isEmpty() })
+        assertTrue(runBlocking { db.listItems().live().isEmpty() })
+    }
+
+    @Test fun typingDuringCommitIsPreservedAndRotationKeepsDraftAndScreen() {
+        val release = CompletableDeferred<Unit>()
+        val entered = CompletableDeferred<Unit>()
+        val delayed = object : ShoppingListStore by store {
+            override suspend fun execute(intent: ListIntent): IntentResult {
+                entered.complete(Unit)
+                release.await()
+                return store.execute(intent)
+            }
+        }
+        launch(delayed)
+        compose.onNodeWithTag("add-input").performTextInput("Leite")
+        compose.onNodeWithTag("save-add").performClick()
+        compose.waitUntil { entered.isCompleted }
+        compose.onNodeWithTag("add-input").performTextReplacement("Pão")
+        release.complete(Unit)
+        compose.onNodeWithTag("feedback").assertTextContains("Salvo neste aparelho", substring = true)
+        compose.onNodeWithTag("add-input").assertTextContains("Pão")
+        scenario!!.recreate()
+        compose.onNodeWithTag("add-input").assertTextContains("Pão")
+        compose.onNodeWithTag("nav-list").performClick()
+        scenario!!.recreate()
+        compose.onNodeWithTag("nav-list").assertIsSelected()
+        compose.onNodeWithText("Leite").assertIsDisplayed()
+        compose.onNodeWithTag("add-input").assertDoesNotExist()
+    }
+
+    @Test fun observesChangesFromAnotherStoreAndGroupsByCategory() {
+        runBlocking {
+            db.listItems().upsert(listOf(ListItemEntity("fruit", "Banana", "produce", 0, null, null, 1, null, null)))
+        }
+        launch()
+        compose.onNodeWithTag("nav-list").performClick()
+        compose.onNodeWithText("Hortifruti").assertIsDisplayed()
+        compose.onNodeWithTag("item-fruit").assertIsOff()
+        runBlocking { RoomShoppingListStore(db).execute(ListIntent.AddText("Café")) }
+        compose.onNodeWithTag("list-summary").assertTextEquals("2 pendentes · 0 comprados")
+        compose.onNodeWithText("Outros").assertIsDisplayed()
+        compose.onNodeWithText("Café").assertIsDisplayed()
+    }
+}
