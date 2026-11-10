@@ -12,7 +12,11 @@ class HouseholdAccess
     BCrypt::Password.new(ENV.fetch("ALVA_PASSWORD_DIGEST")).is_password?(password.to_s)
   end
 
+  # Version of the password a credential is bound to. Nil when access is open,
+  # so an old credential is refused (not a 500) after the password is removed.
   def self.token
+    return unless enabled?
+
     Digest::SHA256.hexdigest(ENV.fetch("ALVA_PASSWORD_DIGEST"))
   end
 

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_03_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_10_000000) do
   create_table "android_devices", force: :cascade do |t|
     t.integer "household_id", null: false
     t.string "name", null: false
@@ -19,8 +19,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_03_000001) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "access_digest", null: false
+    t.string "scope", default: "add_only", null: false
     t.index ["household_id"], name: "index_android_devices_on_household_id"
     t.index ["token_digest"], name: "index_android_devices_on_token_digest", unique: true
+    t.check_constraint "scope IN ('add_only', 'sync')", name: "android_devices_scope_allowed"
   end
 
   create_table "catalog_items", force: :cascade do |t|
