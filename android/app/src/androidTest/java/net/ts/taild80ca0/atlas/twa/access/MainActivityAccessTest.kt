@@ -102,6 +102,7 @@ class MainActivityAccessTest {
         waitForText("Nossa casa")
 
         server.revoke(server.devices.single().id)
+        compose.onNodeWithTag("house-menu").performClick()
         compose.onNodeWithTag("check").performClick()
         waitForText(AccessMessages.RECONNECT_TITLE)
         compose.onNodeWithText(AccessMessages.RECONNECT_HELP).assertIsDisplayed()

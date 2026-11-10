@@ -92,13 +92,15 @@ class ShoppingScreensTest {
         compose.onNodeWithTag("add-input").assertIsFocused()
         add("Leite, Pão; Ovos\nLeite")
         compose.onNodeWithTag("add-input").assert(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.EditableText, androidx.compose.ui.text.AnnotatedString("")))
+        compose.onNodeWithText("Alva").assertIsDisplayed()
+        compose.onNodeWithTag("save-add").assertIsDisplayed()
         capture("shopping-add.png")
         compose.onNodeWithTag("nav-list").performClick()
-        waitForText("list-summary", "3 pendentes · 0 comprados")
+        waitForText("list-summary", "Pendentes: 3 · Comprados: 0")
         val id = runBlocking { db.listItems().live().first { it.name == "Leite" }.publicId }
         compose.onNodeWithTag("item-$id").performClick()
         assertMarked(id, true)
-        waitForText("list-summary", "2 pendentes · 1 comprados")
+        waitForText("list-summary", "Pendentes: 2 · Comprados: 1")
         capture("shopping-list.png")
 
         scenario!!.close()
@@ -174,11 +176,11 @@ class ShoppingScreensTest {
         }
         launch()
         compose.onNodeWithTag("nav-list").performClick()
-        waitForText("list-summary", "1 pendentes")
+        waitForText("list-summary", "Pendentes: 1")
         compose.onNodeWithText("Hortifruti").assertIsDisplayed()
         compose.onNodeWithTag("item-fruit").assertIsOff()
         runBlocking { RoomShoppingListStore(db).execute(ListIntent.AddText("Café")) }
-        waitForText("list-summary", "2 pendentes · 0 comprados")
+        waitForText("list-summary", "Pendentes: 2 · Comprados: 0")
         compose.onNodeWithText("Outros").assertIsDisplayed()
         compose.onNodeWithText("Café").assertIsDisplayed()
     }

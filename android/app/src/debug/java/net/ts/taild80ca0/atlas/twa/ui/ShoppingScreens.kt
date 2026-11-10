@@ -18,6 +18,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
@@ -45,7 +46,7 @@ fun AlvaTheme(content: @Composable () -> Unit) {
 
 /** Screens depend only on the store. No HTTP call or database query lives here. */
 @Composable
-fun ShoppingScreens(store: ShoppingListStore, modifier: Modifier = Modifier) {
+fun ShoppingScreens(store: ShoppingListStore, modifier: Modifier = Modifier, accessActions: (@Composable () -> Unit)? = null) {
     var state by remember(store) { mutableStateOf<ListState?>(null) }
     var readFailed by remember(store) { mutableStateOf(false) }
     var retry by remember { mutableIntStateOf(0) }
@@ -53,6 +54,7 @@ fun ShoppingScreens(store: ShoppingListStore, modifier: Modifier = Modifier) {
     var draft by rememberSaveable { mutableStateOf("") }
     var feedback by remember { mutableStateOf<String?>(null) }
     var saving by remember { mutableStateOf(false) }
+    var menuOpen by remember { mutableStateOf(false) }
     var recent by remember { mutableStateOf<List<ItemAddition>>(emptyList()) }
     val busyItems = remember { mutableStateListOf<String>() }
     val scope = rememberCoroutineScope()
@@ -125,8 +127,17 @@ fun ShoppingScreens(store: ShoppingListStore, modifier: Modifier = Modifier) {
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp).testTag("shopping-home")) {
-            Text(if (screen == "add") "Alva" else "Lista de compras", style = MaterialTheme.typography.headlineMedium,
-                modifier = Modifier.padding(top = 16.dp))
+            Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(if (screen == "add") "Alva" else "Lista de compras", style = MaterialTheme.typography.headlineMedium,
+                    modifier = Modifier.weight(1f))
+                if (accessActions != null) Box {
+                    TextButton(onClick = { menuOpen = true }, modifier = Modifier.testTag("house-menu")
+                        .semantics { contentDescription = "Menu da casa" }) { Text("⋯") }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        Column(Modifier.widthIn(max = 280.dp).padding(12.dp)) { accessActions() }
+                    }
+                }
+            }
             Text("Nossa casa", style = MaterialTheme.typography.labelLarge)
             if (current != null) {
                 Text(
@@ -172,7 +183,7 @@ fun ShoppingScreens(store: ShoppingListStore, modifier: Modifier = Modifier) {
                     }
                 }
                 else -> {
-                    Text("$pending pendentes · ${current.items.size - pending} comprados", modifier = Modifier.testTag("list-summary"))
+                    Text("Pendentes: $pending · Comprados: ${current.items.size - pending}", modifier = Modifier.testTag("list-summary"))
                     LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(vertical = 12.dp)) {
                         if (current.items.isEmpty()) item { Text("Sua lista está vazia. Adicione o que acabou em casa.") }
                         val known = current.categories.sortedBy { it.position }

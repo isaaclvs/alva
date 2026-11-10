@@ -19,7 +19,7 @@ o destaque turquesa do Alva atual.
   Marcar envia estado desejado, com uma operação em voo por item.
 - As duas telas observam `ShoppingListStore`, sem chamadas HTTP. A mensagem
   de salvamento distingue gravação neste aparelho de sincronização pendente.
-  O botão de verificar conexão continua disponível na área de acesso debug.
+  A verificação de conexão fica no menu do cabeçalho, sem ocupar o rodapé.
 - Texto e tela aberta sobrevivem à recriação da Activity via `rememberSaveable`.
   Preferências duráveis entre novas sessões são da #55. Lista/fila sobrevivem
   à reabertura do processo porque são lidas do Room.
