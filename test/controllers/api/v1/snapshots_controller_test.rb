@@ -29,6 +29,15 @@ class Api::V1::SnapshotsControllerTest < ActionDispatch::IntegrationTest
     assert_equal %w[Banana Leite Maçã], body["catalog_items"].map { |entry| entry["name"] }.sort
   end
 
+  test "the document is compressed for clients that accept gzip" do
+    get "/api/v1/snapshot", headers: bearer(@sync_token).merge("Accept-Encoding" => "gzip")
+
+    assert_response :ok
+    assert_equal "gzip", response.headers["Content-Encoding"]
+    document = JSON.parse(Zlib.gunzip(response.body))
+    assert_equal @home.public_id, document["household"]["public_id"]
+  end
+
   test "reading changes nothing" do
     @home.add_item("Arroz")
     before = [ @home.reload.sync_revision, ListItem.count, SyncTombstone.count, AndroidDevice.pluck(:id, :revoked_at) ]

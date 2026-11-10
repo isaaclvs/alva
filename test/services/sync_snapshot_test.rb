@@ -215,7 +215,7 @@ class SyncSnapshotTest < ActiveSupport::TestCase
 
     document = snap.to_json
 
-    ["Segredo", "Item alheio", "Removido alheio", other.public_id, other_item.public_id, gone.public_id].each do |value|
+    [ "Segredo", "Item alheio", "Removido alheio", other.public_id, other_item.public_id, gone.public_id ].each do |value|
       assert_not_includes document, value
     end
   end
