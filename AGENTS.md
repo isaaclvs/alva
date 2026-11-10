@@ -123,6 +123,16 @@ ShoppingTrip  # uma compra finalizada ("Compra feita")
   nunca é cursor. Regras completas em
   `docs/plans/android-sync-contract-v1.md`.
 
+**Comandos idempotentes (issue #38):** `SyncCommandProcessor` executa comandos de
+sync uma vez só. Cada comando que teve efeito (`applied`/`noop`) grava um
+`SyncCommand` (UUID, casa, credencial e linhagem de origem, digest do conteúdo
+canônico, resultado) na mesma transação do efeito, sob o lock da casa; conflito,
+rejeição, bloqueio e exceção não deixam registro. `AndroidDevice#lineage_id`
+sobrevive à reautorização quando o pareamento traz o `previous_token`. Os
+registros nunca são podados. Ainda não há endpoint nem executor de negócio:
+cada comando futuro registra seu executor em `SyncCommandProcessor::EXECUTORS`.
+Regras em `docs/plans/android-sync-contract-v1.md`.
+
 **Arquivados:** um `ListItem` com `shopping_trip_id` é histórico e não faz parte
 da lista viva. Toda query da lista viva (renderização, contadores, resumo,
 detecção de duplicados, localizar item para marcar/remover) deve usar
