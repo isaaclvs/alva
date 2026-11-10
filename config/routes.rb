@@ -18,8 +18,10 @@ Rails.application.routes.draw do
 
   namespace :api do
     namespace :v1 do
-      # Explicit sync enrollment; the protected sync endpoints come with their tasks.
+      # Explicit sync enrollment; the other protected sync endpoints come with their tasks.
       resources :devices, only: :create
+      # Idempotent batch of commands; JSON only like the snapshot.
+      post "commands", to: "commands#create", format: false, defaults: { format: :json }
       # JSON only; a format suffix is not a way to ask for anything else.
       get "snapshot", to: "snapshots#show", format: false, defaults: { format: :json }
     end
