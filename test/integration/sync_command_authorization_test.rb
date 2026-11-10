@@ -3,9 +3,10 @@ require "support/sync_command_executors"
 
 module Api
   module V1
-    # Test-only probe: there is no commands endpoint yet. It is the smallest
-    # controller that wires the real authentication base to the processor the
-    # way the endpoint of the first business command will.
+    # Test-only probe: the smallest controller that wires the real authentication
+    # base to the processor with the lambda executors of test/support, so these
+    # tests exercise authorization and the ledger apart from the business
+    # commands (the real endpoint is Api::V1::CommandsController).
     class CommandsProbeController < BaseController
       EXECUTORS = { "add_items" => SyncCommandExecutors::ADD_ITEMS }.freeze
 
