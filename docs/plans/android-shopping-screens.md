@@ -40,3 +40,7 @@ reabertura do banco, duplicados sem enqueue, falha sem limpar rascunho,
 digitação durante commit, rotação e atualização por outro consumidor do store.
 `MainActivityAccessTest` continua testando configuração e reconexão com as
 novas telas no lugar do placeholder.
+
+No host local de 8 GB, executar testes de browser e emulador em sequência.
+Serializar o Android com `flock --close -w 600 /tmp/alva-android-validation.lock`:
+o `--close` impede que o servidor ADB herde o lock e o retenha após o teste.
