@@ -20,6 +20,8 @@ Rails.application.routes.draw do
     namespace :v1 do
       # Explicit sync enrollment; the protected sync endpoints come with their tasks.
       resources :devices, only: :create
+      # JSON only; a format suffix is not a way to ask for anything else.
+      get "snapshot", to: "snapshots#show", format: false, defaults: { format: :json }
     end
   end
 
