@@ -1,6 +1,6 @@
 # Inventário de paridade — PWA atual → Android offline
 
-Data: 10/11/2026. Status: **proposto**. Nada aqui foi implementado; serve para
+Data: 10/11/2026. Status: **em implementação** (somente debug no Android); serve para
 não perder comportamento na migração e para dar critério às tasks do GitHub
 ([#33](https://github.com/isaaclvs/alva/issues/33)). Decisão em
 [ADR 0001](../adr/0001-android-offline-com-rails.md); regras de sync em
@@ -15,9 +15,9 @@ etapa de transição.
 
 | Funcionalidade | Hoje (PWA + APK conectado) | Destino Android offline | Sync implicado | Task |
 | --- | --- | --- | --- | --- |
-| Adicionar item | Campo aceita vírgula/ponto e vírgula/linha, máx. 30, dedup por nome normalizado | Mesmo campo, gravando local primeiro | `add_items` idempotente | #43 |
-| Dica de duplicado ao digitar | `duplicate_hint_controller.js` compara com pendentes (sem acento/caixa) | Mesma dica sobre o banco local (`DuplicateHint`, módulo pronto; a tela é da #43) | Só dica; servidor decide | #42 |
-| Acabou de adicionar | Itens criados/revividos com seletor de categoria (`from=recent`) | Mesmo retorno, só no aparelho que adicionou | Resposta HTTP, nunca broadcast | #43 |
+| Adicionar item | Campo aceita vírgula/ponto e vírgula/linha, máx. 30, dedup por nome normalizado | Implementado em debug: campo via `ShoppingListStore`, gravando local primeiro | `add_items` idempotente | #43 |
+| Dica de duplicado ao digitar | `duplicate_hint_controller.js` compara com pendentes (sem acento/caixa) | Mesma dica sobre o banco local (`DuplicateHint`, consumido pela tela debug na #43) | Só dica; servidor decide | #42 |
+| Acabou de adicionar | Itens criados/revividos com seletor de categoria (`from=recent`) | Retorno local implementado em debug; seletor de correção fica para #48 | Resposta HTTP, nunca broadcast | #43 |
 | Categorização automática | `ItemCategorizer` sobre `CatalogItem`, fallback "Outros" | Módulo Kotlin equivalente (`data/matching`), corpus compartilhado, dicionário no Room | Dicionário sincronizado | #42 |
 | Corrigir nome/categoria | Lápis troca a linha; categoria à mão ensina o dicionário | Mesmo formulário local, rascunho preservado | `correct_item` + `learn` | #47, #48 |
 | Aprender categoria | `CatalogItem` `learned: true`, `db:seed` não sobrescreve | Grava localmente e envia aprendizado | Precondição de revisão do dicionário | #42, #47 |
@@ -69,3 +69,5 @@ etapa de transição.
 - [ ] Meta inicial medida em aparelhos reais no release: retorno local ao
       adicionar/marcar em até 100 ms e lista utilizável em até 1 s numa abertura
       fria, sem aguardar rede (#59).
+
+Telas locais e limites da #43: [android-shopping-screens.md](android-shopping-screens.md).

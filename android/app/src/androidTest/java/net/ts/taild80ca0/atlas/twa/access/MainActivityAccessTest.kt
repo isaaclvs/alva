@@ -71,13 +71,13 @@ class MainActivityAccessTest {
         compose.onNodeWithTag("password").assertIsDisplayed()
 
         connectWith(server.password)
-        waitForText(AccessMessages.CONNECTED_TITLE)
+        waitForText("Nossa casa")
         assertEquals(1, server.pairingRequests().size)
         server.requests.clear()
 
         startProcess()
 
-        waitForText(AccessMessages.CONNECTED_TITLE)
+        waitForText("Nossa casa")
         compose.onAllNodes(androidx.compose.ui.test.hasTestTag("password")).fetchSemanticsNodes().let {
             assertTrue("no password field once connected", it.isEmpty())
         }
@@ -99,15 +99,16 @@ class MainActivityAccessTest {
     fun aRevokedDeviceOffersToReconnectAndGoesBackToConnected() {
         waitForText(AccessMessages.SETUP_TITLE)
         connectWith(server.password)
-        waitForText(AccessMessages.CONNECTED_TITLE)
+        waitForText("Nossa casa")
 
         server.revoke(server.devices.single().id)
+        compose.onNodeWithTag("house-menu").performClick()
         compose.onNodeWithTag("check").performClick()
         waitForText(AccessMessages.RECONNECT_TITLE)
         compose.onNodeWithText(AccessMessages.RECONNECT_HELP).assertIsDisplayed()
 
         connectWith(server.password)
-        waitForText(AccessMessages.CONNECTED_TITLE)
+        waitForText("Nossa casa")
         assertEquals(2, server.pairingRequests().size)
     }
 

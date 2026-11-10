@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -32,7 +34,7 @@ import kotlinx.coroutines.launch
  * lives only in this composable's field and is cleared as soon as it is sent.
  */
 @Composable
-fun AccessScreen(access: HouseAccess, connected: @Composable () -> Unit, modifier: Modifier = Modifier) {
+fun AccessScreen(access: HouseAccess, connected: @Composable (@Composable () -> Unit) -> Unit, modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
     val state by access.state.collectAsState()
     var password by remember { mutableStateOf("") }
@@ -41,34 +43,39 @@ fun AccessScreen(access: HouseAccess, connected: @Composable () -> Unit, modifie
 
     LaunchedEffect(Unit) { access.refresh() }
 
+    if (state == AccessState.Connected) {
+        connected {
+            OutlinedButton(
+                onClick = {
+                    scope.launch {
+                        working = true
+                        try {
+                            message = when (val result = access.checkConnection()) {
+                                is ConnectResult.Connected -> AccessMessages.CHECK_OK
+                                is ConnectResult.Failed -> AccessMessages.forError(result.error)
+                            }
+                        } finally { working = false }
+                    }
+                },
+                enabled = !working,
+                modifier = Modifier.testTag("check"),
+            ) { Text(AccessMessages.CHECK_BUTTON) }
+            message?.let { Text(it, modifier = Modifier.testTag("message")) }
+        }
+        return
+    }
+
     Column(
-        modifier = modifier.fillMaxSize().padding(24.dp),
+        modifier = modifier.fillMaxSize().safeDrawingPadding().imePadding().padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         when (state) {
             null -> Text(AccessMessages.WORKING)
+            AccessState.Connected -> Unit
             AccessState.StorageUnavailable -> {
                 Text(AccessMessages.STORAGE_UNAVAILABLE, style = MaterialTheme.typography.bodyLarge)
                 Button(onClick = { scope.launch { access.refresh() } }) { Text("Tentar de novo") }
-            }
-            AccessState.Connected -> {
-                connected()
-                OutlinedButton(
-                    onClick = {
-                        scope.launch {
-                            working = true
-                            message = when (val result = access.checkConnection()) {
-                                is ConnectResult.Connected -> AccessMessages.CHECK_OK
-                                is ConnectResult.Failed -> AccessMessages.forError(result.error)
-                            }
-                            working = false
-                        }
-                    },
-                    enabled = !working,
-                    modifier = Modifier.testTag("check"),
-                ) { Text(AccessMessages.CHECK_BUTTON) }
-                message?.let { Text(it, modifier = Modifier.testTag("message")) }
             }
             AccessState.NotConfigured, AccessState.NeedsReconnect -> {
                 val reconnect = state == AccessState.NeedsReconnect
