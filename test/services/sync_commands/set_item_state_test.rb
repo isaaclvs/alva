@@ -173,14 +173,56 @@ class SyncCommands::SetItemStateTest < ActiveSupport::TestCase
     assert created.reload.pending?
   end
 
-  test "an explicit version beside an inherited one is redundant and ignored" do
+  test "an older explicit version does not override a newer inherited version" do
+    item = uuid
+    add = add_items_command([ item, "Tapioca" ])
+    mark = set_item_state_command(item, "purchased", depends_on: add["id"])
+    unmark = set_item_state_command(item, "pending", lock_version: 0, depends_on: mark["id"])
+
+    results = submit(@ana, add, mark, unmark)
+
+    assert_equal %w[applied applied applied], results.map { |result| result[:status] }
+    assert @home.list_items.find_by!(public_id: item).pending?
+  end
+
+  test "a fresh snapshot version supersedes an older dependency receipt" do
+    add = add_items_command([ uuid, "Leite" ])
+    submit(@ana, add)
+    @milk.correct(name: "Leite integral", category_id: nil)
+    fresh_version = @milk.reload.lock_version
+
+    result = submit(@ana, set_item_state_command(@milk.public_id, "purchased",
+      lock_version: fresh_version, depends_on: add["id"])).first
+
+    assert_equal "applied", result[:status]
+    assert @milk.reload.purchased?
+    assert_equal "Leite integral", @milk.name
+  end
+
+  test "an explicit future version is not silently ignored in favor of an older receipt" do
     item = uuid
     add = add_items_command([ item, "Tapioca" ])
     mark = set_item_state_command(item, "purchased", lock_version: 99, depends_on: add["id"])
 
     results = submit(@ana, add, mark)
 
-    assert_equal %w[applied applied], results.map { |result| result[:status] }
+    assert_equal %w[applied conflict], results.map { |result| result[:status] }
+    assert_equal 99, results.last[:data]["expected_lock_version"]
+    assert @home.list_items.find_by!(public_id: item).pending?
+  end
+
+  test "an invalid explicit version is malformed even when a dependency has a valid version" do
+    add = add_items_command([ uuid, "Leite" ])
+    submit(@ana, add)
+
+    [ -1, "1", false ].each do |version|
+      command = set_item_state_command(@milk.public_id, "purchased", depends_on: add["id"])
+      command["preconditions"] = { "lock_version" => version }
+      result = submit(@ana, command).first
+
+      assert_equal [ "rejected", "malformed_command" ], result.values_at(:status, :error)
+    end
+    assert @milk.reload.pending?
   end
 
   test "a UUID unified with another phone's item works through its alias, also in a chain" do

@@ -94,6 +94,41 @@ class SyncCommands::AddItemsTest < ActiveSupport::TestCase
     assert_equal detergent.public_id, SyncAlias.find_by!(public_id: mine).canonical_public_id
   end
 
+  test "revival inherits the purchase version of the preceding offline command" do
+    milk = list_items(:milk)
+    mark = set_item_state_command(milk.public_id, "purchased", lock_version: milk.lock_version)
+    entry = { "public_id" => uuid, "name" => "Leite",
+              "revives" => { "public_id" => milk.public_id, "lock_version" => milk.lock_version } }
+
+    results = submit(@ana, mark, add_items_command(entry, depends_on: mark["id"]))
+
+    assert_equal %w[applied applied], results.map { |result| result[:status] }
+    assert milk.reload.pending?
+  end
+
+  test "an offline add purchase and revival need no invented server version" do
+    item = uuid
+    add = add_items_command([ item, "Tapioca" ])
+    mark = set_item_state_command(item, "purchased", depends_on: add["id"])
+    entry = { "public_id" => uuid, "name" => "Tapioca", "revives" => { "public_id" => item } }
+
+    results = submit(@ana, add, mark, add_items_command(entry, depends_on: mark["id"]))
+
+    assert_equal %w[applied applied applied], results.map { |result| result[:status] }
+    assert @home.list_items.find_by!(public_id: item).pending?
+    assert_equal 1, @home.list_items.where(name: "Tapioca").count
+  end
+
+  test "revival without a version or a relevant dependency is malformed" do
+    item = list_items(:detergent)
+    entry = { "public_id" => uuid, "name" => item.name, "revives" => { "public_id" => item.public_id } }
+
+    result = submit(@ana, add_items_command(entry)).first
+
+    assert_equal [ "rejected", "malformed_command" ], result.values_at(:status, :error)
+    assert item.reload.purchased?
+  end
+
   test "a purchase that changed after the phone saw it is a conflict, not a revival" do
     detergent = list_items(:detergent)
     saw = detergent.lock_version
@@ -262,13 +297,21 @@ class SyncCommands::AddItemsTest < ActiveSupport::TestCase
     assert_equal 0, SyncCommand.where(command_type: "add_items").count
   end
 
-  test "blank and oversized names are invalid_name and keep the index" do
-    [ "   ", "x" * (SyncCommands::AddItems::MAX_NAME_LENGTH + 1) ].each do |name|
+  test "blank names are invalid_name and keep the index" do
+    [ "", "   " ].each do |name|
       result = submit(@ana, add_items_command([ uuid, "Tapioca" ], [ uuid, name ])).first
 
       assert_equal [ "rejected", "invalid_name", 1 ], [ result[:status], result[:error], result[:data]["index"] ]
     end
     assert_nil @home.pending_item_named("Tapioca")
+  end
+
+  test "a name accepted by the PWA is not rejected by an arbitrary sync-only limit" do
+    name = "x" * 121
+    result = submit(@ana, add_items_command([ uuid, name ])).first
+
+    assert_equal "applied", result[:status]
+    assert_equal name, @home.pending_item_named(name).name
   end
 
   test "the list is broadcast once, after the commit, and not at all when the command fails" do

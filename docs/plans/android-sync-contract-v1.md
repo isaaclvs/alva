@@ -227,8 +227,9 @@ um comando já enviado.
   qualquer caixa, normalizado para minúsculas) que o aparelho
   gerou, na ordem de `payload.items`. O servidor cria a linha **com esse
   mesmo UUID**; ele nunca é reescrito. De 1 a 30 itens, sem UUID repetido no
-  comando. O nome é normalizado com `squish` e não pode ficar vazio nem passar
-  de 120 caracteres (`invalid_name`, com `index` do item); a categoria e a
+  comando. O nome é normalizado com `squish` e não pode ficar vazio
+  (`invalid_name`, com `index` do item); não há limite de comprimento exclusivo
+  do sync. A categoria e a
   duplicidade seguem as regras do Rails (`ItemCategorizer`, `TextNormalizer`,
   `Household#add_item_for_sync`), como se o nome fosse digitado na PWA.
 - Resultado por item, em `data.items` (mesma ordem), com `outcome`:
@@ -251,7 +252,12 @@ um comando já enviado.
 - **Comprado não volta sozinho.** Se o nome casa com um item *comprado*, o
   servidor só o traz de volta quando o item diz qual compra o aparelho viu:
   `revives: { public_id, lock_version }`. O item tem de estar na lista, comprado,
-  com aquele `lock_version`; senão é `conflict` / `precondition_failed` com
+  com aquele `lock_version`. Se `depends_on` devolveu uma versão desse mesmo
+  item, ela também vale para a reativação: usar a maior versão entre o recibo
+  e a explícita. Nesse caso a versão explícita pode ser omitida, permitindo
+  adicionar → marcar → adicionar de novo sem inventar versões no aparelho.
+  Sem versão explícita nem recibo relevante, é `rejected` / `malformed_command`.
+  Uma versão diferente da atual é `conflict` / `precondition_failed` com
   `data.reason` `purchase_not_observed` (sem `revives`) ou `purchase_changed`
   (`revives` velho) e `data.current` com o estado atual. `revives` apontando
   para item arquivado/removido é `rejected` / `gone`, e para UUID desconhecido,
@@ -304,12 +310,15 @@ versão 2):
   credencial). Item arquivado ou removido responde `rejected` / `gone`
   (`data.reason`, `canonical_public_id`); UUID inexistente ou de outra casa,
   `rejected` / `not_found`, com resposta idêntica; nada é recriado.
-- **Versão esperada (`lock_version`), nesta ordem:**
+- **Versão esperada (`lock_version`):**
   1. Se o comando em `depends_on` mexeu neste item (o resultado dele, no ledger,
      tem uma entrada para o item canônico), a versão **herdada** é o
      `lock_version` que ele deixou. O servidor lê isso do resultado do passo
-     anterior; o conteúdo do comando nunca é reescrito. Um `preconditions.lock_version`
-     enviado junto é redundante (só pode ser mais velho) e é ignorado.
+     anterior; o conteúdo do comando nunca é reescrito. Se também houver
+     `preconditions.lock_version`, usar a **maior** das duas versões: um
+     snapshot mais recente pode ter chegado enquanto o recibo anterior ainda
+     aguardava confirmação. Uma versão explícita inválida é malformada mesmo
+     quando há versão herdada; uma versão acima da atual gera conflito.
   2. Senão, `preconditions.lock_version` (inteiro ≥ 0) é obrigatório: a versão que
      o aparelho viu no último snapshot. Ausente ou inválido é `rejected` /
      `malformed_command` (`data.field`: `preconditions.lock_version`). Um
@@ -742,7 +751,7 @@ um item arquivado **não** gera tombstone.
 | `forbidden_scope` | 403 | não | Escopo `add_only` tentou sync; pedir autorização completa. |
 | `sync_unavailable` | 403 | não | Sem senha da casa configurada; pareamento de sync indisponível. |
 | `malformed_command` | 422 | não | Envelope/campos inválidos; corrigir e reenviar com novo status local. |
-| `invalid_name` | 422 | não | Nome vazio ou com mais de 120 caracteres (limite de `add_items`; a PWA não impõe um); `data.index` diz qual item. Mostrar no item, não descartar o texto. |
+| `invalid_name` | 422 | não | Nome vazio após normalização, como na PWA; `data.index` diz qual item. Mostrar no item, não descartar o texto. |
 | `stale_revision` | 409 | sim, após novo snapshot | Precondição de revisão falhou; sincronizar e reavaliar. |
 | `precondition_failed` | 409 | sim, após novo snapshot | Item mudou; apresentar estado atual para revisão, sem sobrescrever. |
 | `not_found` | 404 | não | Registro inexistente nesta casa; remover da fila só após confirmar. |

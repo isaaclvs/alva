@@ -20,7 +20,6 @@ module SyncCommands
   # and revision when any entry conflicts or is rejected.
   class AddItems
     MAX_ITEMS = ItemNameSplitter::MAX_NAMES
-    MAX_NAME_LENGTH = 120
 
     Entry = Data.define(:public_id, :name, :revives)
     Revives = Data.define(:public_id, :lock_version)
@@ -99,7 +98,11 @@ module SyncCommands
       end
       return unless purchased || seen
 
-      return if purchased && seen&.item == purchased && purchased.lock_version == entry.revives.lock_version
+      if purchased && seen&.item == purchased
+        expected = [ ItemData.inherited_lock_version(@command, purchased), entry.revives.lock_version ].compact.max
+        return malformed("revives.lock_version") unless expected
+        return if purchased.lock_version == expected
+      end
 
       conflict(purchased || seen.item, seen ? "purchase_changed" : "purchase_not_observed")
     end
@@ -151,7 +154,7 @@ module SyncCommands
       return malformed("payload.items[#{index}].name") unless item["name"].is_a?(String)
 
       name = item["name"].squish
-      if name.blank? || name.length > MAX_NAME_LENGTH
+      if name.blank?
         return SyncCommandProcessor::Outcome.rejected("invalid_name", "index" => index, "public_id" => public_id)
       end
 
@@ -169,7 +172,7 @@ module SyncCommands
 
       public_id = uuid(value["public_id"])
       version = value["lock_version"]
-      return malformed(field) unless public_id && version.is_a?(Integer) && version >= 0
+      return malformed(field) unless public_id && (version.nil? || (version.is_a?(Integer) && version >= 0))
 
       Revives.new(public_id:, lock_version: version)
     end

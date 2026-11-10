@@ -93,19 +93,23 @@ qualquer das saídas. Situação após a #39 (detalhes em
    servidor aceita e usa a versão que aquele comando deixou.
 3. **Fechada (#39).** Um comando com `depends_on` aplicado herda a versão
    resultante *daquele* comando (do ledger); o conteúdo do comando enviado nunca
-   muda e um `lock_version` enviado junto é ignorado. Primeiro passo sobre item
+   muda. Se o comando também tem uma versão explícita de snapshot, usar a
+   maior das duas: a versão do snapshot pode ser mais recente que o recibo.
+   Primeiro passo sobre item
    conhecido de um snapshot leva o `lock_version` do snapshot. Atenção ao
    `depends_on`: precisa ser o último comando da fila **sobre o mesmo item** (é o
    que o Room já faz); um que só tocou outros itens não empresta versão.
    Para trazer de volta um item comprado digitando o nome de novo, o item de
    `add_items` leva `revives: { public_id, lock_version }` da compra vista
-   localmente (ou o cliente usa `set_item_state` pending sobre o item).
+   localmente; pode omitir `lock_version` quando `depends_on` fornece a versão
+   desse mesmo item. Isso cobre adicionar → marcar → digitar de novo sem rede
+   (ou o cliente usa `set_item_state` pending sobre o item).
 4. **Aberta** (`correct_item`, #47/#48): usa `category_id` (inteiro) enquanto o
    resto usa `public_id`; `purchased_at` local é só para exibição, o servidor
    decide o valor.
-5. **Fechada para `add_items` (#39).** Nome vazio ou com mais de 120 caracteres
-   é `invalid_name` (a PWA continua só exigindo presença). Validar no cliente com
-   o mesmo limite, para não enfileirar o que será rejeitado.
+5. **Fechada para `add_items` (#39).** Nome vazio após normalização é
+   `invalid_name`, como na PWA. Não foi introduzido limite de comprimento
+   exclusivo do sync; o cliente deve preservar a mesma regra de presença.
 6. **Aberta** (#45): a versão 1 do banco é a fundação da lista/fila, não o
    armazenamento completo do snapshot. Antes de ingerir o documento em #45,
    estender o schema com os campos/coleções necessários (incluindo

@@ -15,9 +15,9 @@ module SyncCommands
   #   command left (recorded in its ledger result) is inherited. The author of
   #   a queued add → mark → unmark sequence cannot know the server's versions
   #   in advance, and the command already sent is never rewritten; the server
-  #   reads them from the result of the previous step instead. An explicit
-  #   `lock_version` sent alongside is redundant (it can only be older) and is
-  #   ignored.
+  #   reads them from the result of the previous step instead. A newer snapshot
+  #   may have arrived while that receipt was still unacknowledged; use the
+  #   greatest of the inherited and explicitly observed versions.
   # - Otherwise `preconditions.lock_version` is required: the version of the
   #   item as the phone last saw it in a snapshot.
   #
@@ -44,7 +44,10 @@ module SyncCommands
       return rejected("gone", "reason" => found.kind.to_s, "canonical_public_id" => found.canonical_public_id) if found.gone?
 
       item = found.item
-      expected = ItemData.inherited_lock_version(@command, item) || @command.preconditions["lock_version"]
+      explicit = @command.preconditions["lock_version"]
+      return malformed("preconditions.lock_version") unless explicit.nil? || (explicit.is_a?(Integer) && explicit >= 0)
+
+      expected = [ ItemData.inherited_lock_version(@command, item), explicit ].compact.max
       return malformed("preconditions.lock_version") unless expected.is_a?(Integer) && expected >= 0
 
       return SyncCommandProcessor::Outcome.noop("item" => ItemData.entry(item, public_id)) if item.status == desired
