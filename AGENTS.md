@@ -8,10 +8,35 @@ App Android de lista de compras compartilhada, para uso doméstico (2 usuários)
 Foco absoluto: adicionar um item que acabou em casa precisa ter **fricção zero**.
 Quando chega o dia de ir ao mercado, a lista já está organizada por categoria.
 
-Rastreamento de trabalho: Linear, workspace **Alva**, time **ALV**
-(https://linear.app/alva-isaac/team/ALV/all). Leia a task correspondente antes
-de implementar e prefira a CLI `linear`, configurada por `.linear.toml`.
-Referências SHO neste documento são decisões históricas do MVP.
+Rastreamento de trabalho: o **Linear** (workspace **Alva**, time **ALV**,
+https://linear.app/alva-isaac/team/ALV/all) fica como **histórico** do MVP/PWA;
+referências SHO/ALV neste documento são decisões daquele período. A **migração
+para o app Android nativo offline** é acompanhada no GitHub pela issue
+[Alva nativo offline — #33](https://github.com/isaaclvs/alva/issues/33) e suas
+tasks; não duplicar a mesma task nos dois lugares. Antes de implementar,
+identifique se a mudança é no produto atual (PWA/APK conectado) ou na migração,
+e leia o documento correspondente.
+
+## Produto atual e destino nativo
+
+O que está **em uso hoje** e não pode quebrar durante a migração: a PWA
+instalável e o APK TWA com widget conectados ao Rails, sem modo offline.
+
+O **destino aprovado** (ainda não implementado; regras de sync propostas): app
+Android nativo em Kotlin/Compose com Room e fila local, funcionando offline e
+sincronizando com o Rails/SQLite existente. Kotlin e o desenho cliente
+novo/servidor existente foram aprovados pelo usuário em 10/11/2026.
+
+- Decisão e consequências: `docs/adr/0001-android-offline-com-rails.md`
+- Plano e regras propostas: `docs/plans/android-offline.md`
+- Contrato de sincronização v1: `docs/plans/android-sync-contract-v1.md`
+- Inventário de paridade: `docs/plans/android-parity-inventory.md`
+
+Fluxo de entrega da migração: branch curta criada da `main` atualizada e PR
+sempre para `main`, sem `staging`/`develop`/branch longa de migração; commits
+pequenos e coerentes; uma entrega revisável por PR; dependência integrada à
+`main` antes do trabalho dependente, sem empilhar PRs entre feature branches;
+`Refs #issue` nos PRs intermediários e `Closes` só na conclusão da issue.
 
 ## Stack
 
@@ -20,10 +45,11 @@ Referências SHO neste documento são decisões históricas do MVP.
 - Turbo/Hotwire (Turbo Streams + ActionCable) para atualização em tempo real
 - Tailwind CSS
 - PWA (manifest + service worker mínimo, via `rails/pwa`) — instalável direto do
-  browser ("adicionar à tela inicial"), sem app nativo/APK por enquanto. Decisão
-  tomada na SHO-1 depois de avaliar Ruby Native (SaaS pago) e Hotwire Native
-  (exige toolchain Android/Kotlin) — nenhum dos dois valia a pena pra meta atual
-  de teste rápido com o usuário real.
+  browser ("adicionar à tela inicial"). Decisão tomada na SHO-1 (histórico)
+  depois de avaliar Ruby Native (SaaS pago) e Hotwire Native (exige toolchain
+  Android/Kotlin). Hoje também existe um APK TWA com widget de inclusão e
+  atalhos; o próximo passo é o app Android nativo offline (ver "Produto atual e
+  destino nativo").
 - Minitest + Capybara para testes (padrão Rails)
 
 ## Decisões de produto já fechadas (não reabrir sem confirmar com o usuário)
@@ -33,7 +59,9 @@ Referências SHO neste documento são decisões históricas do MVP.
   aparelho e proteção de HTTP e ActionCable. Para configurar ou publicar, leia
   `docs/deployment/tailscale-funnel.md`. Decisão autorizada pelo usuário ao
   preparar o acesso sem VPN.
-- **Sem modo offline.** Uso majoritariamente em casa via wifi.
+- **Sem modo offline (produto atual).** Uso majoritariamente em casa via wifi.
+  O destino nativo offline está descrito em "Produto atual e destino nativo" e
+  não altera o comportamento da PWA agora.
 - **Sem quantidade nos itens.** Só o nome (ex.: "Leite", não "2x Leite").
 - **Lista contínua.** Item comprado fica riscado mas visível, não vai para tela
   separada, e os itens pendentes sempre continuam na lista. O usuário pode
@@ -57,8 +85,9 @@ Referências SHO neste documento são decisões históricas do MVP.
   celular, deslizar a linha para a esquerda também remove (`swipe_controller.js`,
   só toque e nunca em compras). Os dois passam pelo mesmo desfazer.
 - **Deploy self-hosted**, não é para publicar na Play Store agora — distribuição
-  é via PWA (acesso remoto via Tailscale). App nativo/APK fica em aberto para o
-  futuro, se fizer sentido depois do teste com o usuário real.
+  é via PWA (acesso remoto via Tailscale). O APK TWA com widget já existe e a
+  migração para o app Android nativo offline é o próximo passo (ver "Produto
+  atual e destino nativo").
 - Modelagem já prevê `Household` (mesmo com 1 registro fixo hoje) para não
   exigir retrabalho se o app virar produto multi-usuário no futuro.
 
@@ -204,16 +233,23 @@ acoplar o dicionário à lista viva.
 ## Testes
 
 - Toda task deve incluir testes (model, request/controller ou sistema/Capybara,
-  conforme o critério de aceite da task no Linear).
+  conforme o critério de aceite da task — GitHub para a migração, Linear para o
+  histórico).
 - Rodar a suíte completa antes de considerar uma task pronta: `bin/rails test`
   (e `bin/rails test:system` quando houver testes de sistema).
 
-## Fora de escopo do MVP (não implementar sem pedido explícito)
+## Fora de escopo do produto atual (não implementar sem pedido explícito)
+
+Para a PWA/APK conectado em uso hoje:
 
 - Múltiplas famílias/contas e cadastro de usuários
 - Quantidade por item
 - Categorização com IA/fuzzy matching avançado
 - Criar, renomear ou reordenar categorias via UI
 - Tela de histórico de compras, notificações, integração com receitas
-- Publicação na Play Store / app nativo
-- Modo offline
+- Publicação na Play Store
+
+Estas restrições descrevem o produto anterior. App Android nativo e modo offline
+deixaram de ser fora de escopo: a migração foi autorizada (ADR 0001) e é
+acompanhada pela issue #33, mantendo a PWA/APK atuais funcionando e sem novas
+features fora da paridade.

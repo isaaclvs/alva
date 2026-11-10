@@ -7,10 +7,12 @@ workflow para o Claude Code.
 
 ## Como trabalhar neste repositório
 
-- O trabalho é rastreado no Linear, time **SHO**. Antes de implementar, busque
-  a task correspondente (ex.: "SHO-2") e leia contexto, critério de aceite e
-  notas técnicas — não implemente a partir de suposição quando a task já
-  documenta o escopo.
+- O rastreamento está descrito em AGENTS.md ("Produto atual e destino nativo"):
+  a migração para o app Android nativo offline é acompanhada no GitHub (issue
+  #33) e o Linear fica como histórico do MVP/PWA. Antes de implementar, busque a
+  task correspondente (GitHub para a migração, Linear para o histórico) e leia
+  contexto, critério de aceite e notas técnicas — não implemente a partir de
+  suposição quando a task já documenta o escopo.
 - Uma task = um escopo fechado. Não adiante trabalho de tasks futuras (ex.:
   não implemente real-time via ActionCable enquanto ainda estiver em SHO-5,
   que é sequencial e não real-time — isso é SHO-6).
