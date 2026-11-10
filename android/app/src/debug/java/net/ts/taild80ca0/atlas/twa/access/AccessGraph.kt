@@ -18,6 +18,11 @@ object AccessGraph {
             instance ?: build(context.applicationContext).also { instance = it }
         }
 
+    /** Test hook: replaces (or, with null, drops) the instance, like a new process would. */
+    fun install(access: HouseAccess?) {
+        synchronized(this) { instance = access }
+    }
+
     private fun build(context: Context): HouseAccess {
         val database: AlvaDatabase = AlvaDatabaseFactory.create(context)
         return HouseAccess(
