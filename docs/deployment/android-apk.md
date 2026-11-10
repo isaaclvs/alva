@@ -51,8 +51,12 @@ Comandos, a partir de `android/`:
 ./gradlew assembleDebug        # APK debug instalável
 ./gradlew testDebugUnitTest    # testes unitários da variante debug
 ./gradlew lintDebug            # lint da variante debug
-./gradlew verifyVariants       # confere os manifestos efetivos de debug e release
+./gradlew verifyVariants       # confere os manifestos efetivos de debug e release e que a release não tem Room
+./gradlew connectedDebugAndroidTest  # testes Room instrumentados (exige emulador/aparelho)
 ```
+
+A persistência local (Room, fila de comandos) só existe na debug por enquanto:
+ver [android-local-persistence.md](../plans/android-local-persistence.md).
 
 Instalação em um aparelho autorizado no `adb`:
 

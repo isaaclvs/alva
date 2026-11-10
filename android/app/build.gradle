@@ -21,6 +21,7 @@ plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
     id 'org.jetbrains.kotlin.plugin.compose'
+    id 'com.google.devtools.ksp'
 }
 
 def twaManifest = [
@@ -62,6 +63,8 @@ android {
         targetSdkVersion 36
         versionCode 4
         versionName '1.3.0'
+
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
 
         // The name for the application
         resValue "string", "appName", twaManifest.name
@@ -194,6 +197,18 @@ android {
     lintOptions {
         checkReleaseBuilds false
     }
+    sourceSets {
+        // Room schema history (one JSON per database version). The instrumented
+        // migration tests read it as assets, so a version bump without its
+        // schema file and migration fails.
+        androidTest.assets.srcDirs += files("$projectDir/schemas")
+    }
+}
+
+// Room's compiler exports the schema of every database version here (kept in Git).
+ksp {
+    arg('room.schemaLocation', "$projectDir/schemas")
+    arg('room.generateKotlin', 'true')
 }
 
 // Keep Java and Kotlin bytecode targets aligned with compileOptions above.
@@ -256,7 +271,21 @@ dependencies {
     debugImplementation 'androidx.compose.material3:material3'
     debugImplementation 'androidx.compose.ui:ui-tooling-preview'
 
+    // Local persistence (Room) is a debug-only dependency until the explicit
+    // transition: the release TWA APK must not ship it. See
+    // docs/plans/android-local-persistence.md.
+    debugImplementation 'androidx.room:room-runtime:2.7.2'
+    debugImplementation 'androidx.room:room-ktx:2.7.2'
+    kspDebug 'androidx.room:room-compiler:2.7.2'
+    debugImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
+
     testImplementation 'junit:junit:4.13.2'
+    // Real org.json for JVM tests (the android.jar one is a stub).
+    testImplementation 'org.json:json:20250517'
+
+    androidTestImplementation 'androidx.test:runner:1.7.0'
+    androidTestImplementation 'androidx.test.ext:junit:1.3.0'
+    androidTestImplementation 'androidx.room:room-testing:2.7.2'
 }
 
 // Verifies the effective merged manifest of each variant: exactly one launcher
@@ -321,8 +350,32 @@ androidComponents {
     }
 }
 
+// The local database (Room) is debug-only until the explicit
+// transition: the release TWA APK must keep its dependency set.
+tasks.register('verifyReleaseHasNoLocalPersistence') {
+    def releaseGroups = provider {
+        configurations.releaseRuntimeClasspath.incoming.resolutionResult.allComponents
+            .collect { it.moduleVersion?.group }.findAll { it != null }.toSet()
+    }
+    def debugGroups = provider {
+        configurations.debugRuntimeClasspath.incoming.resolutionResult.allComponents
+            .collect { it.moduleVersion?.group }.findAll { it != null }.toSet()
+    }
+    doLast {
+        def banned = ['androidx.room']
+        banned.each { group ->
+            if (releaseGroups.get().any { it.startsWith(group) }) {
+                throw new GradleException("Release runtime classpath must not contain ${group}")
+            }
+        }
+        if (!debugGroups.get().contains('androidx.room')) {
+            throw new GradleException('Debug runtime classpath is expected to contain Room')
+        }
+    }
+}
+
 tasks.register('verifyVariants') {
-    dependsOn 'verifyDebugManifest', 'verifyReleaseManifest'
+    dependsOn 'verifyDebugManifest', 'verifyReleaseManifest', 'verifyReleaseHasNoLocalPersistence'
 }
 
 tasks.named('check') {

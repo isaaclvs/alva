@@ -106,6 +106,7 @@ class NavigationTest < ApplicationSystemTestCase
     assert_selector "#category_#{categories(:produce).id}", text: "Leite corrigido"
 
     remove_item "Leite corrigido"
+    assert_selector "#toast [role=status]", text: "Leite corrigido removido"
     click_button "Desfazer"
     assert_selector "#category_#{categories(:produce).id}", text: "Leite corrigido"
 
