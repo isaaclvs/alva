@@ -2,11 +2,12 @@
 
 Data: 10/11/2026. Status: **parcialmente implementado** — a direção
 arquitetural e a escolha de Kotlin estão aprovadas
-([ADR 0001](../adr/0001-android-offline-com-rails.md)). A identidade pública dos
-registros e as revisões/tombstones foram implementadas na issue #36
-(migrações `AddPublicIds` e `AddSyncRevisions`); o resto do contrato —
-endpoints, envelope de comandos, aliases e cliente — segue proposto. Ele existe
-para dar um alvo versionado às tasks do GitHub
+([ADR 0001](../adr/0001-android-offline-com-rails.md)). Pareamento, escopos e a
+barreira de autenticação da `/api/v1` foram implementados na issue #35;
+identidade pública, revisões e tombstones foram implementados na issue #36
+(migrações `AddPublicIds` e `AddSyncRevisions`). Snapshot, envelope de comandos,
+aliases e cliente seguem propostos. O contrato dá um alvo versionado às tasks
+do GitHub
 ([Alva nativo offline — #33](https://github.com/isaaclvs/alva/issues/33)), que
 podem refiná-lo com evidência de implementação.
 
@@ -30,20 +31,64 @@ regras de negócio (o que cada comando faz) continuam em
 
 ## Autenticação e autorização
 
-- Pareamento uma vez, online, com a senha compartilhada que já existe
-  (`HouseholdAccess`): `POST /api/v1/devices` devolve `device_id` e um segredo
-  de uso único (mostrado uma vez). O segredo é guardado só como digest no
-  servidor e no aparelho sob Android Keystore; a senha nunca é embutida no APK.
-- Toda requisição de sync usa `Authorization: Bearer <segredo>`.
-- Escopos: `add_only` (a credencial atual do widget, limitada à inclusão, sem
-  ampliação silenciosa) e `sync` (leitura de snapshot e todos os comandos v1).
-  Sincronização completa exige credencial nova com escopo `sync`.
-- Revogação por `revoked_at` no servidor; rotacionar a senha da casa invalida as
-  credenciais pelo digest atual, sem apagar dados locais nem a fila. Reconectar
-  à mesma casa preserva ações pendentes.
+Implementado na issue #35 para pareamento, escopos e a barreira de acesso da
+`/api/v1`; snapshots e comandos continuam proposta.
+
+- Pareamento explícito de sync, online, com a senha compartilhada que já existe
+  (`HouseholdAccess`): `POST /api/v1/devices` devolve `device_id` e o segredo em
+  HTTP 201 com `Cache-Control: no-store`, somente no corpo dessa resposta. O
+  segredo é guardado só como digest no servidor e no aparelho sob Android
+  Keystore; a senha nunca é embutida no APK. Cookie da PWA e token de aparelho
+  não substituem a senha, e escopo enviado pelo cliente é ignorado.
+- O pareamento antigo do widget (`POST /api/android/devices`) continua emitindo
+  apenas `add_only`.
+- Toda requisição de sync usa `Authorization: Bearer <segredo>`, com parsing
+  estrito (esquema `Bearer ` exato, sem espaços extras). A identidade e a casa
+  vêm só do token; `household_id`, `device_id` e `scope` do payload nunca
+  selecionam a casa nem elevam permissões.
+- Escopos: `add_only` (credencial do widget, limitada à inclusão, sem ampliação
+  silenciosa) e `sync` (leitura de snapshot e todos os comandos v1).
+  `quick_add` aceita os dois. Credencial `add_only` na base protegida responde
+  403 `forbidden_scope`; ausente, malformada, desconhecida, revogada ou anterior
+  à rotação responde 401 `unauthorized`, sem alterar dados.
+- Sem senha configurada, o pareamento de sync responde 403 `sync_unavailable`.
+  O modo privado sem senha da PWA continua funcionando, e credenciais antigas
+  passam a ser recusadas com 401 em vez de erro 500.
+- Revogação individual por `revoked_at`, idempotente e sem afetar o outro
+  aparelho. Rotacionar a senha da casa invalida todas as credenciais pelo digest
+  atual, sem apagar dados locais nem a fila; uma nova emissão já funciona com o
+  novo digest. Reconectar à mesma casa preserva ações pendentes.
+- Rate limit de pareamento: 5 tentativas por 15 minutos por IP, compartilhado
+  entre `/api/android/devices` e `/api/v1/devices`, com 429 `rate_limited` e
+  `Retry-After`. O contador fica em memória por processo; no Atlas há um único
+  processo Puma e reiniciar o serviço zera a contagem. O IP segue as regras de
+  proxy confiável do Rails (`request.remote_ip`).
+- Toda resposta de `/api/v1` usa `Cache-Control: no-store`.
 - Primeira carga exige rede. Depois a cópia local funciona offline. Não
   restaurar credenciais cegamente por backup Android: reinstalar exige
   reautorização e nova carga.
+
+### Emissão, revogação e rotação
+
+Emissão (nova credencial `sync`, mostrada uma vez):
+
+```bash
+curl -sS -X POST https://<host>/api/v1/devices \
+  -H 'Content-Type: application/json' \
+  -d '{"password":"<senha da casa>","name":"Celular da Ana"}'
+```
+
+Revogação individual, no Rails console do servidor:
+
+```ruby
+AndroidDevice.where(revoked_at: nil).pluck(:id, :name, :scope)
+AndroidDevice.find(12).revoke!   # repetir é seguro
+```
+
+Rotação da senha: gere um novo hash bcrypt, atualize `ALVA_PASSWORD_DIGEST` e
+reinicie o serviço (ver [tailscale-funnel.md](../deployment/tailscale-funnel.md)).
+Todos os aparelhos precisam parear de novo. Não há painel administrativo nesta
+versão.
 
 ## Envelope de comando
 
@@ -221,6 +266,7 @@ Regras implementadas em #36 (`Household#record_shared_change!`):
 | --- | --- | --- | --- |
 | `unauthorized` | 401 | não | Credencial ausente/inválida; refazer pareamento. |
 | `forbidden_scope` | 403 | não | Escopo `add_only` tentou sync; pedir autorização completa. |
+| `sync_unavailable` | 403 | não | Sem senha da casa configurada; pareamento de sync indisponível. |
 | `malformed_command` | 422 | não | Envelope/campos inválidos; corrigir e reenviar com novo status local. |
 | `invalid_name` | 422 | não | Nome vazio/longo demais; mostrar no item, não descartar o texto. |
 | `stale_revision` | 409 | sim, após novo snapshot | Precondição de revisão falhou; sincronizar e reavaliar. |
