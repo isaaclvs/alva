@@ -32,7 +32,10 @@ object AccessGraph {
 
     /** Test hook: replaces (or, with null, drops) the instance, like a new process would. */
     fun install(access: HouseAccess?, store: ShoppingListStore? = null) {
-        synchronized(this) { instance = access }
+        synchronized(this) {
+            instance = access
+            listStore = store
+        }
     }
 
     private fun build(context: Context): HouseAccess {

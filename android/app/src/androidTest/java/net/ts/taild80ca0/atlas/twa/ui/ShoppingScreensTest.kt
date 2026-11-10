@@ -56,6 +56,21 @@ class ShoppingScreensTest {
         context.deleteDatabase(file)
     }
 
+    private fun waitForText(tag: String, text: String) {
+        compose.waitUntil(10_000) {
+            compose.onAllNodes(hasTestTag(tag) and hasText(text, substring = true)).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    private fun assertMarked(id: String, checked: Boolean) {
+        val value = if (checked) androidx.compose.ui.state.ToggleableState.On else androidx.compose.ui.state.ToggleableState.Off
+        compose.waitUntil(10_000) {
+            compose.onAllNodes(hasTestTag("item-$id") and SemanticsMatcher.expectValue(
+                androidx.compose.ui.semantics.SemanticsProperties.ToggleableState, value,
+            )).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
     private fun add(text: String) {
         compose.onNodeWithTag("add-input").performTextInput(text)
         compose.onNodeWithTag("save-add").performClick()
@@ -70,11 +85,11 @@ class ShoppingScreensTest {
         add("Leite, Pão; Ovos\nLeite")
         compose.onNodeWithTag("add-input").assert(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.EditableText, androidx.compose.ui.text.AnnotatedString("")))
         compose.onNodeWithTag("nav-list").performClick()
-        compose.onNodeWithTag("list-summary").assertTextEquals("3 pendentes · 0 comprados")
+        waitForText("list-summary", "3 pendentes · 0 comprados")
         val id = runBlocking { db.listItems().live().first { it.name == "Leite" }.publicId }
         compose.onNodeWithTag("item-$id").performClick()
-        compose.onNodeWithTag("item-$id").assertIsOn()
-        compose.onNodeWithTag("list-summary").assertTextEquals("2 pendentes · 1 comprados")
+        assertMarked(id, true)
+        waitForText("list-summary", "2 pendentes · 1 comprados")
 
         scenario!!.close()
         db.close()
@@ -82,18 +97,20 @@ class ShoppingScreensTest {
         store = RoomShoppingListStore(db)
         launch()
         compose.onNodeWithTag("nav-list").performClick()
-        compose.onNodeWithTag("item-$id").assertIsOn()
+        assertMarked(id, true)
         assertEquals(2, runBlocking { db.commands().inOrder().size })
         compose.onNodeWithTag("item-$id").performClick()
-        compose.onNodeWithTag("item-$id").assertIsOff()
+        assertMarked(id, false)
     }
 
     @Test fun warnsAboutDuplicatesAndPreservesInputWhenNothingIsAdded() {
         runBlocking { store.execute(ListIntent.AddText("Leite")) }
         launch()
         compose.onNodeWithTag("add-input").performTextInput("leite")
+        waitForText("duplicate-hint", "Já na lista: Leite")
         compose.onNodeWithTag("duplicate-hint").assertTextContains("Já na lista: Leite")
         compose.onNodeWithTag("save-add").performClick()
+        waitForText("feedback", "Já está na lista")
         compose.onNodeWithTag("feedback").assertTextContains("Já está na lista: leite")
         compose.onNodeWithTag("add-input").assertTextContains("leite")
         assertEquals(1, runBlocking { db.commands().inOrder().size })
@@ -106,6 +123,7 @@ class ShoppingScreensTest {
         launch(failing)
         compose.onNodeWithTag("add-input").performTextInput("Café")
         compose.onNodeWithTag("save-add").performClick()
+        waitForText("feedback", "Não foi possível salvar")
         compose.onNodeWithTag("feedback").assertTextContains("Não foi possível salvar", substring = true)
         compose.onNodeWithTag("add-input").assertTextContains("Café")
         assertTrue(runBlocking { db.commands().inOrder().isEmpty() })
@@ -125,9 +143,10 @@ class ShoppingScreensTest {
         launch(delayed)
         compose.onNodeWithTag("add-input").performTextInput("Leite")
         compose.onNodeWithTag("save-add").performClick()
-        compose.waitUntil { entered.isCompleted }
+        compose.waitUntil(10_000) { entered.isCompleted }
         compose.onNodeWithTag("add-input").performTextReplacement("Pão")
         release.complete(Unit)
+        waitForText("feedback", "Salvo neste aparelho")
         compose.onNodeWithTag("feedback").assertTextContains("Salvo neste aparelho", substring = true)
         compose.onNodeWithTag("add-input").assertTextContains("Pão")
         scenario!!.recreate()
@@ -145,10 +164,11 @@ class ShoppingScreensTest {
         }
         launch()
         compose.onNodeWithTag("nav-list").performClick()
+        waitForText("list-summary", "1 pendentes")
         compose.onNodeWithText("Hortifruti").assertIsDisplayed()
         compose.onNodeWithTag("item-fruit").assertIsOff()
         runBlocking { RoomShoppingListStore(db).execute(ListIntent.AddText("Café")) }
-        compose.onNodeWithTag("list-summary").assertTextEquals("2 pendentes · 0 comprados")
+        waitForText("list-summary", "2 pendentes · 0 comprados")
         compose.onNodeWithText("Outros").assertIsDisplayed()
         compose.onNodeWithText("Café").assertIsDisplayed()
     }

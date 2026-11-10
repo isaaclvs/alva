@@ -37,6 +37,7 @@ fun AlvaTheme(content: @Composable () -> Unit) {
             background = Color(0xFF09090B), surface = Color(0xFF18181B),
             onBackground = Color(0xFFF4F4F5), onSurface = Color(0xFFF4F4F5),
             onSurfaceVariant = Color(0xFFB4B4BC), error = Color(0xFFF87171),
+            secondaryContainer = Color(0xFF14332F), onSecondaryContainer = Color(0xFFF4F4F5),
         ),
         content = content,
     )
@@ -181,7 +182,12 @@ fun ShoppingScreens(store: ShoppingListStore, modifier: Modifier = Modifier) {
                                 if (category.name == "Outros") unknown else emptyList())
                         } + if (known.none { it.name == "Outros" }) listOf("Outros" to unknown) else emptyList()
                         groups.filter { it.second.isNotEmpty() }.forEach { (category, rows) ->
-                            item { Text(category, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)) }
+                            item {
+                                val bought = rows.count { it.status == ItemStatus.PURCHASED }
+                                Text(category + if (bought > 0) " · $bought/${rows.size}" else "",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    modifier = Modifier.padding(top = 16.dp, bottom = 8.dp))
+                            }
                             items(rows, key = { it.publicId }) { item ->
                                 Row(
                                     Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag("item-${item.publicId}")
