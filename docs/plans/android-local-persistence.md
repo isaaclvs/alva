@@ -95,3 +95,9 @@ qualquer das saídas.
    `purchased_at` local é só para exibição, o servidor decide o valor.
 5. Limite de tamanho de nome (`invalid_name` fala em "longo demais") não está
    definido; hoje o Rails só exige presença.
+6. A versão 1 do banco é a fundação da lista/fila, não o armazenamento completo
+   do snapshot. Antes de ingerir o documento em #45, estender o schema com os
+   campos/coleções necessários (incluindo `normalized_name`, `updated_at` e
+   ordem estável do servidor), com migração e testes. O snapshot usa microssegundos;
+   os campos locais atuais são milissegundos. Preservar a precisão necessária
+   aos desempates do histórico em #54, sem presumir equivalência entre eles.

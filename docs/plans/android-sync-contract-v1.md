@@ -166,6 +166,13 @@ Regras do envelope:
 
 ## Comandos v1
 
+Antes de implementar os executores de negócio (#39) e o envio/reconciliação
+(#45), fechar as lacunas de UUIDs e versões registradas em
+[android-local-persistence.md](android-local-persistence.md#lacunas-observadas-no-contrato-v1-para-37383945).
+O processador da #38 verifica a dependência, mas não herda versões do resultado
+anterior automaticamente; a integração precisa definir essa resolução sem
+alterar o conteúdo de um UUID de comando já enviado.
+
 | `type` | `payload` | `preconditions` | Equivalente atual |
 | --- | --- | --- | --- |
 | `add_items` | `names: []` (já separados no aparelho) | — | `Household#add_items` |

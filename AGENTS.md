@@ -31,6 +31,7 @@ novo/servidor existente foram aprovados pelo usuário em 10/11/2026.
 - Plano e regras propostas: `docs/plans/android-offline.md`
 - Contrato de sincronização v1: `docs/plans/android-sync-contract-v1.md`
 - Inventário de paridade: `docs/plans/android-parity-inventory.md`
+- Persistência Android (Room, fila e migrações): `docs/plans/android-local-persistence.md`
 
 Fluxo de entrega da migração: branch curta criada da `main` atualizada e PR
 sempre para `main`, sem `staging`/`develop`/branch longa de migração; commits
