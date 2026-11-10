@@ -1,0 +1,384 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "9fb3808d63be0b8198027f15dc58f1c1",
+    "entities": [
+      {
+        "tableName": "sync_state",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `household_public_id` TEXT, `confirmed_revision` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "householdPublicId",
+            "columnName": "household_public_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "confirmedRevision",
+            "columnName": "confirmed_revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "categories",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`public_id` TEXT NOT NULL, `name` TEXT NOT NULL, `position` INTEGER NOT NULL, PRIMARY KEY(`public_id`))",
+        "fields": [
+          {
+            "fieldPath": "publicId",
+            "columnName": "public_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "position",
+            "columnName": "position",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "public_id"
+          ]
+        }
+      },
+      {
+        "tableName": "confirmed_items",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`public_id` TEXT NOT NULL, `name` TEXT NOT NULL, `category_public_id` TEXT, `status` INTEGER NOT NULL, `position` INTEGER, `purchased_at` INTEGER, `created_at` INTEGER NOT NULL, `lock_version` INTEGER NOT NULL, `trip_public_id` TEXT, PRIMARY KEY(`public_id`))",
+        "fields": [
+          {
+            "fieldPath": "publicId",
+            "columnName": "public_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "categoryPublicId",
+            "columnName": "category_public_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "position",
+            "columnName": "position",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "purchasedAt",
+            "columnName": "purchased_at",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lockVersion",
+            "columnName": "lock_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tripPublicId",
+            "columnName": "trip_public_id",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "public_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_confirmed_items_trip_public_id",
+            "unique": false,
+            "columnNames": [
+              "trip_public_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_confirmed_items_trip_public_id` ON `${TABLE_NAME}` (`trip_public_id`)"
+          }
+        ]
+      },
+      {
+        "tableName": "list_items",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`public_id` TEXT NOT NULL, `name` TEXT NOT NULL, `category_public_id` TEXT, `status` INTEGER NOT NULL, `position` INTEGER, `purchased_at` INTEGER, `created_at` INTEGER NOT NULL, `lock_version` INTEGER, `trip_public_id` TEXT, PRIMARY KEY(`public_id`))",
+        "fields": [
+          {
+            "fieldPath": "publicId",
+            "columnName": "public_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "categoryPublicId",
+            "columnName": "category_public_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "position",
+            "columnName": "position",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "purchasedAt",
+            "columnName": "purchased_at",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lockVersion",
+            "columnName": "lock_version",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "tripPublicId",
+            "columnName": "trip_public_id",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "public_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_list_items_trip_public_id",
+            "unique": false,
+            "columnNames": [
+              "trip_public_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_list_items_trip_public_id` ON `${TABLE_NAME}` (`trip_public_id`)"
+          },
+          {
+            "name": "index_list_items_category_public_id",
+            "unique": false,
+            "columnNames": [
+              "category_public_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_list_items_category_public_id` ON `${TABLE_NAME}` (`category_public_id`)"
+          }
+        ]
+      },
+      {
+        "tableName": "commands",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`sequence` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `id` TEXT NOT NULL, `type` TEXT NOT NULL, `payload` TEXT NOT NULL, `preconditions` TEXT NOT NULL, `depends_on` TEXT, `observed_revision` INTEGER NOT NULL, `status` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `attempts` INTEGER NOT NULL, `last_error_code` TEXT)",
+        "fields": [
+          {
+            "fieldPath": "sequence",
+            "columnName": "sequence",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payload",
+            "columnName": "payload",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "preconditions",
+            "columnName": "preconditions",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dependsOn",
+            "columnName": "depends_on",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "observedRevision",
+            "columnName": "observed_revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "attempts",
+            "columnName": "attempts",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastErrorCode",
+            "columnName": "last_error_code",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "sequence"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_commands_id",
+            "unique": true,
+            "columnNames": [
+              "id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_commands_id` ON `${TABLE_NAME}` (`id`)"
+          },
+          {
+            "name": "index_commands_status",
+            "unique": false,
+            "columnNames": [
+              "status"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_commands_status` ON `${TABLE_NAME}` (`status`)"
+          }
+        ]
+      },
+      {
+        "tableName": "command_subjects",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`command_id` TEXT NOT NULL, `subject_public_id` TEXT NOT NULL, `ordinal` INTEGER NOT NULL, `role` TEXT NOT NULL, PRIMARY KEY(`command_id`, `subject_public_id`, `ordinal`), FOREIGN KEY(`command_id`) REFERENCES `commands`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "commandId",
+            "columnName": "command_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "subjectPublicId",
+            "columnName": "subject_public_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ordinal",
+            "columnName": "ordinal",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "role",
+            "columnName": "role",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "command_id",
+            "subject_public_id",
+            "ordinal"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_command_subjects_subject_public_id",
+            "unique": false,
+            "columnNames": [
+              "subject_public_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_command_subjects_subject_public_id` ON `${TABLE_NAME}` (`subject_public_id`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "commands",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "command_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '9fb3808d63be0b8198027f15dc58f1c1')"
+    ]
+  }
+}
