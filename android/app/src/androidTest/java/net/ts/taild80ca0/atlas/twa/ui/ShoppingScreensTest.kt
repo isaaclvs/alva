@@ -1,6 +1,8 @@
 package net.ts.taild80ca0.atlas.twa.ui
 
 import androidx.compose.ui.test.*
+import androidx.compose.ui.graphics.asAndroidBitmap
+import java.io.File
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
@@ -71,6 +73,12 @@ class ShoppingScreensTest {
         }
     }
 
+    private fun capture(name: String) {
+        File(context.cacheDir, name).outputStream().use {
+            compose.onRoot().captureToImage().asAndroidBitmap().compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+        }
+    }
+
     private fun add(text: String) {
         compose.onNodeWithTag("add-input").performTextInput(text)
         compose.onNodeWithTag("save-add").performClick()
@@ -84,12 +92,14 @@ class ShoppingScreensTest {
         compose.onNodeWithTag("add-input").assertIsFocused()
         add("Leite, Pão; Ovos\nLeite")
         compose.onNodeWithTag("add-input").assert(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.EditableText, androidx.compose.ui.text.AnnotatedString("")))
+        capture("shopping-add.png")
         compose.onNodeWithTag("nav-list").performClick()
         waitForText("list-summary", "3 pendentes · 0 comprados")
         val id = runBlocking { db.listItems().live().first { it.name == "Leite" }.publicId }
         compose.onNodeWithTag("item-$id").performClick()
         assertMarked(id, true)
         waitForText("list-summary", "2 pendentes · 1 comprados")
+        capture("shopping-list.png")
 
         scenario!!.close()
         db.close()
