@@ -42,7 +42,7 @@ fun AccessScreen(access: HouseAccess, connected: @Composable () -> Unit, modifie
     LaunchedEffect(Unit) { access.refresh() }
 
     Column(
-        modifier = modifier.fillMaxSize().padding(24.dp),
+        modifier = modifier.fillMaxSize().padding(if (state == AccessState.Connected) 0.dp else 24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -53,7 +53,7 @@ fun AccessScreen(access: HouseAccess, connected: @Composable () -> Unit, modifie
                 Button(onClick = { scope.launch { access.refresh() } }) { Text("Tentar de novo") }
             }
             AccessState.Connected -> {
-                connected()
+                androidx.compose.foundation.layout.Box(Modifier.weight(1f)) { connected() }
                 OutlinedButton(
                     onClick = {
                         scope.launch {
