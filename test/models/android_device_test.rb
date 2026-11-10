@@ -79,6 +79,19 @@ class AndroidDeviceTest < ActiveSupport::TestCase
     assert_nil AndroidDevice.authenticate(token)
   end
 
+  test "rotation blocks both scopes and a new emission works with the new digest" do
+    _, add_only_token = AndroidDevice.issue(household: households(:home), name: "Widget")
+    _, sync_token = AndroidDevice.issue(household: households(:home), name: "Celular", scope: AndroidDevice::SYNC)
+
+    ENV["ALVA_PASSWORD_DIGEST"] = BCrypt::Password.create("nova-senha", cost: 4).to_s
+
+    assert_nil AndroidDevice.authenticate(add_only_token)
+    assert_nil AndroidDevice.authenticate(sync_token)
+
+    renewed, renewed_token = AndroidDevice.issue(household: households(:home), name: "Celular", scope: AndroidDevice::SYNC)
+    assert_equal renewed, AndroidDevice.authenticate(renewed_token)
+  end
+
   test "revoking one device does not affect another" do
     revoked, revoked_token = AndroidDevice.issue(household: households(:home), name: "Antigo")
     keeper, keeper_token = AndroidDevice.issue(household: households(:home), name: "Atual")
