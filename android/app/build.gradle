@@ -19,6 +19,8 @@ import groovy.xml.MarkupBuilder
 
 plugins {
     id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.plugin.compose'
 }
 
 def twaManifest = [
@@ -163,10 +165,27 @@ android {
     }
 
     buildTypes {
+        debug {
+            // The development build installs alongside the production APK.
+            applicationIdSuffix '.debug'
+            versionNameSuffix '-dev'
+            resValue "string", "appName", "Alva Dev"
+            resValue "string", "launcherName", "Alva Dev"
+            // Own FileProvider authority, otherwise both installs would collide.
+            resValue "string", "providerAuthority", twaManifest.applicationId + '.debug.fileprovider'
+        }
         release {
-            signingConfig signingConfigs.release
+            // Only attach the signing config when the local keystore is available,
+            // so CI can assembleRelease without any private key.
+            if (System.getenv('ALVA_ANDROID_KEYSTORE')) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled true
         }
+    }
+    buildFeatures {
+        buildConfig true
+        compose true
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
@@ -174,6 +193,13 @@ android {
     }
     lintOptions {
         checkReleaseBuilds false
+    }
+}
+
+// Keep Java and Kotlin bytecode targets aligned with compileOptions above.
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8
     }
 }
 
@@ -214,15 +240,91 @@ task generateShorcutsFile {
 
 preBuild.dependsOn(generateShorcutsFile)
 
-repositories {
-
-}
-
 dependencies {
     implementation fileTree(include: ['*.jar'], dir: 'libs')
 
-        implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.6.2'
-        implementation 'androidx.security:security-crypto:1.1.0-alpha06'
-        implementation 'com.google.code.findbugs:jsr305:3.0.2'
+    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.6.2'
+    implementation 'androidx.security:security-crypto:1.1.0-alpha06'
+    implementation 'com.google.code.findbugs:jsr305:3.0.2'
 
+    // Jetpack Compose is only pulled in for the development entry point, so the
+    // release TWA APK keeps its current dependency set.
+    debugImplementation platform('androidx.compose:compose-bom:2025.05.01')
+    debugImplementation 'androidx.activity:activity-compose:1.10.1'
+    debugImplementation 'androidx.core:core-ktx:1.16.0'
+    debugImplementation 'androidx.compose.ui:ui'
+    debugImplementation 'androidx.compose.material3:material3'
+    debugImplementation 'androidx.compose.ui:ui-tooling-preview'
+
+    testImplementation 'junit:junit:4.13.2'
+}
+
+// Verifies the effective merged manifest of each variant: exactly one launcher
+// entry, the native Compose screen only in debug, the TWA launcher kept in
+// release. Wired into `check` and into the CI Android job.
+abstract class VerifyLauncherEntry extends DefaultTask {
+    @InputFile
+    abstract RegularFileProperty getMergedManifest()
+
+    @Input
+    abstract Property<Boolean> getExpectNativeEntry()
+
+    @TaskAction
+    void verify() {
+        def text = mergedManifest.get().asFile.getText('UTF-8')
+        def twaName = 'net.ts.taild80ca0.atlas.twa.LauncherActivity'
+        def nativeName = 'net.ts.taild80ca0.atlas.twa.MainActivity'
+
+        // Captures a whole <activity> element by its android:name. Every activity
+        // we inspect has children (intent-filters), so the closing tag is found.
+        def activityBlock = { String name ->
+            def pattern = '(?s)<activity\\b[^>]*android:name="' +
+                java.util.regex.Pattern.quote(name) + '".*?</activity>'
+            def matcher = (text =~ pattern)
+            matcher.find() ? matcher.group() : null
+        }
+
+        def launcherCount = (text =~ /android\.intent\.category\.LAUNCHER/).count
+        if (launcherCount != 1) {
+            throw new GradleException("Expected exactly one launcher entry, found ${launcherCount}")
+        }
+
+        def nativeBlock = activityBlock(nativeName)
+        def twaBlock = activityBlock(twaName)
+
+        if (expectNativeEntry.get()) {
+            if (nativeBlock == null || !nativeBlock.contains('android.intent.category.LAUNCHER')) {
+                throw new GradleException("Debug launcher must be ${nativeName}")
+            }
+            if (twaBlock == null || !twaBlock.contains('android:enabled="false"')) {
+                throw new GradleException('Debug manifest must disable the TWA LauncherActivity')
+            }
+        } else {
+            if (twaBlock == null || !twaBlock.contains('android.intent.category.LAUNCHER')) {
+                throw new GradleException("Release launcher must be ${twaName}")
+            }
+            if (nativeBlock != null) {
+                throw new GradleException('Release manifest must not ship the native MainActivity')
+            }
+        }
+    }
+}
+
+androidComponents {
+    onVariants(selector().all()) { variant ->
+        def capitalized = variant.name.capitalize()
+        tasks.register("verify${capitalized}Manifest", VerifyLauncherEntry) {
+            mergedManifest.set(variant.artifacts.get(
+                com.android.build.api.artifact.SingleArtifact.MERGED_MANIFEST.INSTANCE))
+            expectNativeEntry.set(variant.name == 'debug')
+        }
+    }
+}
+
+tasks.register('verifyVariants') {
+    dependsOn 'verifyDebugManifest', 'verifyReleaseManifest'
+}
+
+tasks.named('check') {
+    dependsOn 'verifyVariants'
 }

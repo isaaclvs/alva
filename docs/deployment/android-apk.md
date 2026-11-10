@@ -29,13 +29,53 @@ guarda uma credencial limitada à inclusão, criptografada pelo Android Keystore
 O widget precisa de internet e do Alva disponível. Se o envio falhar, o texto
 fica na janela para nova tentativa.
 
-A fonte Android versionada está em `android/`. Para gerar um APK release, use um
-JDK 21 e o Android SDK. Configure `ALVA_ANDROID_KEYSTORE`,
+A fonte Android versionada está em `android/`. O módulo compila com JDK 21
+(AGP 8.9.1, Gradle 8.11.1, Kotlin 2.1.21 com o plugin do Compose) e o Android
+SDK com a plataforma 36 e as build-tools 36.0.0. Aponte o SDK pelo
+`ANDROID_HOME` ou por `android/local.properties` (`sdk.dir=...`, ignorado pelo
+Git). O Gradle confere o checksum da distribuição do wrapper.
+
+## Desenvolvimento (variante debug)
+
+A variante debug é o ponto de entrada nativo (Kotlin/Compose) usado para
+construir o cliente offline. Ela instala ao lado do aplicativo da casa:
+
+- Identificador `net.ts.taild80ca0.atlas.twa.debug`, nome "Alva Dev" e
+  `FileProvider` próprio, sem colisão com o APK de produção.
+- Abre a tela Compose nativa; o Trusted Web Activity fica desabilitado.
+- A variante release continua abrindo a TWA pela `LauncherActivity`.
+
+Comandos, a partir de `android/`:
+
+```sh
+./gradlew assembleDebug        # APK debug instalável
+./gradlew testDebugUnitTest    # testes unitários da variante debug
+./gradlew lintDebug            # lint da variante debug
+./gradlew verifyVariants       # confere os manifestos efetivos de debug e release
+```
+
+Instalação em um aparelho autorizado no `adb`:
+
+```sh
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+Artefatos: `android/app/build/outputs/apk/debug/app-debug.apk`, relatório de
+lint em `android/app/build/reports/lint-results-debug.html` e testes em
+`android/app/build/reports/tests/testDebugUnitTest/`. O CI reproduz esses
+comandos e ainda compila a variante release sem chave.
+
+## Release (assinatura local)
+
+A assinatura é externa ao Git. Para gerar um APK release, use um JDK 21 e o
+Android SDK. Configure `ALVA_ANDROID_KEYSTORE`,
 `ALVA_ANDROID_STORE_PASSWORD`, `ALVA_ANDROID_KEY_ALIAS` e
 `ALVA_ANDROID_KEY_PASSWORD` somente no ambiente local de build e rode
 `./gradlew assembleRelease` dentro de `android/`. Nunca coloque os valores ou a
 keystore no repositório. O arquivo de saída é
-`android/app/build/outputs/apk/release/app-release.apk`.
+`android/app/build/outputs/apk/release/app-release.apk`. Sem as variáveis de
+assinatura o build gera `app-release-unsigned.apk` apenas para validar a
+variante; esse arquivo não serve para instalar ou atualizar o app da casa.
 
 Deploys do Rails atualizam o conteúdo aberto pelo app. Alterações do domínio,
 metadados Android ou recursos do invólucro podem exigir um novo APK. O app
