@@ -17,7 +17,7 @@ para `src/main` e as dependências para `implementation`.
 
 | Camada | Tabelas | Quem escreve |
 | --- | --- | --- |
-| Estado confirmado | `sync_state`, `categories`, `confirmed_items` | Só a reconciliação (#45), nunca uma ação do usuário |
+| Estado confirmado | `sync_state`, `categories`, `catalog_items`, `catalog_state`, `confirmed_items` | Só a reconciliação (#45), nunca uma ação do usuário |
 | Projeção local | `list_items` | Cada ação, na mesma transação do comando; ou `rebuildProjection()` |
 | Fila | `commands`, `command_subjects` | Cada ação |
 
@@ -44,9 +44,62 @@ quem chama mantém o texto digitado e não mostra sucesso. Cada emissão do
 `SetItemState` (estado desejado, nunca toggle); as demais (corrigir, remover,
 finalizar, habituais) chegam com as tasks próprias.
 
-Fora de escopo aqui: categorização/duplicados (#42; o item entra sem
-categoria e sem dedupe local), telas (#43), pareamento (#44), envio e
-reconciliação (#45), widget (#56).
+Fora de escopo aqui: telas (#43), pareamento (#44), envio e reconciliação
+(#45), widget (#56). Categorização e duplicados locais: seção seguinte (#42).
+
+## Categorização e duplicados locais (issue #42)
+
+Código em `data/matching` (puro Kotlin: `TextNormalizer`, `ItemNameSplitter`,
+`ItemCategorizer`, `DuplicateHint`), `data/list/AddPlanner` e `data/catalog`
+(`LocalCatalog`). Telas e widget usam essa única implementação, via
+`ShoppingListStore`; nenhuma regra de texto é copiada para a UI.
+
+- **Corpus compartilhado:** `test/fixtures/files/matching_corpus.json`
+  (normalização, tabela de transliteração, categorização, divisão e regras de
+  adicionar). O Ruby o executa em `test/services/matching_corpus_test.rb`; o
+  Kotlin, em `MatchingCorpusTest` (JVM) e `MatchingCorpusStoreTest`
+  (instrumentado, passando pelo Room). Exemplo novo vai no JSON e roda nos dois
+  lados; as expectativas são escritas à mão, não geradas por uma implementação.
+- **Transliteração além de NFD:** o servidor usa `I18n.transliterate`, que
+  conhece ß, æ, ø, ł, œ… e troca por `?` o que não conhece. O Kotlin copia essa
+  tabela (`Transliteration`), não usa NFD. O Ruby afirma que a tabela do corpus
+  é a do gem i18n; o Kotlin afirma que a sua é a do corpus. Uma atualização do
+  gem que mude a tabela quebra um teste até as duas pontas serem atualizadas.
+- **Comportamentos herdados do Ruby, de propósito:** acento decomposto (NFD) e
+  NBSP viram `?`; só espaço ASCII separa palavras; `strip` tira NUL e espaço
+  ASCII, não NBSP; um emoji ou sequência ZWJ conta por code point. Estão no
+  corpus com `note`. Mudar isso exige mudar o servidor (e os `normalized_name`
+  gravados), não só o cliente.
+- **Categorias do servidor:** `categories` e `catalog_items` (com o
+  `normalized_name` do próprio servidor) são trocados por inteiro por
+  `LocalCatalog.replace`, numa transação, com `dictionary_revision` em
+  `catalog_state`. Snapshot com revisão menor que a gravada não faz nada. Sem
+  correspondência, a categoria é a de nome "Outros" **sincronizada**; antes da
+  primeira carga não há categoria nenhuma e o item fica sem categoria. Nenhum
+  UUID de categoria é inventado, e uma entrada apontando para categoria
+  desconhecida é ignorada.
+- **Servidor é a autoridade:** trocar o dicionário não recategoriza itens que já
+  estão na lista (a escolha manual de uma categoria, #47/#48, continua valendo);
+  entradas `learned` do servidor entram como qualquer outra. A categoria
+  automática de um item ainda não confirmado pode ser atualizada pela
+  reconciliação (#45) segundo o dicionário do servidor.
+- **Adicionar (`AddPlanner`):** mesma regra de `Household#add_one_item`,
+  sequencial (um nome vê o efeito dos anteriores): pendente de mesmo nome
+  normalizado → duplicado; senão o comprado mais recente é revivido (mantém o
+  próprio nome, categoria recalculada pelo dicionário atual); senão cria, já
+  categorizado. Itens arquivados não contam. `AddText` divide como o campo de
+  texto (vírgula, ponto e vírgula, quebra de linha; sem repetidos; **máx. 30**);
+  `AddItems` recebe nomes já separados (habituais) **sem** esse limite.
+- **Resultado e comando:** `Saved` traz `additions` (criado/revivido/duplicado
+  por nome). Se tudo já estava pendente, `AlreadyOnList` e nada é gravado nem
+  enfileirado. O comando continua `add_items` com `payload.names`, só com os
+  nomes que mudam a lista (criados e revividos); o que o aparelho decidiu fica
+  em `command_subjects` (`creates`/`targets` + `category_public_id`), metadado
+  local que não vai no fio. UUIDs e comandos já enfileirados não mudam;
+  `rebuildProjection` reproduz exatamente a projeção.
+- **Dica ao digitar:** `DuplicateHint` é o par Kotlin de
+  `duplicate_hint_controller.js` (compara com `TextNormalizer.plain`, sem
+  plural); só dica, a decisão é do `AddPlanner`/servidor.
 
 ## Durabilidade e migrações
 
@@ -59,18 +112,26 @@ reconciliação (#45), widget (#56).
   antigas. `AlvaMigrationsTest` (JVM) e `AlvaDatabaseMigrationTest`
   (instrumentado) cobrem a cadeia e a existência dos schemas. Preferir passos
   aditivos.
-- A versão atual é 1; ainda não há migração real entre versões. Os testes
-  provam a mecânica (schema exportado, `MigrationTestHelper`, abertura de um v1
-  populado, falha sem destruir dados quando falta migração).
+- A versão atual é **2**. `MIGRATION_1_2` (issue #42) é aditiva: cria
+  `catalog_items` (índice único em `normalized_name`) e `catalog_state`, e
+  acrescenta `command_subjects.category_public_id` (nulo para o que já estava na
+  fila). Lista, fila, UUIDs e `schemas/1.json` ficam intactos.
+  `AlvaDatabaseMigrationTest` migra um v1 com linhas em todas as tabelas,
+  confere cada uma depois, valida o schema contra `2.json` e reconstrói a
+  projeção sobre a fila migrada.
 
 ## Testes
 
-- JVM (`testDebugUnitTest`): `ProjectionReducerTest`, `AlvaMigrationsTest`.
+- JVM (`testDebugUnitTest`): `ProjectionReducerTest`, `AlvaMigrationsTest`,
+  `MatchingCorpusTest`, `ItemCategorizerTest`, `AddPlannerTest`,
+  `DuplicateHintTest`.
 - Instrumentados (`connectedDebugAndroidTest`, job `android-instrumented` do
   CI): atomicidade (incluindo falha no enqueue revertendo a projeção, por UUID
   repetido e por trigger que recusa o INSERT), dependências e bloqueio,
-  ordenação e concorrência, reabertura do arquivo, `synchronous=FULL` e
-  migrações. Rodar localmente exige emulador/aparelho:
+  ordenação e concorrência, reabertura do arquivo, `synchronous=FULL`,
+  migrações (incluindo 1→2 com dados), categorização/duplicados sobre Room
+  (`LocalMatchingStoreTest`) e o corpus compartilhado pelo store real
+  (`MatchingCorpusStoreTest`). Rodar localmente exige emulador/aparelho:
   `./gradlew connectedDebugAndroidTest` em `android/`.
 - Não coberto: matar o processo de verdade e reiniciar o aparelho (simulado
   lendo o arquivo por outra conexão sem fechar o escritor); fica para a
@@ -101,3 +162,15 @@ qualquer das saídas.
    ordem estável do servidor), com migração e testes. O snapshot usa microssegundos;
    os campos locais atuais são milissegundos. Preservar a precisão necessária
    aos desempates do histórico em #54, sem presumir equivalência entre eles.
+7. `add_items` e nome comprado digitado de novo: o contrato diz que o servidor
+   revive só se o item não mudou desde a observação local, mas o comando não leva
+   `lock_version`. O cliente envia o nome digitado em `names` (o servidor aplica a
+   própria regra de revive) e guarda o item revivido como `targets` do comando,
+   com a dependência de sempre; a precondição precisa ser decidida em #39.
+8. A escolha de categoria local (e a de "revive") não vai no fio: o servidor
+   categoriza de novo. Se for desejável que a categoria do aparelho valha, o
+   formato de `add_items` precisa carregá-la (#39); hoje o servidor decide.
+9. `confirmed_items` ainda não guarda o `normalized_name` do servidor; o cálculo
+   local normaliza o nome na hora (mesma implementação do corpus). O "comprado
+   mais recente" usa o `purchased_at` da projeção (milissegundos); o desempate
+   fino do servidor (microssegundos e ordem de id) depende do item 6 em #45.
