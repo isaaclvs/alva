@@ -29,7 +29,14 @@ done
 curl -fsS "$base/up" > /dev/null || fail "server did not come up"
 
 get / "$tmp/index.html"
-grep -q "O que acabou?" "$tmp/index.html" || fail "list page without the add field"
+bundle exec ruby -rnokogiri -e '
+  page = Nokogiri::HTML(File.read(ARGV[0]))
+  form = page.at_css("form#list_item_form")
+  field = form&.at_css("input#list_item_name")
+  abort "FAIL: list page without the add field" unless
+    form && form["action"] == "/list_items" && form["method"] == "post" &&
+    field && field["type"] == "text" && field["name"] == "list_item[name]"
+' "$tmp/index.html"
 grep -q 'rel="manifest"' "$tmp/index.html" || fail "manifest not linked"
 
 stylesheet="$(grep -o 'href="/assets/application-[^"]*\.css"' "$tmp/index.html" | head -1 | cut -d'"' -f2)"
