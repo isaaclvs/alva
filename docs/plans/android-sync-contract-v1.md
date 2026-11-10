@@ -82,6 +82,8 @@ Resposta:
 
 Regras do envelope:
 
+- A identidade do aparelho vem do `Authorization`; `device_id` é apenas eco
+  para auditoria e pode ser omitido (o servidor não depende dele para autorizar).
 - `id` é o UUID gerado no aparelho e a chave de idempotência do comando.
 - `depends_on` referencia o comando anterior do mesmo aparelho do qual este
   depende causalmente (normalmente o comando imediatamente anterior; `null` se
