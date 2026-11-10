@@ -110,4 +110,83 @@ class Api::V1::DevicesControllerTest < ActionDispatch::IntegrationTest
   ensure
     ActiveSupport::Notifications.unsubscribe(subscription) if subscription
   end
+
+  test "pairing with the previous secret continues the lineage of the phone" do
+    post "/api/v1/devices", params: { password: @password, name: "Celular" }
+    first = JSON.parse(response.body)
+    AndroidDevice.find(first["device_id"]).revoke!
+
+    assert_difference "AndroidDevice.count", 1 do
+      post "/api/v1/devices", params: { password: @password, name: "Celular", previous_token: first["token"] }
+    end
+
+    assert_response :created
+    second = JSON.parse(response.body)
+    assert_equal %w[device_id token], second.keys.sort
+    assert_not_equal first["device_id"], second["device_id"]
+    assert_equal AndroidDevice.find(first["device_id"]).lineage_id, AndroidDevice.find(second["device_id"]).lineage_id
+  end
+
+  test "a previous secret after a password rotation still continues the lineage" do
+    post "/api/v1/devices", params: { password: @password, name: "Celular" }
+    first = JSON.parse(response.body)
+    ENV["ALVA_PASSWORD_DIGEST"] = BCrypt::Password.create("senha nova", cost: 4).to_s
+
+    post "/api/v1/devices", params: { password: "senha nova", name: "Celular", previous_token: first["token"] }
+
+    assert_response :created
+    second = JSON.parse(response.body)
+    assert_equal AndroidDevice.find(first["device_id"]).lineage_id, AndroidDevice.find(second["device_id"]).lineage_id
+  end
+
+  test "pairing without a previous secret starts a new lineage and never trusts a client-sent one" do
+    post "/api/v1/devices", params: { password: @password, name: "Ana" }
+    ana = AndroidDevice.find(JSON.parse(response.body)["device_id"])
+
+    post "/api/v1/devices", params: { password: @password, name: "Isaac", lineage_id: ana.lineage_id, device_id: ana.id }
+
+    assert_response :created
+    isaac = AndroidDevice.find(JSON.parse(response.body)["device_id"])
+    assert_not_equal ana.lineage_id, isaac.lineage_id
+  end
+
+  test "an unknown, widget or foreign previous secret is refused without creating a device" do
+    home = households(:home)
+    _, widget_secret = AndroidDevice.issue(household: home, name: "Widget")
+    _, foreign_secret = AndroidDevice.issue(household: Household.create!(name: "Praia"), name: "Outro", scope: AndroidDevice::SYNC)
+
+    [ "nao-existe", widget_secret, foreign_secret ].each do |previous|
+      assert_no_difference "AndroidDevice.count" do
+        post "/api/v1/devices", params: { password: @password, name: "Celular", previous_token: previous }
+      end
+      assert_response :unprocessable_content
+      assert_equal "invalid_previous_token", JSON.parse(response.body)["error"]
+      assert_not_includes response.body, previous
+    end
+  end
+
+  test "a previous secret does not replace the password" do
+    post "/api/v1/devices", params: { password: @password, name: "Celular" }
+    first = JSON.parse(response.body)
+
+    assert_no_difference "AndroidDevice.count" do
+      post "/api/v1/devices", params: { password: "errada", name: "Celular", previous_token: first["token"] }
+    end
+
+    assert_response :unauthorized
+  end
+
+  test "the previous secret reaches logging filtered" do
+    logged_params = nil
+    subscription = ActiveSupport::Notifications.subscribe("start_processing.action_controller") do |*args|
+      event = ActiveSupport::Notifications::Event.new(*args)
+      logged_params = event.payload[:params] if event.payload[:controller] == "Api::V1::DevicesController"
+    end
+
+    post "/api/v1/devices", params: { password: @password, previous_token: "segredo-anterior" }
+
+    assert_equal "[FILTERED]", logged_params["previous_token"]
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscription) if subscription
+  end
 end

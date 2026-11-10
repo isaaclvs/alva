@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_10_000002) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_10_000003) do
   create_table "android_devices", force: :cascade do |t|
     t.integer "household_id", null: false
     t.string "name", null: false
@@ -20,7 +20,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_10_000002) do
     t.datetime "updated_at", null: false
     t.string "access_digest", null: false
     t.string "scope", default: "add_only", null: false
+    t.string "lineage_id", null: false
     t.index ["household_id"], name: "index_android_devices_on_household_id"
+    t.index ["lineage_id"], name: "index_android_devices_on_lineage_id"
     t.index ["token_digest"], name: "index_android_devices_on_token_digest", unique: true
     t.check_constraint "scope IN ('add_only', 'sync')", name: "android_devices_scope_allowed"
   end
@@ -99,6 +101,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_10_000002) do
     t.index ["public_id"], name: "index_shopping_trips_on_public_id", unique: true
   end
 
+  create_table "sync_commands", force: :cascade do |t|
+    t.integer "household_id", null: false
+    t.string "command_id", null: false
+    t.integer "android_device_id", null: false
+    t.string "lineage_id", null: false
+    t.string "command_type", null: false
+    t.string "depends_on"
+    t.string "content_digest", null: false
+    t.string "status", null: false
+    t.integer "revision", null: false
+    t.json "data", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["android_device_id"], name: "index_sync_commands_on_android_device_id"
+    t.index ["household_id", "command_id"], name: "index_sync_commands_on_household_id_and_command_id", unique: true
+    t.check_constraint "status IN ('applied', 'noop')", name: "sync_commands_status_allowed"
+  end
+
   create_table "sync_scopes", force: :cascade do |t|
     t.string "name", null: false
     t.integer "revision", default: 0, null: false
@@ -127,5 +147,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_10_000002) do
   add_foreign_key "list_items", "households"
   add_foreign_key "list_items", "shopping_trips"
   add_foreign_key "shopping_trips", "households"
+  add_foreign_key "sync_commands", "android_devices"
+  add_foreign_key "sync_commands", "households"
   add_foreign_key "sync_tombstones", "households"
 end
