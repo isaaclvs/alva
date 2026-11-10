@@ -43,6 +43,39 @@ data class CategoryEntity(
     val position: Int,
 )
 
+/**
+ * The server's dictionary (`catalog_items` in the snapshot): which category a
+ * known name belongs to. Confirmed state like `categories`: replaced as a whole
+ * by reconciliation, never edited by a user action. Lookups use the server's own
+ * `normalized_name`, so the device matches against exactly what the server stored.
+ * No foreign key to `categories`: both are replaced together, in one transaction.
+ */
+@Entity(tableName = "catalog_items", indices = [Index(value = ["normalized_name"], unique = true)])
+data class CatalogItemEntity(
+    @PrimaryKey @ColumnInfo(name = "public_id") val publicId: String,
+    val name: String,
+    @ColumnInfo(name = "normalized_name") val normalizedName: String,
+    @ColumnInfo(name = "category_public_id") val categoryPublicId: String,
+    /** True when a household corrected a category by hand; the server's seed never overwrites those. */
+    val learned: Boolean,
+)
+
+/**
+ * Single-row table (id is always 1) with the dictionary revision of the last
+ * applied catalog. Kept apart from `sync_state` so that writing the household
+ * state can never reset it.
+ */
+@Entity(tableName = "catalog_state")
+data class CatalogStateEntity(
+    @PrimaryKey val id: Int = SINGLETON_ID,
+    /** `dictionary_revision` of the snapshot the stored categories and entries came from. */
+    @ColumnInfo(name = "dictionary_revision") val dictionaryRevision: Long,
+) {
+    companion object {
+        const val SINGLETON_ID = 1
+    }
+}
+
 /** Columns shared by a confirmed item and its projection (they mirror Rails' `list_items`). */
 @Entity(tableName = "confirmed_items", indices = [Index("trip_public_id")])
 data class ConfirmedItemEntity(
@@ -133,6 +166,14 @@ data class CommandSubjectEntity(
     @ColumnInfo(name = "subject_public_id") val subjectPublicId: String,
     val ordinal: Int,
     val role: String,
+    /**
+     * What the device decided for this record when the user acted: the category an
+     * `add_items` name was given (`creates`) or revived with (`targets`). Local
+     * only, never part of the command sent to the server; the projection is rebuilt
+     * from it. Null means no category was applied (none known on the device, or an
+     * existing one kept).
+     */
+    @ColumnInfo(name = "category_public_id") val categoryPublicId: String? = null,
 )
 
 object ItemStatusCodes {
