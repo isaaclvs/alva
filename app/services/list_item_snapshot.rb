@@ -2,9 +2,13 @@
 # it so "Desfazer" can put it back exactly as it was. Nothing is stored on the
 # server: the token is the only copy, and a tampered or expired one is
 # rejected (load returns nil).
+#
+# `public_id` travels along so the restored row keeps the identity the sync
+# protocol saw. Tokens signed before public_id existed simply lack the key, and
+# the restored item gets a fresh UUID.
 module ListItemSnapshot
   EXPIRES_IN = 1.minute
-  ATTRIBUTES = %w[id household_id name category_id status position purchased_at created_at updated_at].freeze
+  ATTRIBUTES = %w[id public_id household_id name category_id status position purchased_at created_at updated_at].freeze
 
   module_function
 

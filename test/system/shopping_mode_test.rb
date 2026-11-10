@@ -94,7 +94,7 @@ class ShoppingModeSystemTest < ApplicationSystemTestCase
     assert_no_selector "nav[aria-label=Telas]"
 
     ListItem.insert!({ name: "Cebola", normalized_name: "cebola", household_id: households(:home).id,
-      category_id: categories(:produce).id })
+      category_id: categories(:produce).id, public_id: SecureRandom.uuid })
     page.execute_script(<<~JS)
       document.dispatchEvent(new CustomEvent("list-refresh:request", { detail: { reason: "shopping-test", force: true } }))
     JS

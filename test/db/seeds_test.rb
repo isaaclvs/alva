@@ -13,6 +13,36 @@ class SeedsTest < ActiveSupport::TestCase
     assert CatalogItem.exists?(normalized_name: TextNormalizer.call("Pão"))
   end
 
+  test "running the seeds twice keeps every public_id" do
+    Rails.application.load_seed
+    public_ids = [ Household, Category, CatalogItem ].flat_map { |model| model.order(:id).pluck(:public_id) }
+
+    Rails.application.load_seed
+
+    assert_equal public_ids, [ Household, Category, CatalogItem ].flat_map { |model| model.order(:id).pluck(:public_id) }
+  end
+
+  test "running the seeds again with no catalog change moves no revision" do
+    household = Household.find_by!(name: "Casa")
+    before = [ household.sync_revision, SyncScope.revision_for(SyncScope::DICTIONARY) ]
+
+    Rails.application.load_seed
+
+    assert_equal before, [ household.reload.sync_revision, SyncScope.revision_for(SyncScope::DICTIONARY) ]
+  end
+
+  test "a seed run that changes the catalog moves the dictionary and the household" do
+    household = Household.find_by!(name: "Casa")
+    CatalogItem.find_by!(normalized_name: TextNormalizer.call("Leite"))
+      .update!(category: Category.find_by!(name: "Higiene"))
+
+    assert_difference -> { SyncScope.revision_for(SyncScope::DICTIONARY) }, 1 do
+      assert_difference -> { household.reload.sync_revision }, 1 do
+        Rails.application.load_seed
+      end
+    end
+  end
+
   test "keeps a learned category instead of the catalog's" do
     Rails.application.load_seed
     hygiene = Category.find_by!(name: "Higiene")

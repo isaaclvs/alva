@@ -53,7 +53,7 @@ class NavigationTest < ApplicationSystemTestCase
   test "coming back from another app keeps the list open and the keyboard closed" do
     visit_list
     ListItem.insert!({ name: "Banana", normalized_name: "banana", household_id: households(:home).id,
-      category_id: categories(:produce).id })
+      category_id: categories(:produce).id, public_id: SecureRandom.uuid })
 
     page.execute_script(<<~JS)
       Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" })

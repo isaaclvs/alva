@@ -1,10 +1,12 @@
 # Contrato de sincronização v1 (proposta)
 
-Data: 10/11/2026. Status: **proposto** — a direção arquitetural e a escolha de
-Kotlin estão aprovadas ([ADR 0001](../adr/0001-android-offline-com-rails.md)).
-Pareamento, escopos e a barreira de autenticação da `/api/v1` já estão
-implementados (issue #35, ver Autenticação); o restante do contrato ainda não
-foi implementado nem validado. Ele existe para dar um alvo versionado às tasks
+Data: 10/11/2026. Status: **parcialmente implementado** — a direção
+arquitetural e a escolha de Kotlin estão aprovadas
+([ADR 0001](../adr/0001-android-offline-com-rails.md)). Pareamento, escopos e a
+barreira de autenticação da `/api/v1` foram implementados na issue #35;
+identidade pública, revisões e tombstones foram implementados na issue #36
+(migrações `AddPublicIds` e `AddSyncRevisions`). Snapshot, envelope de comandos,
+aliases e cliente seguem propostos. O contrato dá um alvo versionado às tasks
 do GitHub
 ([Alva nativo offline — #33](https://github.com/isaaclvs/alva/issues/33)), que
 podem refiná-lo com evidência de implementação.
@@ -188,10 +190,14 @@ Observações:
 ## IDs públicos e aliases
 
 - Os IDs inteiros do Rails continuam válidos internamente; o contrato expõe um
-  `public_id` (UUID) por registro.
+  `public_id` (UUID) por registro. **Implementado (#36):** casas, categorias,
+  dicionário, itens (arquivados inclusive), habituais e compras têm `public_id`
+  único no banco. A migração preenche linhas existentes sem tocar em ids,
+  relacionamentos ou atributos, e o desfazer remoção repõe a mesma identidade
+  (snapshots assinados antes de #36 ganham um UUID novo ao voltar).
 - Item criado offline já nasce com `public_id` gerado no aparelho; o servidor
   cria a linha com esse mesmo `public_id`, para que comandos posteriores o
-  alcancem.
+  alcancem. O valor já enviado nunca é sobrescrito.
 - Quando dois aparelhos adicionam o mesmo nome, o servidor mantém **um** item
   canônico. O `public_id` perdedor vira alias do canônico
   (`sync_aliases`), e comandos que citam o alias são resolvidos para o canônico.
@@ -200,15 +206,44 @@ Observações:
 
 ## Revisões
 
-- Cada casa tem uma revisão monotônica (`sync_revision`), incrementada na mesma
-  transação de qualquer mudança compartilhada — inclusive as que a PWA faz com
-  `update_all` (finalizar compras) e remoções. `updated_at` não é cursor.
+Regras implementadas em #36 (`Household#record_shared_change!`):
+
+- Cada casa tem uma revisão monotônica (`households.sync_revision`), começando
+  em zero e incrementada dentro da transação que confirma a mudança. `updated_at`
+  não é cursor, e relógio de aparelho nunca decide a ordem.
+- Duplicata, validação rejeitada e operação sem efeito **não** incrementam.
+- **Granularidade:** uma revisão por operação compartilhada efetiva. Chamadas
+  internas participam da mesma operação; nenhum caminho incrementa por item.
+- Cobre os caminhos que os comandos v1 espelham: adicionar/reviver, marcar e
+  desmarcar, corrigir, remover/restaurar, habituais (salvar, remover,
+  adicionar selecionados/todos), finalizar e desfazer compras — inclusive
+  `update_all` de “Compra feita” e o `delete` do desfazer compra.
+- Revisão e broadcast são responsabilidades distintas: a revisão persiste dentro
+  da transação, o broadcast acontece depois da confirmação.
 - Snapshots e resultados carregam a revisão. O aparelho guarda a última revisão
   confirmada.
 - Um snapshot com revisão **menor** que a confirmada nunca é aplicado; uma
   leitura remota nunca apaga a fila local.
 - Comandos usam `observed_revision`/`lock_version` como precondição; conflito
   bloqueia dependentes causais, não ações independentes.
+- Dicionário e categorias são globais: têm revisão própria em `sync_scopes`
+  (`SyncScope::DICTIONARY`), e uma mudança efetiva (aprendizado ou seed) avança
+  essa revisão e as casas afetadas na mesma transação. Seed sem mudança não
+  incrementa nada.
+
+## Exclusões (tombstones)
+
+- Remover um item ou um habitual grava um `SyncTombstone` (tipo do registro,
+  `public_id`, escopo, casa e revisão da exclusão) na mesma transação do
+  apagamento, com a revisão nova. O desfazer compra também grava os tombstones
+  do que apaga (a viagem e os duplicados arquivados que ele descarta).
+- Arquivar um item **não** é excluí-lo: a linha continua no histórico e não gera
+  tombstone.
+- Restauração explícita apaga o tombstone, para o mesmo UUID não ficar ativo e
+  removido ao mesmo tempo.
+- Tombs são mantidos enquanto um comando em trânsito puder citá-los; nenhum
+  prazo arbitrário que permita duplicar uma compra depois de muito tempo
+  offline.
 
 ## Snapshot
 

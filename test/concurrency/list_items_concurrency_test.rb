@@ -1,30 +1,8 @@
 require "test_helper"
-require "timeout"
+require "support/barrier"
 
 class ListItemsConcurrencyTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
-
-  class Barrier
-    def initialize(parties)
-      @parties = parties
-      @arrived = 0
-      @mutex = Mutex.new
-      @condition = ConditionVariable.new
-    end
-
-    def wait
-      @mutex.synchronize do
-        @arrived += 1
-        if @arrived == @parties
-          @condition.broadcast
-        else
-          Timeout.timeout(5) do
-            @condition.wait(@mutex) while @arrived < @parties
-          end
-        end
-      end
-    end
-  end
 
   test "simultaneous normalized-name additions leave one pending item" do
     household = Household.create!(name: "Concorrência")
@@ -62,7 +40,8 @@ class ListItemsConcurrencyTest < ActiveSupport::TestCase
             connection.select_value("SELECT COUNT(*) FROM list_items WHERE household_id = #{household.id} AND normalized_name = 'banana' AND status = 0 AND shopping_trip_id IS NULL").to_i ]
           barrier.wait
           ListItem.insert!({ name: index.zero? ? "Banana" : "BANANA", normalized_name: "banana",
-            household_id: household.id, status: 0, created_at: timestamp, updated_at: timestamp })
+            household_id: household.id, status: 0, created_at: timestamp, updated_at: timestamp,
+            public_id: SecureRandom.uuid })
           :inserted
         rescue ActiveRecord::RecordNotUnique
           :duplicate_key

@@ -1,2 +1,5 @@
+# Fixtures insert rows straight into the database, bypassing model callbacks,
+# so every synchronized record needs its public_id spelled out here.
 home:
   name: Casa
+  public_id: 10000000-0000-4000-8000-000000000001

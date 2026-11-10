@@ -204,7 +204,7 @@ class ListItemsTest < ApplicationSystemTestCase
 
     # Skips callbacks, so no broadcast: like one lost while the phone was locked.
     ListItem.insert!({ name: "Banana", normalized_name: "banana", household_id: households(:home).id,
-      category_id: categories(:produce).id })
+      category_id: categories(:produce).id, public_id: SecureRandom.uuid })
     assert_no_text "Banana"
 
     page.execute_script(<<~JS)

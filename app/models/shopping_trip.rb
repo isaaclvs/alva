@@ -2,6 +2,8 @@
 # list_items, what was bought. The items stay in the database as history, but
 # off the live list (see ListItem.on_list / ListItem.archived).
 class ShoppingTrip < ApplicationRecord
+  include HasPublicId
+
   belongs_to :household
   has_many :list_items
 

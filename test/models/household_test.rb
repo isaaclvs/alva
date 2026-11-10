@@ -367,7 +367,7 @@ class HouseholdTest < ActiveSupport::TestCase
     household = households(:home)
     # insert! skips the pending-duplicate validation, which doesn't look at the new item's status.
     ListItem.insert!({ name: "Leite", normalized_name: "leite", household_id: household.id,
-      status: 1, purchased_at: 1.hour.ago })
+      status: 1, purchased_at: 1.hour.ago, public_id: SecureRandom.uuid })
 
     result = household.add_item("Leite")
 
@@ -388,6 +388,27 @@ class HouseholdTest < ActiveSupport::TestCase
     restored = household.restore_item(removed_snapshot(original))
 
     assert_equal attributes, restored.reload.attributes.except("updated_at")
+  end
+
+  test "restore_item gives the item back its public_id" do
+    household = households(:home)
+    original = list_items(:milk)
+
+    restored = household.restore_item(removed_snapshot(original))
+
+    assert_equal original.public_id, restored.public_id
+  end
+
+  test "restore_item accepts a snapshot signed before public_id existed" do
+    household = households(:home)
+    original = household.list_items.create!(name: "Pão")
+    snapshot = removed_snapshot(original).except("public_id")
+
+    restored = household.restore_item(snapshot)
+
+    assert_equal original.id, restored.id
+    assert restored.public_id.present?
+    assert_not_equal original.public_id, restored.public_id
   end
 
   test "restore_item keeps alphabetical ordering" do

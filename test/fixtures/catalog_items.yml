@@ -2,13 +2,16 @@ banana:
   name: Banana
   normalized_name: banana
   category: produce
+  public_id: 30000000-0000-4000-8000-000000000001
 
 milk:
   name: Leite
   normalized_name: leite
   category: dairy
+  public_id: 30000000-0000-4000-8000-000000000002
 
 apple:
   name: Maçã
   normalized_name: maca
   category: produce
+  public_id: 30000000-0000-4000-8000-000000000003
