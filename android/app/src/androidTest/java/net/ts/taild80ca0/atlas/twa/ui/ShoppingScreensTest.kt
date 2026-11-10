@@ -91,7 +91,13 @@ class ShoppingScreensTest {
         launch()
         compose.onNodeWithTag("add-input").assertIsFocused()
         add("Leite, Pão; Ovos\nLeite")
-        compose.onNodeWithTag("add-input").assert(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.EditableText, androidx.compose.ui.text.AnnotatedString("")))
+        val emptyInput = SemanticsMatcher("editable text is empty") {
+            it.config[androidx.compose.ui.semantics.SemanticsProperties.EditableText].text.isEmpty()
+        }
+        compose.waitUntil(10_000) {
+            compose.onAllNodes(hasTestTag("add-input") and emptyInput).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithTag("add-input").assert(emptyInput)
         compose.onNodeWithText("Alva").assertIsDisplayed()
         compose.onNodeWithTag("save-add").assertIsDisplayed()
         capture("shopping-add.png")
