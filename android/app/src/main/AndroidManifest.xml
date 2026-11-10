@@ -78,6 +78,7 @@
 
         <activity android:name="LauncherActivity"
             android:alwaysRetainTaskState="true"
+            android:enabled="true"
             android:label="@string/launcherName"
             android:exported="true">
             <meta-data android:name="android.support.customtabs.trusted.DEFAULT_URL"
@@ -139,10 +140,8 @@
 
 
 
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
+            <!-- The launcher intent-filter lives in the variant manifests
+                 (src/release for the TWA, src/debug for the native screen). -->
 
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW"/>
