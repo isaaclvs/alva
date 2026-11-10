@@ -123,6 +123,11 @@ ShoppingTrip  # uma compra finalizada ("Compra feita")
   nunca é cursor. Regras completas em
   `docs/plans/android-sync-contract-v1.md`.
 
+**Snapshot (issue #37):** `GET /api/v1/snapshot` exige credencial `sync` e entrega
+o estado completo da casa autenticada, com revisões e referências por UUID,
+numa transação de leitura consistente. Formato, histórico e erros estão na
+seção "Snapshot" de `docs/plans/android-sync-contract-v1.md`.
+
 **Arquivados:** um `ListItem` com `shopping_trip_id` é histórico e não faz parte
 da lista viva. Toda query da lista viva (renderização, contadores, resumo,
 detecção de duplicados, localizar item para marcar/remover) deve usar

@@ -1,5 +1,15 @@
 require "test_helper"
 
+module Api
+  module V1
+    class MissingRecordProbeController < BaseController
+      def show
+        raise ActiveRecord::RecordNotFound
+      end
+    end
+  end
+end
+
 class Api::V1::SnapshotsControllerTest < ActionDispatch::IntegrationTest
   setup do
     @previous_digest = ENV["ALVA_PASSWORD_DIGEST"]
@@ -36,6 +46,35 @@ class Api::V1::SnapshotsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "gzip", response.headers["Content-Encoding"]
     document = JSON.parse(Zlib.gunzip(response.body))
     assert_equal @home.public_id, document["household"]["public_id"]
+  end
+
+  test "unexpected failures return a stable JSON error and are reported without exposing internals" do
+    reported = []
+    subscriber = Object.new
+    subscriber.define_singleton_method(:report) { |error, **| reported << error }
+    Rails.error.subscribe(subscriber)
+    # A real database error; the fixture transaction restores the table.
+    ActiveRecord::Base.connection.execute("DROP TABLE sync_tombstones")
+
+    get "/api/v1/snapshot", headers: bearer(@sync_token)
+
+    assert_response :internal_server_error
+    assert_equal "application/json", response.media_type
+    assert_equal "no-store", response.headers["Cache-Control"]
+    assert_equal({ "error" => "internal_error" }, body)
+    assert_not_includes response.body, "sync_tombstones"
+    assert_equal 1, reported.size
+    assert_instance_of ActiveRecord::StatementInvalid, reported.first
+  ensure
+    Rails.error.unsubscribe(subscriber) if subscriber
+  end
+
+  test "framework HTTP errors retain their status instead of becoming internal errors" do
+    with_routing do |set|
+      set.draw { get "/api/v1/snapshot", to: "api/v1/missing_record_probe#show" }
+      get "/api/v1/snapshot", headers: bearer(@sync_token)
+      assert_response :not_found
+    end
   end
 
   test "reading changes nothing" do

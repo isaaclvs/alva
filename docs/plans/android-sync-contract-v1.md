@@ -5,8 +5,9 @@ arquitetural e a escolha de Kotlin estão aprovadas
 ([ADR 0001](../adr/0001-android-offline-com-rails.md)). Pareamento, escopos e a
 barreira de autenticação da `/api/v1` foram implementados na issue #35;
 identidade pública, revisões e tombstones foram implementados na issue #36
-(migrações `AddPublicIds` e `AddSyncRevisions`). Snapshot, envelope de comandos,
-aliases e cliente seguem propostos. O contrato dá um alvo versionado às tasks
+(migrações `AddPublicIds` e `AddSyncRevisions`). O snapshot está implementado
+na issue #37. Envelope de comandos, aliases e cliente seguem propostos.
+O contrato dá um alvo versionado às tasks
 do GitHub
 ([Alva nativo offline — #33](https://github.com/isaaclvs/alva/issues/33)), que
 podem refiná-lo com evidência de implementação.
@@ -32,7 +33,7 @@ regras de negócio (o que cada comando faz) continuam em
 ## Autenticação e autorização
 
 Implementado na issue #35 para pareamento, escopos e a barreira de acesso da
-`/api/v1`; snapshots e comandos continuam proposta.
+`/api/v1`; o snapshot está implementado na issue #37 e comandos continuam proposta.
 
 - Pareamento explícito de sync, online, com a senha compartilhada que já existe
   (`HouseholdAccess`): `POST /api/v1/devices` devolve `device_id` e o segredo em
@@ -262,8 +263,10 @@ consistente; não há modo incremental na v1.
 - Erros: `401 {"error":"unauthorized"}` (ausente, malformada, desconhecida,
   revogada, anterior à rotação ou sem senha configurada) e `403
   {"error":"forbidden_scope"}` (credencial `add_only` do widget). Nenhum dos dois
-  lê dados. O corpo de erro da `/api/v1` é sempre `{"error": "<code>"}`. Falha
-  inesperada é 500 (retentável, sem efeito: a leitura não grava).
+  lê dados. Os erros tratados do snapshot usam `{"error": "<code>"}`. Falha
+  inesperada é `500 {"error":"internal_error"}` (retentável, sem efeito: a
+  leitura não grava). A base protegida reporta a exceção internamente sem
+  serializar seus detalhes; erros HTTP conhecidos mantêm seu status no Rails.
 
 ### Documento
 
