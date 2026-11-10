@@ -141,5 +141,21 @@ exceção. As telas da lista são da #43.
   revogação→reconexão com fila real preservada, restauração do banco sem credencial,
   política de backup e rede lida do manifesto **instalado**, e a tela no aparelho
   (primeira abertura pede a senha, abertura seguinte não, revogado reconecta).
-- Não coberto aqui: um backup/restauração real do sistema (feito à mão, ver o PR) e
-  contra o Rails de verdade em CI.
+- Validação manual em 10/11/2026 (emulador API 36, Rails de desenvolvimento real em
+  `127.0.0.1:3010` via `adb reverse`, APK debug com `-PalvaServerUrl`; não roda em CI):
+  senha errada → mensagem; configuração com a senha real; app reaberto **com o
+  servidor parado** abre direto; revogação no servidor → "Verificar conexão" oferece
+  reconectar (e continua oferecendo após reiniciar o app); reconexão cria um
+  aparelho novo na **mesma linhagem** (`lineage_id`); nem a senha nem o token
+  aparecem nos arquivos do app, e o `development.log` do Rails mostra
+  `password`/`previous_token` como `[FILTERED]`.
+- Backup real com `adb backup`/`adb restore` (app debuggable): o backup traz o banco
+  Room e **não** traz `no_backup/alva-access.bin`; após `uninstall` + `restore` o app
+  abre em "Reconectar à casa" (banco restaurado, credencial ausente). Observação
+  honesta: `no_backup/` já é excluído por padrão pelo Android; as regras explícitas
+  documentam e travam a intenção (e cobrem as preferências cifradas do widget, que
+  não existiam nesse teste). O `bmgr` com o `LocalTransport` do emulador falhou ao
+  restaurar (`PM agent has no metadata`), então não foi usado como evidência.
+- Não coberto: restauração por Auto Backup na nuvem / transferência entre aparelhos
+  reais (#59) e o endpoint de comandos (#39/#45): quando existir, o caso "token
+  recusado durante o envio" passa por `reportUnauthorized`.
