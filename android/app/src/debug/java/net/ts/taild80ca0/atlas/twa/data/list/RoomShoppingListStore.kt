@@ -6,11 +6,13 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import net.ts.taild80ca0.atlas.twa.data.catalog.LocalCatalog
 import net.ts.taild80ca0.atlas.twa.data.db.AlvaDatabase
 import net.ts.taild80ca0.atlas.twa.data.db.CommandEntity
 import net.ts.taild80ca0.atlas.twa.data.db.CommandSubjectEntity
 import net.ts.taild80ca0.atlas.twa.data.db.ListItemEntity
 import net.ts.taild80ca0.atlas.twa.data.db.SubjectRole
+import net.ts.taild80ca0.atlas.twa.data.matching.ItemNameSplitter
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -47,19 +49,50 @@ class RoomShoppingListStore(
 
     private suspend fun run(intent: ListIntent): IntentResult =
         when (intent) {
-            is ListIntent.AddItems -> addItems(intent)
+            is ListIntent.AddText -> addItems(ItemNameSplitter.split(intent.text))
+            is ListIntent.AddItems -> addItems(intent.names)
             is ListIntent.SetItemState -> setItemState(intent)
         }
 
-    private suspend fun addItems(intent: ListIntent.AddItems): IntentResult {
-        val names = intent.names.map { it.trim() }.filter { it.isNotEmpty() }
-        if (names.isEmpty()) return IntentResult.Invalid(InvalidReason.NO_NAMES)
+    /**
+     * The local decision for each name (see [AddPlanner]): duplicates are dropped, a
+     * purchased name is revived, the rest are created already categorized. Only the
+     * names that change the list go into the `add_items` command, so its payload
+     * keeps the contract shape (`names`); what the device decided per name travels
+     * as local metadata in the command subjects, not on the wire.
+     */
+    private suspend fun addItems(names: List<String>): IntentResult {
+        val steps = AddPlanner(LocalCatalog.categorizerOn(db), ids).plan(names, db.listItems().live())
+        if (steps.singleOrNull() == AddStep.Invalid) return IntentResult.Invalid(InvalidReason.NO_NAMES)
 
-        val itemIds = names.map { ids.newId() }
-        val payload = JSONObject().put("names", JSONArray(names))
-        val subjects = itemIds.mapIndexed { index, id -> Subject(id, SubjectRole.CREATES, index) }
-        val commandId = projectAndEnqueue(CommandTypes.ADD_ITEMS, payload, lockVersion = null, subjects, itemIds)
-        return IntentResult.Saved(commandId, itemIds)
+        val additions = steps.map { it.toAddition() }
+        val changing = steps.filter { it is AddStep.Create || it is AddStep.Revive }
+        if (changing.isEmpty()) return IntentResult.AlreadyOnList(additions)
+
+        val subjects = changing.mapIndexed { index, step ->
+            when (step) {
+                is AddStep.Create -> Subject(step.publicId, SubjectRole.CREATES, index, step.categoryPublicId)
+                is AddStep.Revive -> Subject(step.item.publicId, SubjectRole.TARGETS, index, step.categoryPublicId)
+                else -> error("only steps that change the list are queued")
+            }
+        }
+        val payload = JSONObject().put("names", JSONArray(changing.map { it.typedName() }))
+        val commandId = projectAndEnqueue(CommandTypes.ADD_ITEMS, payload, lockVersion = null, subjects)
+        return IntentResult.Saved(commandId, subjects.map { it.id }, additions)
+    }
+
+    private fun AddStep.typedName(): String = when (this) {
+        is AddStep.Create -> name
+        is AddStep.Revive -> name
+        is AddStep.Duplicate -> name
+        AddStep.Invalid -> ""
+    }
+
+    private fun AddStep.toAddition(): ItemAddition = when (this) {
+        is AddStep.Create -> ItemAddition(name, AddOutcome.CREATED, publicId)
+        is AddStep.Revive -> ItemAddition(name, AddOutcome.REVIVED, item.publicId)
+        is AddStep.Duplicate -> ItemAddition(name, AddOutcome.DUPLICATE, itemPublicId)
+        AddStep.Invalid -> error("invalid is answered before additions are built")
     }
 
     private suspend fun setItemState(intent: ListIntent.SetItemState): IntentResult {
@@ -77,9 +110,7 @@ class RoomShoppingListStore(
                 ProjectionReducer.DESIRED_PENDING
             })
         val subjects = listOf(Subject(item.publicId, SubjectRole.TARGETS, 0))
-        val commandId = projectAndEnqueue(
-            CommandTypes.SET_ITEM_STATE, payload, item.lockVersion, subjects, createdIds = emptyList(),
-        )
+        val commandId = projectAndEnqueue(CommandTypes.SET_ITEM_STATE, payload, item.lockVersion, subjects)
         return IntentResult.Saved(commandId, listOf(item.publicId))
     }
 
@@ -89,10 +120,11 @@ class RoomShoppingListStore(
         payload: JSONObject,
         lockVersion: Int?,
         subjects: List<Subject>,
-        createdIds: List<String>,
     ): String {
         val now = clock.nowMillis()
-        val projected = ProjectedCommand(type, payload, createdIds, now)
+        val projected = ProjectedCommand(
+            type, payload, subjects.map { ProjectedSubject(it.id, it.role, it.ordinal, it.categoryPublicId) }, now,
+        )
         val touched = subjects.filter { it.role == SubjectRole.TARGETS }.map { it.id }
         val current = db.listItems().findAll(touched).associateBy { it.publicId }
         db.listItems().upsert(ProjectionReducer.reduce(current, projected))
@@ -118,7 +150,7 @@ class RoomShoppingListStore(
             ),
         )
         db.commands().insertSubjects(
-            subjects.map { CommandSubjectEntity(commandId, it.id, it.ordinal, it.role) },
+            subjects.map { CommandSubjectEntity(commandId, it.id, it.ordinal, it.role, it.categoryPublicId) },
         )
         return commandId
     }
@@ -134,11 +166,11 @@ class RoomShoppingListStore(
                 .associate { it.publicId to it.toProjection() }
                 .toMutableMap()
             for (command in db.commands().inOrder()) {
-                val created = db.commands().subjectsOf(command.id)
-                    .filter { it.role == SubjectRole.CREATES }.map { it.subjectPublicId }
+                val subjects = db.commands().subjectsOf(command.id)
+                    .map { ProjectedSubject(it.subjectPublicId, it.role, it.ordinal, it.categoryPublicId) }
                 val changed = ProjectionReducer.reduce(
                     projection,
-                    ProjectedCommand(command.type, JSONObject(command.payload), created, command.createdAt),
+                    ProjectedCommand(command.type, JSONObject(command.payload), subjects, command.createdAt),
                 )
                 changed.forEach { projection[it.publicId] = it }
             }
@@ -160,7 +192,7 @@ class RoomShoppingListStore(
         )
     }
 
-    private class Subject(val id: String, val role: String, val ordinal: Int)
+    private class Subject(val id: String, val role: String, val ordinal: Int, val categoryPublicId: String? = null)
 }
 
 private fun ListItemEntity.toDomain(awaitingSync: Boolean) = ListItem(

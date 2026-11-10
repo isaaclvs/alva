@@ -211,6 +211,12 @@ android {
         // ones (real Keystore and Room): the same behavior must hold on both.
         testDebug.java.srcDirs += 'src/sharedTest/java'
         androidTest.java.srcDirs += 'src/sharedTest/java'
+
+        // The matching corpus shared with the Rails suite (TextNormalizer,
+        // ItemCategorizer, ItemNameSplitter, add rules): the JVM and instrumented
+        // tests read the very same file, test/fixtures/files/matching_corpus.json.
+        test.resources.srcDirs += files("$rootDir/../test/fixtures/files")
+        androidTest.assets.srcDirs += files("$rootDir/../test/fixtures/files")
     }
 }
 

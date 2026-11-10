@@ -1,6 +1,7 @@
 package net.ts.taild80ca0.atlas.twa.data.list
 
 import kotlinx.coroutines.flow.Flow
+import net.ts.taild80ca0.atlas.twa.data.matching.ItemNameSplitter
 
 /**
  * The single entry point to the shopping list for screens and the widget.
@@ -20,7 +21,17 @@ interface ShoppingListStore {
 
 /** What the user asked for. New intents (correct, remove, finish...) are added by their own tasks. */
 sealed interface ListIntent {
-    /** Names already split by the caller (the multi-name splitting rules belong to the screen). */
+    /**
+     * What was typed in the add field. It is split like the server does (comma,
+     * semicolon, line feed; repeats dropped; at most [ItemNameSplitter.MAX_NAMES]
+     * names) and then added as [AddItems].
+     */
+    data class AddText(val text: String) : ListIntent
+
+    /**
+     * Names already separated, such as the habituals panel's: added with the same
+     * duplicate and category rules as [AddText] but without its limit of 30.
+     */
     data class AddItems(val names: List<String>) : ListIntent
 
     /** Desired state, never a toggle: repeating it is harmless. */
@@ -28,8 +39,23 @@ sealed interface ListIntent {
 }
 
 sealed interface IntentResult {
-    /** Committed locally and queued for the server. */
-    data class Saved(val commandId: String, val itemIds: List<String>) : IntentResult
+    /**
+     * Committed locally and queued for the server. For an add, [itemIds] are the
+     * items that were created or revived and [additions] says what happened to
+     * every typed name, duplicates included.
+     */
+    data class Saved(
+        val commandId: String,
+        val itemIds: List<String>,
+        val additions: List<ItemAddition> = emptyList(),
+    ) : IntentResult
+
+    /**
+     * Every typed name was already pending on the list: nothing was written or
+     * queued. The caller shows [additions] (which item each name matched) instead
+     * of success.
+     */
+    data class AlreadyOnList(val additions: List<ItemAddition>) : IntentResult
 
     /** Already in the desired state; nothing was written or queued. */
     data object Unchanged : IntentResult
@@ -42,6 +68,11 @@ sealed interface IntentResult {
 }
 
 enum class InvalidReason { NO_NAMES, ITEM_NOT_FOUND }
+
+/** What adding one typed name did: a new item, a purchased one back to pending, or nothing (already pending). */
+enum class AddOutcome { CREATED, REVIVED, DUPLICATE }
+
+data class ItemAddition(val name: String, val outcome: AddOutcome, val itemPublicId: String)
 
 enum class ItemStatus(val code: Int) {
     PENDING(0),

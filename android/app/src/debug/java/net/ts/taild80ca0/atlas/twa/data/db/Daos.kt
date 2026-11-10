@@ -28,6 +28,24 @@ interface CategoryDao {
 }
 
 @Dao
+interface CatalogDao {
+    @Query("SELECT * FROM catalog_items ORDER BY normalized_name")
+    suspend fun entries(): List<CatalogItemEntity>
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertEntries(entries: List<CatalogItemEntity>)
+
+    @Query("DELETE FROM catalog_items")
+    suspend fun clearEntries()
+
+    @Query("SELECT * FROM catalog_state WHERE id = 1")
+    suspend fun state(): CatalogStateEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun putState(state: CatalogStateEntity)
+}
+
+@Dao
 interface ConfirmedItemDao {
     @Query("SELECT * FROM confirmed_items ORDER BY created_at, rowid")
     suspend fun all(): List<ConfirmedItemEntity>

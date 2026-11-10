@@ -315,6 +315,7 @@ class ListItemsTest < ApplicationSystemTestCase
     visit_list
     connect_turbo_cable_stream_sources
     click_on "Editar Leite"
+    within("##{dom_id(list_items(:milk), :row)}") { assert_field "Nome", with: "Leite" }
     click_on "Editar Detergente"
     assert_selector "#list_items form[data-list-refresh-correction]", count: 2
     within("##{dom_id(list_items(:milk), :row)}") { assert_field "Nome", with: "Leite" }
@@ -342,6 +343,7 @@ class ListItemsTest < ApplicationSystemTestCase
     visit_list
     connect_turbo_cable_stream_sources
     click_on "Editar Leite"
+    within("##{dom_id(list_items(:milk), :row)}") { assert_field "Nome", with: "Leite" }
     click_on "Editar Detergente"
     assert_selector "#list_items form[data-list-refresh-correction]", count: 2
     within("##{dom_id(list_items(:milk), :row)}") { fill_in "Nome", with: "Leite rascunho inicial" }
