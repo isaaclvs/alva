@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Backup rules for Android 11 and below (android:fullBackupContent).
+
+    The sync credential never travels in a backup. It is encrypted by a Keystore
+    key that is not backed up, so a restored copy would be useless on the
+    receiving device; keeping it out is the intended behavior, and the app asks to
+    be connected again. The Room database (list and unsent queue) is not excluded:
+    it is the only copy of actions that never left the device.
+-->
+<full-backup-content>
+    <!-- Where KeystoreCredentialVault writes (Context.getNoBackupFilesDir()). -->
+    <exclude domain="root" path="no_backup/" />
+    <!-- The widget's EncryptedSharedPreferences: ciphertext plus keysets wrapped by a Keystore key. -->
+    <exclude domain="sharedpref" path="alva_quick_add.xml" />
+    <exclude domain="sharedpref" path="__androidx_security_crypto_encrypted_prefs__.xml" />
+</full-backup-content>
