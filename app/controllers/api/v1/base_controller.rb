@@ -9,10 +9,19 @@ module Api
       BEARER = /\ABearer (?<secret>[A-Za-z0-9_-]+)\z/
 
       before_action :authenticate_device!
+      rescue_from StandardError, with: :render_internal_error
 
       attr_reader :device, :current_household
 
       private
+
+      def render_internal_error(error)
+        # Preserve Rails' status handling for known HTTP errors (404, 400, etc.).
+        raise error unless ActionDispatch::ExceptionWrapper.status_code_for_exception(error.class.name) == 500
+
+        Rails.error.report(error, handled: true, context: { request_id: request.request_id })
+        render_api_error("internal_error", :internal_server_error)
+      end
 
       def authenticate_device!
         response.headers["Cache-Control"] = "no-store"

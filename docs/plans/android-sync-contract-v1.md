@@ -7,8 +7,9 @@ barreira de autenticação da `/api/v1` foram implementados na issue #35;
 identidade pública, revisões e tombstones foram implementados na issue #36
 (migrações `AddPublicIds` e `AddSyncRevisions`); a persistência idempotente de
 comandos (ledger, linhagem do aparelho, ordem e retenção) foi implementada na
-issue #38 (migração `CreateSyncCommands`). Snapshot, endpoint e comandos de
-negócio, aliases e cliente seguem propostos. O contrato dá um alvo versionado às tasks
+issue #38 (migração `CreateSyncCommands`). O snapshot está implementado na
+issue #37. Endpoint e executores de comandos de negócio, aliases e cliente
+seguem propostos. O contrato dá um alvo versionado às tasks
 do GitHub
 ([Alva nativo offline — #33](https://github.com/isaaclvs/alva/issues/33)), que
 podem refiná-lo com evidência de implementação.
@@ -34,7 +35,8 @@ regras de negócio (o que cada comando faz) continuam em
 ## Autenticação e autorização
 
 Implementado na issue #35 para pareamento, escopos e a barreira de acesso da
-`/api/v1`; snapshots e comandos continuam proposta.
+`/api/v1`; o snapshot está implementado na issue #37. O endpoint de comandos de
+negócio segue proposto; o ledger e o processador estão implementados na #38.
 
 - Pareamento explícito de sync, online, com a senha compartilhada que já existe
   (`HouseholdAccess`): `POST /api/v1/devices` devolve `device_id` e o segredo em
@@ -371,14 +373,135 @@ Regras implementadas em #36 (`Household#record_shared_change!`):
 
 ## Snapshot
 
-- `GET /api/v1/snapshot` devolve o conjunto sincronizado completo com a revisão
-  atual: categorias, dicionário (`CatalogItem`, incluindo aprendidos), itens da
-  lista viva, itens arquivados necessários a "comprar de novo" (limitado),
-  habituais e tombs de exclusão desde a revisão enviada.
-- Preferir snapshot completo ao volume doméstico a montar log incremental sem
-  necessidade. Um snapshot parcial só se dados reais exigirem.
-- Aplicação no cliente: atualizar estado confirmado e reaplicar comandos locais
-  ainda pendentes na mesma transação local.
+**Implementado na issue #37** (`GET /api/v1/snapshot`, `SyncSnapshot`). O
+snapshot é o conjunto sincronizado **completo** de uma casa, numa única leitura
+consistente; não há modo incremental na v1.
+
+### Requisição
+
+- `GET /api/v1/snapshot` com `Authorization: Bearer <segredo>` de uma credencial
+  `sync` (ver "Autenticação e autorização"). A casa vem só da credencial:
+  `household_id`, `scope` e afins enviados na requisição são ignorados.
+- Sem parâmetros, sem sufixo de formato (`/snapshot.xml` é 404) e só `GET`.
+  Resposta `200`, `application/json`, `Cache-Control: no-store`. O `Rack::Deflater`
+  do app comprime JSON quando o cliente envia `Accept-Encoding: gzip`.
+- Erros: `401 {"error":"unauthorized"}` (ausente, malformada, desconhecida,
+  revogada, anterior à rotação ou sem senha configurada) e `403
+  {"error":"forbidden_scope"}` (credencial `add_only` do widget). Nenhum dos dois
+  lê dados. Os erros tratados do snapshot usam `{"error": "<code>"}`. Falha
+  inesperada é `500 {"error":"internal_error"}` (retentável, sem efeito: a
+  leitura não grava). A base protegida reporta a exceção internamente sem
+  serializar seus detalhes; erros HTTP conhecidos mantêm seu status no Rails.
+
+### Documento
+
+```json
+{
+  "schema_version": 1,
+  "revision": 840,
+  "dictionary_revision": 12,
+  "household": { "public_id": "…", "name": "Casa" },
+  "categories": [ { "public_id": "…", "name": "Hortifruti", "position": 1 } ],
+  "catalog_items": [ { "public_id": "…", "name": "Leite", "normalized_name": "leite",
+                       "category_public_id": "…", "learned": false } ],
+  "list_items": [ { "public_id": "…", "name": "Leite", "normalized_name": "leite",
+                    "category_public_id": "…", "status": "pending", "position": null,
+                    "purchased_at": null, "created_at": "2026-11-10T12:00:00.123456Z",
+                    "updated_at": "2026-11-10T12:00:00.123456Z", "lock_version": 0 } ],
+  "archived_items": [ { "public_id": "…", "…": "campos de list_items", "shopping_trip_public_id": "…" } ],
+  "shopping_trips": [ { "public_id": "…", "finished_at": "…", "created_at": "…" } ],
+  "habitual_items": [ { "public_id": "…", "name": "Café", "normalized_name": "cafe",
+                        "created_at": "…" } ],
+  "tombstones": [ { "record_type": "list_item", "public_id": "…", "revision": 838 } ]
+}
+```
+
+- `revision` é `households.sync_revision` e `dictionary_revision` é a revisão do
+  escopo `dictionary`; ambas descrevem **exatamente** o estado devolvido. Uma
+  mudança de dicionário também move `revision` (ver "Revisões"), então comparar
+  só `revision` basta para saber se algo mudou.
+- Registros se referem uns aos outros por `public_id` (`category_public_id`,
+  `shopping_trip_public_id`; `null` para item sem categoria). **Nenhum id inteiro
+  do Rails é serializado.** Os campos são listados um a um no servidor: uma coluna
+  nova nunca entra no contrato por acidente.
+- `list_items` é a lista viva (`shopping_trip_id` nulo) e `archived_items` é o
+  histórico (com viagem). Os dois carregam tudo o que desfazer remoção
+  (`ListItemSnapshot`), desfazer marcação (`status`, `purchased_at`,
+  `lock_version`) e desfazer compra precisam, para o aparelho compensar sem rede.
+- Datas são UTC ISO 8601 com microssegundos (`…:00.123456Z`), como no
+  `ListItemSnapshot`: itens criados no mesmo segundo mantêm a ordem.
+- **A ordem dos arrays faz parte do contrato:** cada coleção vem em ordem
+  crescente do id interno (categorias por `position`, depois id; tombstones por
+  `revision`, depois id). É o desempate que o Rails usa (viagem mais recente,
+  grafia mais recente) e o aparelho não tem outro modo de reproduzi-lo.
+- Fica de fora, por decisão: segredos, digests, dispositivos e credenciais; dados
+  de outra casa; preferências do aparelho (tema, tela, modo compras); resultados
+  de comandos e aliases. Campos novos só entram de forma **aditiva**: o cliente
+  v1 ignora campos desconhecidos, e `schema_version` só muda numa `/api/v2`.
+
+### Consistência
+
+Todas as consultas rodam numa transação SQLite *deferred* (`Household.transaction(joinable:
+false)`; o padrão do Rails é `IMMEDIATE`). Em WAL, a primeira leitura (a
+revisão) fixa o estado que a transação enxerga: um commit que chegue no meio não
+aparece em nenhuma coleção, e a leitura nem espera nem atrasa escritores. O
+`revision` do documento é, portanto, sempre o da lista, do arquivo, das viagens,
+dos habituais, do dicionário e dos tombstones que vêm junto. Coberto por
+`test/concurrency/sync_snapshot_concurrency_test.rb`: a leitura é pausada logo
+depois de cada tabela enquanto outra conexão confirma mudanças em todas elas, e o
+documento tem de sair idêntico ao anterior.
+
+### Histórico: sem corte na v1
+
+"Comprar de novo" (`BuyAgainSuggestions`) não é um filtro sobre as últimas
+compras: agrupa **todo** o arquivo por nome normalizado, conta viagens
+distintas, escolhe a grafia/categoria mais recente e exclui o que está na lista
+viva. Cortar o histórico mudaria a ordem, a contagem e a grafia exibidas, e o
+desfazer compra precisa dos itens da viagem mais recente. Por isso a v1 entrega
+`archived_items` e `shopping_trips` **completos**, sem janela de tempo nem
+limite de linhas. Receita do cliente (equivalente ao SQL do Rails, verificada
+por teste contra ele):
+
+1. Descartar linhas de `archived_items` cujo `normalized_name` esteja vazio ou
+   igual ao de algum item de `list_items` (pendente ou comprado).
+2. Agrupar por `normalized_name`; `trips` = nº de `shopping_trip_public_id`
+   distintos do grupo.
+3. A linha representante é a de maior `purchased_at` (ou `updated_at` quando
+   nulo); empate vai para a que vem **depois** no array. Nome e categoria
+   exibidos são os dela, e a data é a dela.
+4. Ordenar por `trips` desc, data desc, nome asc (comparação binária de bytes
+   UTF-8) e mostrar as 5 primeiras.
+
+Viagem mais recente (desfazer compra): maior `finished_at`, empate para a que
+vem depois no array; seus itens são os `archived_items` com o seu
+`shopping_trip_public_id`.
+
+Custo medido em 10/11/2026 (SQLite local, linhas sintéticas de 12 itens por
+viagem, consultas somadas à serialização JSON; indicativo, não garantia):
+
+| Itens arquivados | JSON | gzip | Tempo no servidor |
+| --- | --- | --- | --- |
+| 3.000 (ex.: 30 itens por semana, ~2 anos) | 1,3 MB | 109 KB | ~0,2 s |
+| 10.000 | 4,3 MB | 363 KB | ~1,1 s |
+| 50.000 | 21 MB | 1,8 MB | ~2,6 s |
+
+No volume de duas pessoas isso cabe com folga e dispensa log incremental.
+**Limite operacional:** reavaliar acima de ~20.000 itens arquivados. A saída,
+quando os dados reais pedirem, é compactar o arquivo por nome normalizado ou
+paginar, numa `/api/v2` (mudar a completude de `archived_items` reinterpretaria
+um campo da v1). Os tombstones nunca são podados (tamanho proporcional às
+remoções, ~100 bytes cada) e são enviados todos: servem ao cliente para saber que
+um alvo de comando pendente foi removido (`gone`) em vez de nunca ter existido;
+um item arquivado **não** gera tombstone.
+
+### Aplicação no cliente
+
+- Aplicar só se `revision` for **maior ou igual** à confirmada; um snapshot mais
+  antigo, ou de outra casa, nunca substitui o estado local (ver "Revisões").
+- O snapshot substitui o estado *confirmado* e o que não vem nele (item,
+  habitual, viagem) é removido localmente; comandos locais pendentes são
+  reaplicados por cima na mesma transação local e a fila nunca é apagada por uma
+  leitura.
 - Sinal de mudança: ActionCable entrega **dado/invalidação**, nunca HTML Turbo;
   o app aberto dispara nova sincronização, e reconexão/retorno ao app sempre
   verifica o servidor. Em segundo plano, WorkManager retenta; não prometer
