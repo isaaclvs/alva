@@ -36,45 +36,89 @@ class Household < ApplicationRecord
     end
   end
 
-  # The single entry point for putting a name on the list. Returns an AddResult:
-  # - :created   a new pending item was saved;
-  # - :revived   the name matched a purchased item, which is pending again
-  #              (keeping its original name, in the dictionary's category);
-  #              no new row;
-  # - :duplicate the name is already pending; `item` is that existing item;
-  # - :invalid   nothing saved; `item.errors` says why (e.g. blank name).
+  # Advances this household's sync revision inside the caller's transaction and
+  # returns the new value. The UPDATE is the read and the write at once, so two
+  # concurrent connections cannot lose an increment.
+  def bump_sync_revision!
+    self.class.uncached do
+      self.class.where(id: id).update_all("sync_revision = sync_revision + 1")
+      self.sync_revision = self.class.where(id: id).pick(:sync_revision)
+    end
+  end
+
+  # Publishes one effective shared change: the revision moves and the deletions
+  # are recorded as tombstones, all in the transaction that made the change.
+  # Call it once per operation, after the change actually happened — a
+  # duplicate, a rejected write or a no-op must not call it, so the revision
+  # never moves for nothing. `dictionary_changed` advances the dictionary's own
+  # revision in the same transaction.
+  def record_shared_change!(tombstones: [], dictionary_changed: false)
+    revision = bump_sync_revision!
+    DictionaryChange.bump_revision! if dictionary_changed
+    Array(tombstones).each { |record| SyncTombstone.record!(record, household: self, revision: revision) }
+    revision
+  end
+
+  # Removal is a shared change too: the item leaves the live list and a
+  # tombstone keeps its identity for clients that still hold it.
+  def remove_item(item)
+    with_list_lock do
+      item.destroy!
+      record_shared_change!(tombstones: [ item ])
+      item
+    end
+  end
+
+  # Habitual items are a household list: saving and removing them are shared
+  # changes like any other. Returns the item, saved or with its errors.
+  def add_habitual_item(name)
+    with_list_lock do
+      item = habitual_items.new(name: name)
+      item.save
+      record_shared_change! if item.persisted?
+      item
+    end
+  end
+
+  def remove_habitual_item(item)
+    with_list_lock do
+      item.destroy!
+      record_shared_change!(tombstones: [ item ])
+      item
+    end
+  end
+
+  # Single-name operation: one shared change, only when the name actually lands
+  # on the list (created or revived). A pending duplicate and an invalid name
+  # leave the revision alone.
   def add_item(name)
     with_list_lock do
-      existing = pending_item_named(name)
-      next AddResult.new(existing, :duplicate) if existing
-
-      purchased = purchased_item_named(name)
-      if purchased
-        purchased.toggle_purchased!
-        # Typed again, so it lands where a new item would: the dictionary may
-        # have learned a category since this row was added.
-        category = ItemCategorizer.call(purchased.name)
-        purchased.update!(category: category) unless purchased.category == category
-        next AddResult.new(purchased, :revived)
-      end
-
-      item = list_items.new(name: name)
-      begin
-        AddResult.new(item, item.save ? :created : :invalid)
-      rescue ActiveRecord::RecordNotUnique
-        existing = pending_item_named(name)
-        AddResult.new(existing || item, existing ? :duplicate : :invalid)
-      end
+      result = add_one_item(name)
+      record_shared_change! if result.outcome.in?(%i[created revived])
+      result
     end
   end
 
   # Adds every name typed in the add field (see ItemNameSplitter for the
-  # separators and limits), each one through add_item, and returns their
-  # AddResults in order. The list is broadcast once for the whole batch.
-  # Text with no names in it counts as one invalid attempt, like a blank name.
+  # separators and limits) through the same rules as add_item, and returns
+  # their AddResults in order. The list is broadcast once for the whole batch
+  # and the batch counts as one shared change. Text with no names in it counts
+  # as one invalid attempt, like a blank name.
   def add_items(text)
     names = ItemNameSplitter.call(text).presence || [ "" ]
-    batch_list_broadcasts { with_list_lock { names.map { |name| add_item(name) } } }
+    add_item_names(names)
+  end
+
+  # Names already split: the habits panel sends its list straight in, without
+  # the 30-name limit of the text field. Still one shared change for the batch.
+  def add_item_names(names)
+    batch_list_broadcasts do
+      with_list_lock do
+        results = names.map { |name| add_one_item(name) }
+        record_shared_change! if results.any? { |result| result.outcome.in?(%i[created revived]) }
+        results
+      end
+    end
   end
 
   # "Compra feita": records a ShoppingTrip and archives the purchased items on
@@ -89,6 +133,9 @@ class Household < ApplicationRecord
       archived = list_items.on_list.purchased.update_all(shopping_trip_id: trip.id, updated_at: now)
       raise ActiveRecord::Rollback if archived.zero?
 
+      # One UPDATE for every item (update_all skips per-item callbacks), so the
+      # revision is published here. Archiving is not a deletion: no tombstones.
+      record_shared_change!
       trip
     end
 
@@ -107,10 +154,14 @@ class Household < ApplicationRecord
 
       # An item put on the list again after the trip ("Leite" typed meanwhile)
       # keeps its entry and the archived copy goes away, so it never shows up
-      # twice; same idea as typing a bought item bringing it back.
-      trip.list_items.select { |item| item_named(list_items.on_list, item.name) }.each(&:delete)
+      # twice; same idea as typing a bought item bringing it back. `delete`
+      # skips callbacks, so these deletions are handed to the tombstone
+      # recorder explicitly.
+      dropped = trip.list_items.select { |item| item_named(list_items.on_list, item.name) }
+      dropped.each(&:delete)
       trip.list_items.update_all(shopping_trip_id: nil, updated_at: Time.current)
       trip.destroy!
+      record_shared_change!(tombstones: dropped + [ trip ])
       true
     end
 
@@ -133,7 +184,11 @@ class Household < ApplicationRecord
     with_list_lock do
       next if ListItem.exists?(snapshot["id"]) || pending_item_named(snapshot["name"])
 
-      list_items.create!(snapshot.slice(*ListItemSnapshot::ATTRIBUTES - %w[household_id]))
+      item = list_items.create!(snapshot.slice(*ListItemSnapshot::ATTRIBUTES - %w[household_id]))
+      # The item is active again: the tombstone of its removal must go away.
+      SyncTombstone.forget!(item.public_id)
+      record_shared_change!
+      item
     rescue ActiveRecord::RecordNotUnique
       nil
     end
@@ -203,6 +258,39 @@ class Household < ApplicationRecord
   end
 
   private
+
+  # The single entry point for putting a name on the list. Returns an
+  # AddResult:
+  # - :created   a new pending item was saved;
+  # - :revived   the name matched a purchased item, which is pending again
+  #              (keeping its original name, in the dictionary's category);
+  #              no new row;
+  # - :duplicate the name is already pending; `item` is that existing item;
+  # - :invalid   nothing saved; `item.errors` says why (e.g. blank name).
+  # It never publishes a revision itself: the caller owns that, so a batch of
+  # names counts as one shared change.
+  def add_one_item(name)
+    existing = pending_item_named(name)
+    return AddResult.new(existing, :duplicate) if existing
+
+    purchased = purchased_item_named(name)
+    if purchased
+      purchased.toggle_purchased!(sync: false)
+      # Typed again, so it lands where a new item would: the dictionary may
+      # have learned a category since this row was added.
+      category = ItemCategorizer.call(purchased.name)
+      purchased.update!(category: category) unless purchased.category == category
+      return AddResult.new(purchased, :revived)
+    end
+
+    item = list_items.new(name: name)
+    begin
+      AddResult.new(item, item.save ? :created : :invalid)
+    rescue ActiveRecord::RecordNotUnique
+      existing = pending_item_named(name)
+      AddResult.new(existing || item, existing ? :duplicate : :invalid)
+    end
+  end
 
   # The single place that matches a typed name against existing items, so any
   # scope on the live list (e.g. excluding archived items) goes in one spot.
