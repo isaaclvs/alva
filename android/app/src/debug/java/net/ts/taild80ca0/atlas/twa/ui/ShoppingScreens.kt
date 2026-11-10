@@ -139,7 +139,7 @@ fun ShoppingScreens(store: ShoppingListStore, modifier: Modifier = Modifier) {
                 )
             }
             feedback?.let {
-                Text(it, modifier = Modifier.testTag("feedback").semantics { liveRegion = LiveRegionMode.Polite })
+                Text(it, maxLines = 3, modifier = Modifier.testTag("feedback").semantics { liveRegion = LiveRegionMode.Polite })
             }
             when {
                 readFailed -> {
@@ -159,7 +159,7 @@ fun ShoppingScreens(store: ShoppingListStore, modifier: Modifier = Modifier) {
                         } else item { Text("Acabou em casa? Adicione aqui.") }
                     }
                     val duplicates = DuplicateHint.alreadyPending(draft, current.items)
-                    if (duplicates.isNotEmpty()) Text("Já na lista: ${duplicates.joinToString()}", modifier = Modifier.testTag("duplicate-hint"))
+                    if (duplicates.isNotEmpty()) Text("Já na lista: ${duplicates.joinToString()}", maxLines = 2, modifier = Modifier.testTag("duplicate-hint"))
                     OutlinedTextField(
                         value = draft, onValueChange = { draft = it }, label = { Text("O que acabou?") },
                         modifier = Modifier.fillMaxWidth().focusRequester(focus).testTag("add-input"),
