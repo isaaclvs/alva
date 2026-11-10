@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_10_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_10_000001) do
   create_table "android_devices", force: :cascade do |t|
     t.integer "household_id", null: false
     t.string "name", null: false
@@ -63,6 +63,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_10_000000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "public_id", null: false
+    t.integer "sync_revision", default: 0, null: false
     t.index ["public_id"], name: "index_households_on_public_id", unique: true
   end
 
@@ -96,6 +97,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_10_000000) do
     t.index ["public_id"], name: "index_shopping_trips_on_public_id", unique: true
   end
 
+  create_table "sync_scopes", force: :cascade do |t|
+    t.string "name", null: false
+    t.integer "revision", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "index_sync_scopes_on_name", unique: true
+  end
+
+  create_table "sync_tombstones", force: :cascade do |t|
+    t.string "record_type", null: false
+    t.string "public_id", null: false
+    t.string "scope", null: false
+    t.integer "household_id"
+    t.integer "revision", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["household_id", "revision"], name: "index_sync_tombstones_on_household_id_and_revision"
+    t.index ["household_id"], name: "index_sync_tombstones_on_household_id"
+    t.index ["public_id"], name: "index_sync_tombstones_on_public_id", unique: true
+  end
+
   add_foreign_key "android_devices", "households"
   add_foreign_key "catalog_items", "categories"
   add_foreign_key "habitual_items", "households"
@@ -103,4 +125,5 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_10_000000) do
   add_foreign_key "list_items", "households"
   add_foreign_key "list_items", "shopping_trips"
   add_foreign_key "shopping_trips", "households"
+  add_foreign_key "sync_tombstones", "households"
 end

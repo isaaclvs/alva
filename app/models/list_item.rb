@@ -36,7 +36,10 @@ class ListItem < ApplicationRecord
     pending? && updated_at.present? && updated_at > JUST_LISTED_FOR.ago
   end
 
-  def toggle_purchased!
+  # `sync: false` is for callers that are part of a larger shared operation
+  # (reviving a name inside Household#add_item): the outer operation publishes
+  # the single revision.
+  def toggle_purchased!(sync: true)
     expected_version = lock_version
     household.with_list_lock do
       reload
@@ -53,6 +56,7 @@ class ListItem < ApplicationRecord
       else
         update!(status: :purchased, purchased_at: Time.current)
       end
+      household.record_shared_change! if sync
       true
     end
   end
@@ -68,6 +72,7 @@ class ListItem < ApplicationRecord
       end
 
       update!(status: snapshot.fetch("status"), purchased_at: snapshot["purchased_at"])
+      household.record_shared_change!
       true
     end
   end
@@ -92,11 +97,18 @@ class ListItem < ApplicationRecord
         self.category = ItemCategorizer.call(self.name)
       end
 
+      learned = nil
       saved = transaction do
         raise ActiveRecord::Rollback unless save
 
-        ItemCategorizer.learn(self.name, picked) if picked
+        learned = ItemCategorizer.learn(self.name, picked) if picked
         true
+      end
+      if saved.present?
+        # A category picked by hand also teaches the dictionary, which keeps
+        # its own revision. Saving the item and learning are one change.
+        dictionary_changed = learned.present? && learned.saved_changes.any?
+        household.record_shared_change!(dictionary_changed: dictionary_changed)
       end
       saved.present?
     end

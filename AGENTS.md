@@ -114,6 +114,15 @@ ShoppingTrip  # uma compra finalizada ("Compra feita")
   finished_at (não nulo)
 ```
 
+**Sincronização (issue #36):** todo registro sincronizado — casa, categoria,
+  dicionário, item (arquivado inclusive), habitual e compra — tem `public_id`
+  UUID único no banco, além do id inteiro que o Rails usa internamente.
+  `households.sync_revision` numera as mudanças compartilhadas da casa e
+  `SyncScope` (`"dictionary"`) numera o dicionário global; remoções gravam
+  `SyncTombstone` com tipo, `public_id`, escopo, casa e revisão. `updated_at`
+  nunca é cursor. Regras completas em
+  `docs/plans/android-sync-contract-v1.md`.
+
 **Arquivados:** um `ListItem` com `shopping_trip_id` é histórico e não faz parte
 da lista viva. Toda query da lista viva (renderização, contadores, resumo,
 detecção de duplicados, localizar item para marcar/remover) deve usar

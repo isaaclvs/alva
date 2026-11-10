@@ -1,9 +1,7 @@
 class HabitualItemsController < ApplicationController
   def create
     @household = current_household
-    @habitual_item = HabitualItem.new(name: habitual_item_params[:name])
-    @habitual_item.household = @household
-    @household.with_list_lock { @habitual_item.save }
+    @habitual_item = @household.add_habitual_item(habitual_item_params[:name])
 
     if @habitual_item.persisted?
       @notice = "#{@habitual_item.name} salvo nos habituais"
@@ -24,7 +22,7 @@ class HabitualItemsController < ApplicationController
     @habitual_item = @household.habitual_items.find_by(id: params[:id])
     return head :not_found unless @habitual_item
 
-    @household.with_list_lock { @habitual_item.destroy! }
+    @household.remove_habitual_item(@habitual_item)
     @notice = "#{@habitual_item.name} removido dos habituais"
     @household.broadcast_habitual_items
     respond_with_feedback(toast_message: @notice)
@@ -62,10 +60,7 @@ class HabitualItemsController < ApplicationController
   def add_items
     @household = current_household
     @results = @household.batch_list_broadcasts do
-      @household.with_list_lock do
-        habits = yield
-        habits.map { |habit| @household.add_item(habit.name) }
-      end
+      @household.add_item_names(yield.map(&:name))
     end
     if @results.empty?
       @notice = "Ainda não há itens habituais salvos"

@@ -121,7 +121,7 @@ class ListItemsController < ApplicationController
       return missing_or_stale_item unless item
       return stale_list_action if stale_version?(item, params[:lock_version])
 
-      item.destroy!
+      current_household.remove_item(item)
     end
 
     render_list toast: { message: "#{@list_item.name} removido",
