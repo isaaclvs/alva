@@ -10,9 +10,9 @@ module SyncCommands
     end
 
     def call
-      public_id = @command.payload["public_id"]
-      public_id = public_id.downcase if public_id.is_a?(String) && SyncCommand::UUID.match?(public_id)
-      return rejected("malformed_command", "field" => "payload.public_id") unless public_id
+      value = @command.payload["public_id"]
+      return rejected("malformed_command", "field" => "payload.public_id") unless value.is_a?(String) && SyncCommand::UUID.match?(value)
+      public_id = value.downcase
 
       found = ItemLookup.new(@household).find(public_id)
       return rejected("not_found") if found.unknown?
@@ -31,12 +31,11 @@ module SyncCommands
         "current" => ItemData.entry(item, public_id)) unless item.lock_version == expected
 
       receipt = { "item" => ItemData.entry(item, public_id).merge(
-        "category_id" => item.category_id, "created_at" => item.created_at.utc.iso8601(6),
+        "category_public_id" => item.category&.public_id, "created_at" => item.created_at.utc.iso8601(6),
+        "updated_at" => item.updated_at.utc.iso8601(6), "normalized_name" => item.normalized_name,
         "position" => item.position) }
       @household.remove_item(item)
       SyncCommandProcessor::Outcome.applied(receipt)
-    rescue ActiveRecord::StaleObjectError
-      SyncCommandProcessor::Outcome.conflict("precondition_failed", "reason" => "version_changed")
     end
 
     private

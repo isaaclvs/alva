@@ -23,8 +23,8 @@ class SyncCommands::RemoveItemTest < ActiveSupport::TestCase
     assert_not ListItem.exists?(@milk.id)
     assert_equal @milk.public_id, SyncTombstone.find_by!(public_id: @milk.public_id).public_id
     item = result.dig(:data, "item")
-    assert_equal [ @milk.public_id, "Leite", @milk.category_id, "pending", @milk.lock_version ],
-      item.values_at("canonical_public_id", "name", "category_id", "status", "lock_version")
+    assert_equal [ @milk.public_id, "Leite", @milk.category.public_id, "pending", @milk.lock_version ],
+      item.values_at("canonical_public_id", "name", "category_public_id", "status", "lock_version")
     assert item.key?("created_at")
     assert item.key?("position")
     assert SyncCommand.exists?(command_id: result[:id], status: "applied")
@@ -64,10 +64,42 @@ class SyncCommands::RemoveItemTest < ActiveSupport::TestCase
     assert_equal "duplicate", submit(command).first[:status]
 
     item = @home.list_items.create!(name: "Farinha")
-    @ana.household.define_singleton_method(:record_shared_change!) { |**| raise "ledger rollback" }
-    assert_raises(RuntimeError) { submit(remove(item.public_id, item.lock_version)) }
+    failing = remove(item.public_id, item.lock_version)
+    before_revision = @home.reload.sync_revision
+    db = ActiveRecord::Base.connection
+    db.execute(<<~SQL)
+      CREATE TEMP TRIGGER fail_removal_ledger BEFORE INSERT ON sync_commands
+      WHEN NEW.command_id = '#{failing["id"]}'
+      BEGIN SELECT RAISE(ABORT, 'ledger unavailable'); END
+    SQL
+    assert_raises(ActiveRecord::StatementInvalid) { submit(failing) }
     assert item.reload
+    assert_equal before_revision, @home.reload.sync_revision
     assert_not SyncTombstone.exists?(public_id: item.public_id)
+    assert_not SyncCommand.exists?(command_id: failing["id"])
+  ensure
+    db&.execute("DROP TRIGGER IF EXISTS fail_removal_ledger")
+  end
+
+  test "malformed item ids are rejected before lookup" do
+    [ nil, false, 7, [], {}, "", "not-a-uuid" ].each do |value|
+      result = submit(remove(value, 0)).first
+      assert_equal "malformed_command", result[:error]
+      assert_equal "payload.public_id", result[:data]["field"]
+    end
+    assert ListItem.exists?(@milk.id)
+  end
+
+  test "fresh addition can be removed through inherited version and gone has no second effect" do
+    local = uuid
+    added = add_items_command([ local, "Farinha" ])
+    removal = remove(local, nil, depends_on: added["id"])
+    assert_equal %w[applied applied], submit(added, removal).map { |result| result[:status] }
+    before_revision = @home.reload.sync_revision
+    result = submit(remove(local, 0)).first
+    assert_equal "gone", result[:error]
+    assert_equal before_revision, @home.reload.sync_revision
+    assert_equal "not_found", submit(remove(uuid, 0)).first[:error]
   end
 
   private

@@ -399,8 +399,8 @@ Observações:
 - `remove_item` só remove item vivo da casa e exige a versão observada ou herdada.
   `unknown`/estrangeiro responde `not_found`; arquivado/removido responde `gone`;
   versão divergente responde `conflict`. O ledger guarda `data.item` com UUID
-  citado/canônico, nome, categoria, estado, `purchased_at`, `lock_version`,
-  `created_at` e `position`, suficiente para um futuro `undo_remove` que cite o
+  citado/canônico, nome, `category_public_id` (UUID ou nulo), `normalized_name`,
+  estado, `purchased_at`, `lock_version`, `created_at`, `updated_at` e `position`, suficiente para um futuro `undo_remove` que cite o
   comando de remoção original. Esse recibo não é um token temporário da PWA.
 
 - Categorização automática e detecção de duplicados são feitas **localmente**
