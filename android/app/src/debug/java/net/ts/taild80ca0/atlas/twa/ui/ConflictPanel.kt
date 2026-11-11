@@ -19,9 +19,13 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 import net.ts.taild80ca0.atlas.twa.data.list.ConflictResolver
 
-/** An explicit review of local refusals, outside the add form and without a modal. */
+/**
+ * An explicit review of local refusals and of changes whose result can no longer be confirmed, outside the add form
+ * and without a modal. [onResolved] runs after a group left the queue (e.g. to ask for a sync: an uncertain group
+ * was what held the server's list back).
+ */
 @Composable
-fun ConflictPanel(resolver: ConflictResolver) {
+fun ConflictPanel(resolver: ConflictResolver, onResolved: () -> Unit = {}) {
     var groups by remember(resolver) { mutableStateOf<List<ConflictResolver.Preview>>(emptyList()) }
     var selected by remember(resolver) { mutableStateOf<ConflictResolver.Preview?>(null) }
     var expanded by remember(resolver) { mutableStateOf(false) }
@@ -60,9 +64,16 @@ fun ConflictPanel(resolver: ConflictResolver) {
         val review = selected
         if (review != null) {
             Column(Modifier.testTag("conflict-details")) {
+                val uncertain = review.kind == ConflictResolver.Kind.UNCERTAIN
                 review.intentions.forEach { intention -> Text(intention.description, modifier = Modifier.padding(vertical = 4.dp)) }
                 Text(
-                    "Descartar retira estas alterações locais. A lista mantém o último estado recebido e as outras alterações locais.",
+                    if (uncertain) {
+                        "Não dá para saber se estas alterações chegaram ao servidor: o acesso deste aparelho foi refeito. " +
+                            "Usar a lista do servidor retira estas alterações deste aparelho e traz a lista da casa. " +
+                            "Depois, confira a lista e adicione de novo o que faltar."
+                    } else {
+                        "Descartar retira estas alterações locais. A lista mantém o último estado recebido e as outras alterações locais."
+                    },
                     style = MaterialTheme.typography.bodySmall,
                 )
                 val count = review.commandIds.size
@@ -73,7 +84,8 @@ fun ConflictPanel(resolver: ConflictResolver) {
                             when (resolver.discard(review)) {
                                 is ConflictResolver.Result.Discarded -> {
                                     selected = null
-                                    message = "Alterações locais descartadas."
+                                    message = if (uncertain) "Pronto. Confira a lista e adicione de novo o que faltar." else "Alterações locais descartadas."
+                                    onResolved()
                                 }
                                 ConflictResolver.Result.Stale -> {
                                     selected = null
@@ -90,7 +102,14 @@ fun ConflictPanel(resolver: ConflictResolver) {
                         } finally { saving = false }
                     }
                 }, enabled = !saving && !readFailed, modifier = Modifier.testTag("conflict-discard")) {
-                    Text(if (saving) "Descartando…" else if (count == 1) "Descartar 1 alteração" else "Descartar $count alterações")
+                    Text(
+                        when {
+                            saving -> if (uncertain) "Atualizando…" else "Descartando…"
+                            uncertain -> "Usar a lista do servidor"
+                            count == 1 -> "Descartar 1 alteração"
+                            else -> "Descartar $count alterações"
+                        },
+                    )
                 }
                 TextButton(onClick = { selected = null; message = null }, enabled = !saving, modifier = Modifier.testTag("conflict-cancel")) {
                     Text("Cancelar")
@@ -99,6 +118,9 @@ fun ConflictPanel(resolver: ConflictResolver) {
         } else {
             groups.forEach { group ->
                 Text(group.intentions.first().description)
+                if (group.kind == ConflictResolver.Kind.UNCERTAIN) {
+                    Text("Sem confirmação do servidor", style = MaterialTheme.typography.bodySmall)
+                }
                 TextButton(onClick = { selected = group; message = null }, modifier = Modifier.testTag("conflict-review-${group.rootId}")) {
                     Text(if (group.commandIds.size == 1) "Revisar alteração" else "Revisar ${group.commandIds.size} alterações")
                 }

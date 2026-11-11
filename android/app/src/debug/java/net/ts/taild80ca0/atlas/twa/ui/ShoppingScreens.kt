@@ -222,7 +222,7 @@ fun ShoppingScreens(
                     Text("Pendentes: $pending · Comprados: ${current.items.size - pending}", modifier = Modifier.testTag("list-summary"))
                     LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(vertical = 12.dp)) {
                         if (sync != null && syncStatus != null) item(key = "sync") { SyncPanel(sync, syncStatus) }
-                        if (conflicts != null) item(key = "conflicts") { ConflictPanel(conflicts) }
+                        if (conflicts != null) item(key = "conflicts") { ConflictPanel(conflicts, onResolved = { sync?.request(manual = true) }) }
                         if (current.items.isEmpty()) item { Text("Sua lista está vazia. Adicione o que acabou em casa.") }
                         val known = current.categories.sortedBy { it.position }
                         val unknown = current.items.filter { item -> known.none { it.publicId == item.categoryPublicId } }

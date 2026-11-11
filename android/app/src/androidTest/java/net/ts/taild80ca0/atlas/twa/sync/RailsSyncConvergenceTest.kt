@@ -224,6 +224,42 @@ class RailsSyncConvergenceTest {
     }
 
     @Test
+    fun aLostCredentialLeavesAnUncertainAddThatThePersonReleasesToTheServersList() = runBlocking<Unit> {
+        val proxy = ResponseDroppingProxy(Regex(":(\\d+)$").find(url)!!.groupValues[1].toInt()).also { closeables += it }
+        val a = device(tokenA, through = proxy.port)
+        val name = newName()
+        a.sync()
+        a.add(name)
+        proxy.dropNextResponses(1)
+        assertTrue(a.cycle.run().outcome is SyncOutcome.Offline)
+        assertEquals("the server committed the lost add", 1, server().listItems.count { it.name == name })
+
+        // The old secret is gone: this device now speaks with another lineage (tokenB stands in for the new pairing).
+        a.vault.access = net.ts.taild80ca0.atlas.twa.access.StoredAccess(active = AccessCredential(2, tokenB))
+        val held = a.cycle.run().outcome
+        assertTrue("$held", held is SyncOutcome.SnapshotHeld)
+        val root = a.db.commands().inOrder().single()
+        assertEquals(listOf(root.id), (held as SyncOutcome.SnapshotHeld).commandIds)
+        assertEquals("idempotency_conflict", root.lastErrorCode)
+        assertTrue("resending never resolves it", a.cycle.run().outcome is SyncOutcome.SnapshotHeld)
+
+        val resolver = net.ts.taild80ca0.atlas.twa.data.list.ConflictResolver(
+            a.db, net.ts.taild80ca0.atlas.twa.data.list.IdGenerator { UUID.randomUUID().toString() },
+            net.ts.taild80ca0.atlas.twa.data.list.Clock { System.currentTimeMillis() },
+        )
+        val preview = resolver.preview(root.id)!!
+        assertEquals(net.ts.taild80ca0.atlas.twa.data.list.ConflictResolver.Kind.UNCERTAIN, preview.kind)
+        assertTrue(resolver.discard(preview) is net.ts.taild80ca0.atlas.twa.data.list.ConflictResolver.Result.Discarded)
+
+        a.sync()
+        assertEquals("the server's list shows what really happened", false, a.has(name))
+        assertEquals("exactly once", 1, a.state().items.count { it.name == name })
+        assertEquals(1, server().listItems.count { it.name == name })
+        assertEquals(0, a.db.commands().count())
+        assertEquals(server().revision, a.state().confirmedRevision)
+    }
+
+    @Test
     fun foregroundSocketInstallsAnotherDevicesChangesAndRecoversAfterPause() = runBlocking<Unit> {
         val a = device(tokenA)
         val b = device(tokenB)

@@ -1,6 +1,7 @@
 package net.ts.taild80ca0.atlas.twa.data
 
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
@@ -84,6 +85,44 @@ class ConflictResolverTest : DatabaseTest() {
             assertTrue(db.resolutions().all().isEmpty())
             db.close()
         }
+    }
+
+    @Test fun anIdempotencyConflictRootIsUncertainAndTakesEveryDependentWhileReleasingTheSnapshotHold() = runBlocking {
+        val db = openDatabase()
+        add(db, "root", attempts = 1, answered = 0, status = "REJECTED", error = "idempotency_conflict")
+        add(db, "in-flight", "root", attempts = 1, answered = 0, status = "BLOCKED", error = "dependency_not_applied")
+        add(db, "unsent", "in-flight")
+        add(db, "independent", status = "IN_FLIGHT", attempts = 1, answered = 0)
+        ProjectionRebuilder(db).rebuild()
+        assertEquals(listOf("root", "in-flight", "independent"), db.commands().unresolvedAttemptIds())
+        val preview = resolver(db).preview("root")!!
+        assertEquals(ConflictResolver.Kind.UNCERTAIN, preview.kind)
+        assertEquals(listOf("root", "in-flight", "unsent"), preview.commandIds)
+        assertEquals(listOf(preview), resolver(db).observe().first())
+        assertTrue(resolver(db).discard(preview) is ConflictResolver.Result.Discarded)
+        assertEquals(listOf("independent"), db.commands().unresolvedAttemptIds())
+        val audit = JSONArray(db.resolutions().all().single().commandsJson)
+        assertEquals("idempotency_conflict", audit.getJSONObject(0).getString("last_error_code"))
+        assertEquals(0, audit.getJSONObject(0).getInt("answered_attempt"))
+    }
+
+    @Test fun anUncertainGroupWithAConsumedDependentIsNeverOffered() = runBlocking {
+        val db = openDatabase()
+        add(db, "root", attempts = 1, answered = 0, status = "REJECTED", error = "idempotency_conflict")
+        add(db, "child", "root", attempts = 1, status = "ACKNOWLEDGED", error = "none")
+        assertNull(resolver(db).preview("root"))
+        assertTrue(resolver(db).observe().first().isEmpty())
+        assertTrue(db.resolutions().all().isEmpty())
+    }
+
+    @Test fun aRefusedRootIsNotUncertainAndAnUncertainOneIsNotARefusal() = runBlocking {
+        val db = openDatabase()
+        add(db, "refused")
+        add(db, "uncertain", attempts = 1, answered = 0, status = "REJECTED", error = "idempotency_conflict")
+        add(db, "conflict-unanswered", attempts = 1, answered = 0, status = "CONFLICT")
+        assertEquals(ConflictResolver.Kind.REFUSED, resolver(db).preview("refused")!!.kind)
+        assertEquals(ConflictResolver.Kind.UNCERTAIN, resolver(db).preview("uncertain")!!.kind)
+        assertNull(resolver(db).preview("conflict-unanswered"))
     }
 
     @Test fun stalePreviewCannotDiscardAnExpandedOrModifiedGroup() = runBlocking {

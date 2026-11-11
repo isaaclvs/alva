@@ -13,15 +13,32 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.security.MessageDigest
 
-/** Preview and explicit, audited discard of a definitively refused command and its dependency closure. */
+/**
+ * Preview and explicit, audited removal of a command group from the queue: either a definitively refused command
+ * ([Kind.REFUSED]) or one whose effect can no longer be learned ([Kind.UNCERTAIN]), each with its dependency closure.
+ */
 class ConflictResolver(
     private val db: AlvaDatabase,
     private val ids: IdGenerator,
     private val clock: Clock,
 ) {
     data class Intention(val commandId: String, val description: String)
+
+    enum class Kind {
+        /** The server refused every attempt of the root: removing it undoes nothing that happened. */
+        REFUSED,
+
+        /**
+         * The root was sent by an older credential lineage of this device (its secret was lost) and now only gets
+         * `idempotency_conflict`: resending can never say whether it took effect, so it holds the snapshot forever.
+         * Removing it lets the server's list in; whatever it did is in that list, whatever it did not is gone.
+         */
+        UNCERTAIN,
+    }
+
     data class Preview(
         val rootId: String,
+        val kind: Kind,
         val commandIds: List<String>,
         val subjects: List<String>,
         val token: String,
@@ -44,8 +61,8 @@ class ConflictResolver(
             buildList {
                 for (command in commands) {
                     if (command.id in covered || command.status !in setOf("CONFLICT", "REJECTED")) continue
-                    val group = closure(command.id, commands) ?: continue
-                    val preview = makePreview(command.id, group)
+                    val (kind, group) = closure(command.id, commands) ?: continue
+                    val preview = makePreview(command.id, kind, group)
                     add(preview)
                     covered.addAll(preview.commandIds)
                 }
@@ -55,14 +72,14 @@ class ConflictResolver(
 
     suspend fun preview(rootId: String): Preview? = db.withTransaction {
         val commands = db.commands().inOrder()
-        val group = closure(rootId, commands) ?: return@withTransaction null
-        makePreview(rootId, group)
+        val (kind, group) = closure(rootId, commands) ?: return@withTransaction null
+        makePreview(rootId, kind, group)
     }
 
     suspend fun discard(preview: Preview): Result = db.withTransaction {
         val commands = db.commands().inOrder()
-        val group = closure(preview.rootId, commands) ?: return@withTransaction Result.NotDiscardable
-        val fresh = makePreview(preview.rootId, group)
+        val (kind, group) = closure(preview.rootId, commands) ?: return@withTransaction Result.NotDiscardable
+        val fresh = makePreview(preview.rootId, kind, group)
         if (fresh != preview) return@withTransaction Result.Stale
         val subjects = group.flatMap { db.commands().subjectsOf(it.id) }.map { it.subjectPublicId }.distinct().sorted()
         val records = records(group)
@@ -73,34 +90,44 @@ class ConflictResolver(
         Result.Discarded(resolutionId)
     }
 
-    private suspend fun closure(rootId: String, commands: List<CommandEntity>): List<CommandEntity>? {
+    private suspend fun closure(rootId: String, commands: List<CommandEntity>): Pair<Kind, List<CommandEntity>>? {
         val byId = commands.associateBy { it.id }
         val root = byId[rootId] ?: return null
-        if (root.status !in setOf("CONFLICT", "REJECTED") || root.attempts <= 0 || root.answeredAttempt < root.attempts ||
-            root.wireDocument == null || root.lastErrorCode == "idempotency_conflict") return null
+        val kind = when {
+            root.attempts <= 0 || root.wireDocument == null -> return null
+            root.status in setOf("CONFLICT", "REJECTED") && root.answeredAttempt >= root.attempts &&
+                root.lastErrorCode != IDEMPOTENCY_CONFLICT -> Kind.REFUSED
+            root.status == "REJECTED" && root.lastErrorCode == IDEMPOTENCY_CONFLICT -> Kind.UNCERTAIN
+            else -> return null
+        }
         val result = linkedMapOf(root.id to root)
         var changed: Boolean
         do {
             changed = false
             commands.filter { it.dependsOn in result && it.id !in result }.forEach { command ->
-                if (command.status == "ACKNOWLEDGED" || command.attempts > command.answeredAttempt ||
-                    (command.attempts > 0 && command.wireDocument == null) ||
-                    (command.status in setOf("CONFLICT", "REJECTED") && (command.answeredAttempt < command.attempts || command.wireDocument == null))) return null
+                // A consumed dependent proves its dependency took effect: never take that history away.
+                if (command.status == "ACKNOWLEDGED") return null
+                // Discarding a refusal must not hide an effect that may have happened. Accepting the server's list
+                // already gives up knowing, for every command that depends on the uncertain one.
+                if (kind == Kind.REFUSED && (command.attempts > command.answeredAttempt ||
+                        (command.attempts > 0 && command.wireDocument == null) ||
+                        (command.status in setOf("CONFLICT", "REJECTED") && (command.answeredAttempt < command.attempts || command.wireDocument == null)))) return null
                 result[command.id] = command
                 changed = true
             }
         } while (changed)
         val group = result.values.sortedBy { it.sequence }
-        if (group.any { it.lastErrorCode == "idempotency_conflict" || db.receipts().find(it.id) != null }) return null
-        return group
+        if (group.any { db.receipts().find(it.id) != null }) return null
+        if (kind == Kind.REFUSED && group.any { it.lastErrorCode == IDEMPOTENCY_CONFLICT }) return null
+        return kind to group
     }
 
-    private suspend fun makePreview(rootId: String, group: List<CommandEntity>): Preview {
+    private suspend fun makePreview(rootId: String, kind: Kind, group: List<CommandEntity>): Preview {
         val subjects = group.flatMap { db.commands().subjectsOf(it.id) }.map { it.subjectPublicId }.distinct().sorted()
         // Include every original field, not just status: a new subject category,
         // local intent or server snapshot must invalidate an old confirmation.
         val state = db.syncState().get()
-        val material = records(group).toString() + "|${state?.householdPublicId}|${state?.confirmedRevision}"
+        val material = "$kind|" + records(group).toString() + "|${state?.householdPublicId}|${state?.confirmedRevision}"
         val token = MessageDigest.getInstance("SHA-256").digest(material.toByteArray()).joinToString("") { "%02x".format(it) }
         val intentions = group.map { command ->
             val payload = JSONObject(command.payload)
@@ -119,7 +146,7 @@ class ConflictResolver(
             }
             Intention(command.id, description)
         }
-        return Preview(rootId, group.map { it.id }, subjects, token, intentions)
+        return Preview(rootId, kind, group.map { it.id }, subjects, token, intentions)
     }
 
     private suspend fun records(group: List<CommandEntity>): JSONArray {
@@ -143,5 +170,9 @@ class ConflictResolver(
             )
         }
         return records
+    }
+
+    private companion object {
+        const val IDEMPOTENCY_CONFLICT = "idempotency_conflict"
     }
 }
