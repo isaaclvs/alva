@@ -48,13 +48,14 @@ class ShoppingScreensTest {
         using: ShoppingListStore = store,
         sync: SyncController? = null,
         foreground: ((HouseAccess) -> ForegroundInvalidation)? = null,
+        conflicts: ConflictResolver? = null,
     ) {
         val vault = object : CredentialVault {
             override fun read() = VaultRead.Found(StoredAccess(AccessCredential(1, "test-only")))
             override fun write(access: StoredAccess) = error("opening must not write credentials")
         }
         val access = HouseAccess(vault, noNetwork, RoomHouseholdBinding(db))
-        AccessGraph.install(access, using, sync, foreground?.invoke(access))
+        AccessGraph.install(access, using, sync, foreground = foreground?.invoke(access), conflicts = conflicts)
         scenario = ActivityScenario.launch(MainActivity::class.java)
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
     }
@@ -287,6 +288,99 @@ class ShoppingScreensTest {
         } finally {
             scope.cancel()
         }
+    }
+
+
+    private fun refusedAddition(name: String, uncertain: Boolean = false): IntentResult.Saved = runBlocking {
+        val result = store.execute(ListIntent.AddText(name)) as IntentResult.Saved
+        assertTrue(WirePreparer(db).prepare(result.commandId) is PreparationResult.Prepared)
+        val attempt = WireOutbox(db).beginAttempt(result.commandId) as AttemptResult.Started
+        if (!uncertain) db.commands().recordAnswer(result.commandId, attempt.attempt)
+        db.commands().setStatus(result.commandId, "REJECTED", if (uncertain) "idempotency_conflict" else "not_found")
+        result
+    }
+
+    private fun resolver() = ConflictResolver(db, IdGenerator { UUID.randomUUID().toString() }, Clock { 123L })
+
+    private fun openReview(rootId: String) {
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("conflicts-expand").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("conflicts-expand").performClick()
+        compose.onNodeWithTag("conflict-review-$rootId").performClick()
+    }
+
+    @Test fun reviewsAndDiscardsOnlyTheRefusedGroupWhilePreservingTheAddDraft() {
+        val root = refusedAddition("Leite")
+        runBlocking {
+            store.execute(ListIntent.SetItemState(root.itemIds.single(), ItemStatus.PURCHASED))
+            store.execute(ListIntent.AddText("Pão"))
+        }
+        launch(conflicts = resolver())
+        compose.onNodeWithTag("add-input").performTextInput("Rascunho")
+        compose.onNodeWithTag("nav-list").performClick()
+        openReview(root.commandId)
+        compose.onNodeWithTag("conflict-discard").assertTextEquals("Descartar 2 alterações")
+        compose.onNodeWithTag("conflict-cancel").performClick()
+        assertEquals(3, runBlocking { db.commands().count() })
+        compose.onNodeWithTag("nav-add").performClick()
+        compose.onNodeWithTag("add-input").assertTextContains("Rascunho")
+        compose.onNodeWithTag("nav-list").performClick()
+        openReview(root.commandId)
+        compose.onNodeWithTag("conflict-discard").performClick()
+        compose.waitUntil(10_000) { runBlocking { db.commands().count() } == 1 }
+        waitForText("conflict-feedback", "Alterações locais descartadas.")
+        compose.onNodeWithTag("conflict-feedback").assertTextEquals("Alterações locais descartadas.")
+        assertEquals(1, runBlocking { db.resolutions().all().size })
+        assertEquals(listOf("Pão"), runBlocking { db.listItems().live().map { it.name } })
+        compose.onNodeWithTag("nav-add").performClick()
+        compose.onNodeWithTag("add-input").assertTextContains("Rascunho")
+    }
+
+    @Test fun aChangedGroupRequiresANewReviewAndNeverSilentlyUpdatesTheConfirmation() {
+        val root = refusedAddition("Leite")
+        launch(conflicts = resolver())
+        compose.onNodeWithTag("nav-list").performClick()
+        openReview(root.commandId)
+        runBlocking { store.execute(ListIntent.SetItemState(root.itemIds.single(), ItemStatus.PURCHASED)) }
+        compose.onNodeWithTag("conflict-discard").assertTextEquals("Descartar 1 alteração")
+        compose.onNodeWithTag("conflict-discard").performClick()
+        waitForText("conflict-feedback", "As alterações mudaram")
+        assertEquals(2, runBlocking { db.commands().count() })
+        assertTrue(runBlocking { db.resolutions().all().isEmpty() })
+        compose.onNodeWithTag("conflict-review-${root.commandId}").performClick()
+        compose.onNodeWithTag("conflict-discard").assertTextEquals("Descartar 2 alterações")
+    }
+
+    @Test fun anUnansweredIdempotencyConflictDoesNotOfferDiscard() {
+        refusedAddition("Leite", uncertain = true)
+        launch(conflicts = resolver())
+        compose.onNodeWithTag("nav-list").performClick()
+        compose.onNodeWithTag("list-summary").assertExists()
+        compose.onNodeWithTag("conflict-discard").assertDoesNotExist()
+        compose.onNodeWithTag("conflicts-panel").assertDoesNotExist()
+        assertEquals(1, runBlocking { db.commands().count() })
+        assertTrue(runBlocking { db.resolutions().all().isEmpty() })
+    }
+
+
+    @Test fun storageFailureKeepsTheGroupAndAllowsAnExplicitRetry() {
+        val root = refusedAddition("Leite")
+        runBlocking { store.execute(ListIntent.AddText("Pão")) }
+        launch(conflicts = resolver())
+        compose.onNodeWithTag("nav-list").performClick()
+        openReview(root.commandId)
+        db.openHelper.writableDatabase.execSQL("CREATE TRIGGER fail_conflict_ui BEFORE INSERT ON list_items BEGIN SELECT RAISE(ABORT, 'storage failed'); END")
+        try {
+            compose.onNodeWithTag("conflict-discard").performClick()
+            waitForText("conflict-feedback", "Não foi possível descartar")
+            assertEquals(2, runBlocking { db.commands().count() })
+            assertTrue(runBlocking { db.resolutions().all().isEmpty() })
+        } finally {
+            db.openHelper.writableDatabase.execSQL("DROP TRIGGER fail_conflict_ui")
+        }
+        compose.onNodeWithTag("conflict-discard").performClick()
+        waitForText("conflict-feedback", "Alterações locais descartadas.")
+        assertEquals(1, runBlocking { db.commands().count() })
+        assertEquals(1, runBlocking { db.resolutions().all().size })
     }
 
 }
