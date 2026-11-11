@@ -273,4 +273,23 @@ class ReceiptValidatorTest {
         assertNull(IsoInstant.parseMillis("2026-11-10T12:00:00+00:00"))
         JSONObject(addDocument(entry(mine, "x"))) // the fixtures themselves are JSON
     }
+    @Test
+    fun unicodeWhitespaceSquishedByRailsIsStillAValidCreatedName() {
+        val document = addDocument(entry(mine, "Pão\u00a0francês"))
+        val result = addCheck("""{"items":[${item(mine, name = "Pão francês")}]}""", document = document)
+        assertTrue("Rails squishes Unicode whitespace before creating the item: $result", result is ReceiptCheck.Valid)
+    }
+
+    @Test
+    fun duplicateAndReviveOutcomesMustStillMatchTheRequestedName() {
+        val duplicate = addCheck("""{"items":[${item(mine, theirs, name = "Detergente", outcome = "duplicate")}]}""", applied = false)
+        assertTrue("a duplicate of another name cannot satisfy the command", duplicate is ReceiptCheck.Invalid)
+        val revived = addCheck(
+            """{"items":[${item(claim, purchase, name = "Detergente", lock = 4, outcome = "revived")}]}""",
+            document = addDocument(entry(claim, "Leite", revives = purchase)),
+            subjects = listOf(WireSubject(purchase, SubjectRole.TARGETS, 0)),
+        )
+        assertTrue("reviving another name cannot satisfy the command", revived is ReceiptCheck.Invalid)
+    }
+
 }

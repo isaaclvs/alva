@@ -593,4 +593,56 @@ class ReceiptApplierTest : DatabaseTest() {
         assertEquals(2, db.listItems().all().count { it.name == "Café" })
         assertEquals("the queue is untouched", 2, db.commands().inOrder().size)
     }
+    @Test
+    fun blockingAnInFlightDependentDoesNotResolveItsMissingAnswer() = runBlocking {
+        val db = openDatabase()
+        val store = storeOn(db, ScriptedIds(local, cmd("a1"), cmd("a2")))
+        store.execute(ListIntent.AddText("Leite"))
+        store.execute(ListIntent.SetItemState(local, ItemStatus.PURCHASED))
+        val rootAttempt = prepareAndBegin(db, cmd("a1"))
+        prepareAndBegin(db, cmd("a2"))
+
+        applier(db).apply(cmd("a1"), rootAttempt, refusal(cmd("a1"), ReceiptStatus.CONFLICT, "precondition_failed"))
+
+        assertEquals(CommandStatus.BLOCKED.name, statusOf(db, cmd("a2")))
+        assertEquals("inherited blocking is not the dependent's own server answer", listOf(cmd("a2")), applier(db).unresolvedAttempts())
+    }
+
+    @Test
+    fun aProvisionalMergeKeepsTheNextActionCausallyLinkedAndVisiblyPending() = runBlocking {
+        val db = openDatabase()
+        val store = storeOn(db, ScriptedIds(local, cmd("a1"), cmd("a2"), cmd("a3")))
+        store.execute(ListIntent.AddText("Leite"))
+        store.execute(ListIntent.SetItemState(local, ItemStatus.PURCHASED))
+        seedConfirmed(db, 800, confirmed(kept, "Leite", lock = 0))
+        val wasWaiting = store.observe().first().items.single().awaitingSync
+
+        store.execute(ListIntent.SetItemState(kept, ItemStatus.PENDING))
+
+        assertEquals("the displayed canonical row still has the pending mark as predecessor", cmd("a2"), db.commands().find(cmd("a3"))!!.dependsOn)
+        assertTrue("provisionally merged rows must show their pending local effects", wasWaiting)
+    }
+
+    @Test
+    fun aReviveRedirectedToAnotherPendingItemCannotSilentlySendADependentToTheOldPurchase() = runBlocking {
+        val db = openDatabase()
+        val store = storeOn(db, ScriptedIds(cmd("a1"), cmd("a2"), other, cmd("a3")))
+        seedConfirmed(db, 800, confirmed(purchase, "Leite", lock = 3, purchased = true))
+        store.execute(ListIntent.AddText("Leite"))
+        store.execute(ListIntent.SetItemState(purchase, ItemStatus.PURCHASED))
+        store.execute(ListIntent.AddText("Pão")) // independent
+        val attempt = prepareAndBegin(db, cmd("a1"), claims = { claim("c1") })
+        assertTrue(WirePreparer(db).prepare(cmd("a2")) is PreparationResult.Prepared)
+        val dependent = db.commands().find(cmd("a2"))!!
+
+        val reply = consumed(cmd("a1"), items(entry(claim("c1"), kept, "Leite", lock = 4, outcome = "duplicate")), ReceiptStatus.NOOP)
+        assertTrue(applier(db).apply(cmd("a1"), attempt, reply) is ApplyResult.Acknowledged)
+
+        val after = db.commands().find(cmd("a2"))!!
+        assertTrue("do not silently apply a mark to the old purchase instead of the redirected item", CommandStatus.valueOf(after.status).stopsDependents)
+        assertEquals(dependent.payload, after.payload)
+        assertEquals(dependent.wireDocument, after.wireDocument)
+        assertEquals(CommandStatus.PENDING.name, statusOf(db, cmd("a3")))
+    }
+
 }
