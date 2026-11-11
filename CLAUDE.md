@@ -16,8 +16,7 @@ workflow para o Claude Code.
 - Uma task = um escopo fechado. Não adiante trabalho de tasks futuras (ex.:
   não implemente real-time via ActionCable enquanto ainda estiver em SHO-5,
   que é sequencial e não real-time — isso é SHO-6).
-- Ao concluir uma task, rode a suíte de testes (`bin/rails test` e, se houver
-  testes de sistema, `bin/rails test:system`) antes de dar como pronta.
+- Siga a política de validação em AGENTS.md ("Testes e validação").
 - Sempre que uma task tiver checklist de critério de aceite, valide item a
   item antes de reportar conclusão.
 

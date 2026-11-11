@@ -273,13 +273,34 @@ acoplar o dicionário à lista viva.
   JavaScript customizado além do que Hotwire já oferece, a menos que
   estritamente necessário.
 
-## Testes
+## Testes e validação
 
-- Toda task deve incluir testes (model, request/controller ou sistema/Capybara,
-  conforme o critério de aceite da task — GitHub para a migração, Linear para o
-  histórico).
-- Rodar a suíte completa antes de considerar uma task pronta: `bin/rails test`
-  (e `bin/rails test:system` quando houver testes de sistema).
+- **Durante a implementação:** crie ou ajuste testes do comportamento alterado
+  e rode apenas os testes afetados e suas dependências diretas. Use os critérios
+  da task (GitHub para a migração, Linear para o histórico) para escolher a cobertura.
+- **Escolha pelo impacto:** Rails → testes dos models/services/controllers afetados;
+  UI web → testes de sistema do fluxo alterado; Android → testes JVM das regras
+  alteradas e testes instrumentados quando depender de Compose, Room, Keystore ou
+  APIs Android. Mudança só no Android não exige suítes Rails locais, e vice-versa.
+- **Integrações críticas:** sync/contrato/transporte → cenário pertinente contra
+  Rails real; persistência/schema → testes de migração e preservação de dados;
+  matching → corpus compartilhado nos dois lados, conforme a convenção acima.
+  Rode somente os cenários pertinentes, ampliando a cobertura se aparecer risco
+  em outros fluxos.
+- **Documentação e comentários:** revise o diff e rode `git diff --check`.
+  Comportamento inalterado dispensa suítes, build e emulador.
+- **Antes de entregar o PR:** testes focados aprovados e diff revisado bastam
+  para abrir o PR. As suítes completas ficam no CI existente e devem passar antes
+  do merge. Informe o que foi validado localmente e o que está pendente no CI.
+- **Ampliar localmente:** rode suítes completas quando o usuário pedir, houver
+  mudança transversal sem cobertura focada suficiente ou falha indicar regressão
+  além do escopo. Critérios específicos de uma entrega, como o aceite final da
+  migração, continuam exigindo a validação correspondente.
+- **Evitar repetição:** repita checks aprovados só após alteração relevante,
+  falha ou dúvida concreta. Use o emulador para o comportamento que requer Android;
+  gere APK para os celulares quando necessário à entrega ou solicitado. Serialize
+  testes de browser e emulador neste host; encerre a sessão interativa de automação
+  antes da instrumentação para evitar disputa de `UiAutomation`.
 
 ## Fora de escopo do produto atual (não implementar sem pedido explícito)
 
