@@ -65,9 +65,17 @@ class HttpSnapshotTransportTest {
         assertEquals(SnapshotOutcome.Transient(TransientCause.SERVER_ERROR), fetch())
         answer(429, "", "Retry-After" to "7")
         assertEquals(SnapshotOutcome.Transient(TransientCause.RATE_LIMITED, 7), fetch())
-        // A GET is safe to repeat, so the JDK may replay it once on a dropped connection.
+        // A GET changes nothing on the server, so the HTTP stack may replay it on a dropped connection
+        // (the JDK does, at least once; the command POST is protected from that by its fixed-length
+        // body, see HttpCommandTransportTest). Every request that arrives is still the same read-only
+        // GET, and a dropped connection ends as a lost answer, never as a snapshot.
+        val before = server.requestCount
+        repeat(before) { server.takeRequest() }
         repeat(3) { server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST)) }
         assertEquals(SnapshotOutcome.Transient(TransientCause.NETWORK), fetch())
+        val arrived = server.requestCount - before
+        assertTrue("a dropped GET may be replayed a bounded number of times, saw $arrived", arrived in 1..3)
+        repeat(arrived) { val r = server.takeRequest(); assertEquals("GET /api/v1/snapshot", "${r.method} ${r.path}") }
     }
 
     @Test
