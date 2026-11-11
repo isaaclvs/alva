@@ -140,6 +140,15 @@ data class CommandEntity(
     val attempts: Int = 0,
     /** Contract error `code` of the last failed attempt; the command is kept. */
     @ColumnInfo(name = "last_error_code") val lastErrorCode: String? = null,
+    /**
+     * The exact JSON document of this command as it travels to the server, frozen
+     * before its first attempt (see `WireOutbox`). It is not derived from [payload]:
+     * `payload`/`preconditions` are the local intent the projection replays, while this
+     * is the request to resend byte for byte. Null until frozen; a row that already had
+     * `attempts > 0` when this column appeared stays null, because the bytes it sent
+     * then were never kept.
+     */
+    @ColumnInfo(name = "wire_document") val wireDocument: String? = null,
 )
 
 /**
