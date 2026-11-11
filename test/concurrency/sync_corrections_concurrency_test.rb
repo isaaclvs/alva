@@ -51,6 +51,34 @@ class SyncCorrectionsConcurrencyTest < ActiveSupport::TestCase
     assert_includes [ "Nome A", "Nome B" ], item.name
   end
 
+  test "ledger write failure rolls back the correction dictionary revision and broadcast" do
+    item = @items.first
+    command = correct_item_command(item.public_id, item.name, lock_version: 0,
+      category_id: categories(:produce).public_id, dictionary_revision: @revision)
+    before_category = item.category_id
+    before_revision = @homes.first.reload.sync_revision
+    db = ActiveRecord::Base.connection
+    db.execute(<<~SQL)
+      CREATE TEMP TRIGGER fail_correction_ledger BEFORE INSERT ON sync_commands
+      WHEN NEW.command_id = '#{command["id"]}'
+      BEGIN SELECT RAISE(ABORT, 'ledger unavailable'); END
+    SQL
+    streams = capture_turbo_stream_broadcasts(@homes.first) do
+      assert_raises(ActiveRecord::StatementInvalid) do
+        SyncCommandProcessor.new(device: @devices.first).call([ command ])
+      end
+    end
+    assert_empty streams
+    assert_equal before_category, item.reload.category_id
+    assert_equal 0, item.lock_version
+    assert_equal before_revision, @homes.first.reload.sync_revision
+    assert_equal @revision, SyncScope.revision_for(SyncScope::DICTIONARY)
+    assert_not CatalogItem.exists?(normalized_name: item.normalized_name)
+    assert_not SyncCommand.exists?(command_id: command["id"])
+  ensure
+    db&.execute("DROP TRIGGER IF EXISTS fail_correction_ledger")
+  end
+
   private
 
   def race(pairs)
