@@ -263,9 +263,10 @@ class RailsCommandTransportTest {
     }
 
     @Test
-    fun aCommandTypeRailsDoesNotRunYetIsRejectedNotConfirmed() {
+    fun anUnknownCommandTypeIsRejectedNotConfirmed() {
         val commandId = newId()
-        val document = """{"id":"$commandId","type":"remove_item","depends_on":null,"preconditions":{},"payload":{"public_id":"${newId()}"}}"""
+        // Use a synthetic type: business commands become supported as migration progresses.
+        val document = """{"id":"$commandId","type":"unsupported_test_command","depends_on":null,"preconditions":{},"payload":{"public_id":"${newId()}"}}"""
 
         val result = receipt(send(commandId, document))
 
