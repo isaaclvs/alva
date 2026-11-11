@@ -8,6 +8,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeout
 import net.ts.taild80ca0.atlas.twa.access.AccessGraph
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
@@ -217,6 +220,46 @@ class RailsSyncConvergenceTest {
         } finally {
             scope.cancel()
             AccessGraph.install(null)
+        }
+    }
+
+    @Test
+    fun foregroundSocketInstallsAnotherDevicesChangesAndRecoversAfterPause() = runBlocking<Unit> {
+        val a = device(tokenA)
+        val b = device(tokenB)
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val controller = SyncController(a.cycle, scope)
+        val websocket = okhttp3.OkHttpClient()
+        val manager = ForegroundInvalidation(a.access, endpoint(), controller, scope, OkHttpCableConnector(websocket))
+        try {
+            a.access.refresh()
+            b.sync()
+            manager.start()
+            withTimeout(30_000) {
+                controller.status.first { it is SyncStatus.Idle && it.last?.outcome is SyncOutcome.Synced }
+            }
+            val name = newName()
+            b.add(name)
+            b.sync()
+            withTimeout(30_000) { a.store.observe().first { state -> state.items.any { it.name == name } } }
+            b.mark(name, ItemStatus.PURCHASED)
+            b.sync()
+            withTimeout(30_000) {
+                a.store.observe().first { state -> state.items.any { it.name == name && it.status == ItemStatus.PURCHASED } }
+            }
+            manager.stop()
+            val missed = newName()
+            b.add(missed)
+            b.sync()
+            manager.start()
+            withTimeout(30_000) { a.store.observe().first { state -> state.items.any { it.name == missed } } }
+            assertEquals(0, a.db.commands().count())
+            assertEquals(false, a.has(missed))
+        } finally {
+            manager.stop()
+            scope.coroutineContext[kotlinx.coroutines.Job]?.cancelAndJoin()
+            websocket.dispatcher.executorService.shutdown()
+            websocket.connectionPool.evictAll()
         }
     }
 

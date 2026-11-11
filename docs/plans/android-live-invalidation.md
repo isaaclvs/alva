@@ -55,6 +55,10 @@ canal é um aviso recuperável, não um log de eventos ou confirmação de coman
   WebSocket e snapshot no cliente Kotlin; retomar recupera inclusão feita com
   assinatura fechada. Tokens add_only/revogados não conseguem assinar. Nenhum
   teste usa a casa real.
+- Android + Room + Rails real: script/android_rails_sync_check inclui o cliente
+  em primeiro plano recebendo inclusão/marcação de outro banco, instalando o
+  snapshot e recuperando alteração após pausa. A classe também mantém os cenários
+  de reenvio, aliases, fila ordenada e perda de resposta, totalizando 6 cenários.
 - Compose/emulador: ShoppingScreensTest verifica socket fechado em CREATED e
   reaberto em RESUMED; os fluxos locais e MainActivityAccessTest continuam sendo
   executados com graph de teste, sem conexão de produção.
