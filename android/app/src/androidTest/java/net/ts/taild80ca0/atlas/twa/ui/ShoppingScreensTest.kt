@@ -350,15 +350,27 @@ class ShoppingScreensTest {
         compose.onNodeWithTag("conflict-discard").assertTextEquals("Descartar 2 alterações")
     }
 
-    @Test fun anUnansweredIdempotencyConflictDoesNotOfferDiscard() {
-        refusedAddition("Leite", uncertain = true)
-        launch(conflicts = resolver())
+    @Test fun anUnansweredIdempotencyConflictOffersTheServerListAndAsksForASync() {
+        val root = refusedAddition("Leite", uncertain = true)
+        val runs = java.util.concurrent.atomic.AtomicInteger()
+        val sync = SyncController(
+            SyncRunner { runs.incrementAndGet(); SyncReport(SyncOutcome.SnapshotHeld(emptyList())) },
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Job() + kotlinx.coroutines.Dispatchers.Default),
+        )
+        launch(sync = sync, conflicts = resolver())
+        compose.waitUntil(10_000) { runs.get() == 1 }
         compose.onNodeWithTag("nav-list").performClick()
-        compose.onNodeWithTag("list-summary").assertExists()
-        compose.onNodeWithTag("conflict-discard").assertDoesNotExist()
-        compose.onNodeWithTag("conflicts-panel").assertDoesNotExist()
-        assertEquals(1, runBlocking { db.commands().count() })
-        assertTrue(runBlocking { db.resolutions().all().isEmpty() })
+        openReview(root.commandId)
+        compose.onNodeWithTag("conflict-details").assertExists()
+        compose.onNodeWithTag("conflict-discard").assertTextEquals("Usar a lista do servidor")
+        assertEquals(listOf(root.commandId), runBlocking { db.commands().unresolvedAttemptIds() })
+        compose.onNodeWithTag("conflict-discard").performClick()
+        waitForText("conflict-feedback", "Confira a lista e adicione de novo o que faltar.")
+        assertEquals(0, runBlocking { db.commands().count() })
+        assertTrue(runBlocking { db.commands().unresolvedAttemptIds().isEmpty() })
+        assertEquals(1, runBlocking { db.resolutions().all().size })
+        // The uncertain change held the server's list back: leaving the queue asks for a cycle at once.
+        compose.waitUntil(10_000) { runs.get() == 2 }
     }
 
 
