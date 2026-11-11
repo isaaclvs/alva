@@ -87,6 +87,15 @@ class ServerSnapshotParserTest {
     }
 
     @Test
+    fun oversizedIntegersCannotWrapIntoSupportedSchemaOrPositions() {
+        invalid(snapshot().put("schema_version", 4_294_967_297L), SnapshotProblem.UNSUPPORTED_SCHEMA)
+        val categories = snapshot()
+        categories.getJSONArray("categories").getJSONObject(0).put("position", 4_294_967_296L)
+        invalid(categories, SnapshotProblem.WRONG_SHAPE)
+        invalid(snapshot(items = listOf(item(a, "Leite").put("position", 4_294_967_296L))), SnapshotProblem.WRONG_SHAPE)
+    }
+
+    @Test
     fun unknownExtraFieldsAreIgnoredBecauseTheContractOnlyGrowsAdditively() {
         val json = snapshot(items = listOf(item(a, "Leite").put("future_field", 1)))
         json.put("another", JSONObject().put("x", 1))

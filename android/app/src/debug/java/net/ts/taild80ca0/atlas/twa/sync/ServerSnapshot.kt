@@ -140,8 +140,8 @@ object SnapshotParser {
     private fun broken(detail: String): Nothing = throw Rejected(SnapshotProblem.BROKEN_REFERENCE, detail)
 
     private fun read(root: JSONObject): ServerSnapshot {
-        val schema = whole(root, "schema_version", "schema_version").toInt()
-        if (schema != ServerSnapshot.SUPPORTED_SCHEMA) throw Rejected(SnapshotProblem.UNSUPPORTED_SCHEMA, "schema_version")
+        val schema = whole(root, "schema_version", "schema_version")
+        if (schema != ServerSnapshot.SUPPORTED_SCHEMA.toLong()) throw Rejected(SnapshotProblem.UNSUPPORTED_SCHEMA, "schema_version")
         val revision = whole(root, "revision", "revision")
         val dictionaryRevision = whole(root, "dictionary_revision", "dictionary_revision")
         val household = obj(root, "household", "household")
@@ -149,7 +149,7 @@ object SnapshotParser {
         val householdName = string(household, "name", "household.name")
 
         val categories = array(root, "categories").map { (i, c) ->
-            Category(id(c, "public_id", "categories[$i].public_id"), string(c, "name", "categories[$i].name"), whole(c, "position", "categories[$i].position").toInt())
+            Category(id(c, "public_id", "categories[$i].public_id"), string(c, "name", "categories[$i].name"), smallWhole(c, "position", "categories[$i].position"))
         }
         val categoryIds = unique(categories.map { it.publicId }, "categories")
 
@@ -191,7 +191,7 @@ object SnapshotParser {
         unique(tombstones.map { Triple(it.recordType, it.publicId, it.revision) }, "tombstones")
 
         return ServerSnapshot(
-            schema, revision, dictionaryRevision, householdId, householdName, categories, catalog,
+            schema.toInt(), revision, dictionaryRevision, householdId, householdName, categories, catalog,
             live, archived, trips, habituals, tombstones,
         )
     }
@@ -215,7 +215,7 @@ object SnapshotParser {
             normalizedName = string(o, "normalized_name", "$at.normalized_name"),
             categoryPublicId = category,
             status = status,
-            position = if (o.isNull("position") && o.has("position")) null else whole(o, "position", "$at.position").toInt(),
+            position = if (o.isNull("position") && o.has("position")) null else smallWhole(o, "position", "$at.position"),
             purchasedAtMicros = if (o.isNull("purchased_at") && o.has("purchased_at")) null else time(o, "purchased_at", "$at.purchased_at"),
             createdAtMicros = time(o, "created_at", "$at.created_at"),
             updatedAtMicros = time(o, "updated_at", "$at.updated_at"),
@@ -247,6 +247,9 @@ object SnapshotParser {
             is Long -> v
             else -> shape(at)
         }.also { if (it < 0) shape(at) }
+
+    private fun smallWhole(o: JSONObject, key: String, at: String): Int =
+        whole(o, key, at).also { if (it > Int.MAX_VALUE) shape(at) }.toInt()
 
     private fun time(o: JSONObject, key: String, at: String): Long =
         ServerTime.parseMicros(string(o, key, at)) ?: shape(at)
