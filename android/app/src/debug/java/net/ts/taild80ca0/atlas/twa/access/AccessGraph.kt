@@ -1,6 +1,10 @@
 package net.ts.taild80ca0.atlas.twa.access
 
 import android.content.Context
+import androidx.work.WorkManager
+import kotlinx.coroutines.launch
+import net.ts.taild80ca0.atlas.twa.sync.BackgroundSync
+import net.ts.taild80ca0.atlas.twa.sync.SyncingShoppingListStore
 import net.ts.taild80ca0.atlas.twa.data.list.RoomShoppingListStore
 import net.ts.taild80ca0.atlas.twa.data.list.ShoppingListStore
 import net.ts.taild80ca0.atlas.twa.BuildConfig
@@ -32,6 +36,13 @@ object AccessGraph {
 
     /** True while a test installed its own graph: then nothing is built lazily (a test must never reach the real server). */
     private var overridden = false
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private var background: BackgroundSync? = null
+    private var recoveryStarted = false
+
+    @Synchronized
+    private fun background(context: Context): BackgroundSync =
+        background ?: BackgroundSync(WorkManager.getInstance(context.applicationContext)).also { background = it }
 
     @Synchronized
     private fun database(context: Context): AlvaDatabase =
@@ -39,14 +50,16 @@ object AccessGraph {
 
     @Synchronized
     fun shoppingListStore(context: Context): ShoppingListStore =
-        listStore ?: RoomShoppingListStore(database(context)).also { listStore = it }
+        listStore ?: RoomShoppingListStore(database(context)).let { local ->
+            if (overridden) local else SyncingShoppingListStore(local, background(context))
+        }.also { listStore = it }
 
     fun houseAccess(context: Context): HouseAccess =
         instance ?: synchronized(this) {
             instance ?: build(context.applicationContext).also { instance = it }
         }
 
-    /** The one controller of this process: opening/resuming and the button ask it for a sync cycle. */
+    /** The one controller of this process, shared by the screens and the persistent worker. */
     @Synchronized
     fun syncController(context: Context): SyncController? =
         syncController ?: if (overridden) null else run {
@@ -61,8 +74,17 @@ object AccessGraph {
                 installer = SnapshotInstaller(db),
                 access = access,
             )
-            SyncController(cycle, CoroutineScope(SupervisorJob() + Dispatchers.Default)).also { syncController = it }
+            SyncController(cycle, scope).also { syncController = it }
         }
+
+    /** Called by the app entry, never by a worker: worker startup must not schedule another worker. */
+    @Synchronized
+    fun recoverBackgroundSync(context: Context) {
+        if (overridden || recoveryStarted) return
+        recoveryStarted = true
+        val scheduler = background(context)
+        scope.launch { scheduler.recover() }
+    }
 
     /** Test hook: replaces (or, with null, drops) the instance, like a new process would. */
     fun install(access: HouseAccess?, store: ShoppingListStore? = null, sync: SyncController? = null) {
@@ -71,6 +93,8 @@ object AccessGraph {
             listStore = store
             syncController = sync
             overridden = access != null
+            recoveryStarted = false
+            background = null
         }
     }
 
@@ -80,6 +104,7 @@ object AccessGraph {
             vault = KeystoreCredentialVault(KeystoreCredentialVault.defaultFile(context)),
             api = HttpHouseAccessApi(ServerEndpoint.parse(BuildConfig.SERVER_URL)),
             binding = RoomHouseholdBinding(database),
+            onConnected = { background(context).request() },
         )
     }
 }

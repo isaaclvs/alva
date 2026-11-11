@@ -67,6 +67,23 @@ abstract class HouseAccessScenarios {
     private fun serverError(result: ConnectResult): AccessError =
         (failure(result) as? ConnectError.Server)?.error ?: throw AssertionError("expected a server error, got $result")
 
+    @Test
+    fun onlySuccessfulConnectionWakesSyncAfterCredentialAndBindingAreStored() = runBlocking {
+        var wakeups = 0
+        val access = HouseAccess(
+            vault, HttpHouseAccessApi(ServerEndpoint.parse(server.baseUrl), 3_000, 5_000), binding,
+            onConnected = {
+                assertEquals(server.householdPublicId, binding.current())
+                assertNotNull((vault.read() as VaultRead.Found).access.active)
+                wakeups++
+            },
+        )
+        assertTrue(access.connect("wrong password") is ConnectResult.Failed)
+        assertEquals(0, wakeups)
+        assertTrue(access.connect(server.password) is ConnectResult.Connected)
+        assertEquals(1, wakeups)
+    }
+
     // --- first setup -----------------------------------------------------------------------
 
     @Test

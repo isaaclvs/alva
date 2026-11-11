@@ -64,6 +64,7 @@ class HouseAccess(
     private val api: HouseAccessApi,
     private val binding: HouseholdBinding,
     private val deviceName: String = DEFAULT_DEVICE_NAME,
+    private val onConnected: suspend () -> Unit = {},
 ) {
     private val mutex = Mutex()
     private val _state = MutableStateFlow<AccessState?>(null)
@@ -127,10 +128,14 @@ class HouseAccess(
     /**
      * First setup and reconnection alike. [password] is used for this call only.
      */
-    suspend fun connect(password: String): ConnectResult = mutex.withLock {
-        val result = doConnect(password)
-        readState()
-        result
+    suspend fun connect(password: String): ConnectResult {
+        val result = mutex.withLock {
+            val connected = doConnect(password)
+            readState()
+            connected
+        }
+        if (result is ConnectResult.Connected) onConnected()
+        return result
     }
 
     private suspend fun doConnect(password: String): ConnectResult {
