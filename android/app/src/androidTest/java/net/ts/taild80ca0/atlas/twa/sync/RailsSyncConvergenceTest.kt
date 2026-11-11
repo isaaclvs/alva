@@ -260,6 +260,32 @@ class RailsSyncConvergenceTest {
     }
 
     @Test
+    fun aRequestRailsRefusesAsAWholeHadNoEffectAndNoLongerHoldsTheSnapshot() = runBlocking<Unit> {
+        val a = device(tokenA)
+        val broken = newName()
+        val fine = newName()
+        a.sync()
+        a.add(broken)
+        a.add(fine)
+        val (refused, independent) = a.db.commands().inOrder().map { it.id }
+        assertTrue(net.ts.taild80ca0.atlas.twa.data.list.WirePreparer(a.db).prepare(refused) is
+            net.ts.taild80ca0.atlas.twa.data.list.PreparationResult.Prepared)
+        // A frozen document that is not JSON: Rails refuses the whole request before running any command.
+        a.db.openHelper.writableDatabase.execSQL("UPDATE commands SET wire_document = '{\"id\":' WHERE id = ?", arrayOf(refused))
+
+        a.sync()
+
+        val kept = a.db.commands().inOrder().single()
+        assertEquals(refused, kept.id)
+        assertEquals("REJECTED", kept.status)
+        assertEquals("malformed_command", kept.lastErrorCode)
+        assertTrue("no effect on the server", server().listItems.none { it.name == broken })
+        assertEquals("the independent add went through", false, a.has(fine))
+        assertTrue(a.db.commands().find(independent) == null)
+        assertEquals(server().revision, a.state().confirmedRevision)
+    }
+
+    @Test
     fun foregroundSocketInstallsAnotherDevicesChangesAndRecoversAfterPause() = runBlocking<Unit> {
         val a = device(tokenA)
         val b = device(tokenB)
