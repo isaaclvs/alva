@@ -37,7 +37,7 @@ Código (variante debug, pacote `sync`): `CommandSender`, `CommandTransport` /
 | `Receipt` | 200 com resultado válido **deste** comando. O `status` pode ser `applied`, `noop`, `duplicate`, `conflict`, `rejected` ou `blocked` | `ReceiptApplier.apply` reconhece o comando (aliases + recibo guardado) ou registra a recusa |
 | `Transient` | rede, timeout, TLS, 5xx, 429 (`retryAfterSeconds`) | repetir o **mesmo** documento depois; `duplicate` se o servidor já tinha confirmado |
 | `Unauthorized` | 401/403 | reconectar; fila e documento intactos |
-| `Refused` | 422/outros 4xx na requisição inteira, ou documento acima do limite | repetir os mesmos bytes não ajuda |
+| `Refused` | 422/outros 4xx na requisição inteira, ou documento acima do limite | repetir os mesmos bytes não ajuda. O Rails só recusa a requisição inteira antes de rodar qualquer comando (`malformed_command`), e os outros 4xx vêm de antes do Rails: a tentativa **não teve efeito**. `ReceiptApplier.apply` a responde, marca o comando `REJECTED` com o código (`request_refused` sem código no corpo) e bloqueia os dependentes; o grupo pode ser descartado no painel de revisão |
 | `Invalid` | resposta que não bate com o contrato ou com este comando | não confirma nada |
 
 HTTP 200 não é sucesso de todos os comandos: o `status` do resultado é que decide.
