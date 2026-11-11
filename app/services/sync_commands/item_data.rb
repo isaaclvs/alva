@@ -23,7 +23,8 @@ module SyncCommands
       data = command.dependency&.data
       return unless data.is_a?(Hash)
 
-      entries = Array(data["items"]) + [ data["item"] ]
+      item_data = data["item"] || data.dig("removed", "item")
+      entries = Array(data["items"]) + [ item_data ]
       entry = entries.find { |candidate| candidate.is_a?(Hash) && candidate["canonical_public_id"] == item.public_id }
       version = entry && entry["lock_version"]
       version if version.is_a?(Integer)

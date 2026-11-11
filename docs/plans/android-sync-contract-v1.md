@@ -200,7 +200,7 @@ um comando já enviado.
 | `set_item_state` | `public_id`, `desired: "pending"\|"purchased"` | `lock_version` (herdado de `depends_on` quando este tocou o item) | `ListItem#toggle_purchased!` (estado desejado, nunca toggle) |
 | `undo_item_state` | `public_id`, `status`, `purchased_at` | `lock_version` | `PurchaseUndo` / `#undo_purchase!` |
 | `correct_item` | `public_id`, `name`, `category_id?` | `lock_version` | `ListItem#correct` + `ItemCategorizer.learn` |
-| `remove_item` | `public_id` | `lock_version` | `ListItemSnapshot` + `destroy` |
+| `remove_item` | `public_id` | `lock_version` (herdado de `depends_on` quando este tocou o item) | `Household#remove_item` |
 | `restore_item` | campos do item removido (nome, categoria, `purchased_at`, `created_at`, `position`) | item não existe / não há pendente homônimo | `Household#restore_item` |
 | `finish_shopping` | `items: [{ public_id, lock_version }]` — só os comprados vistos neste aparelho | cada `lock_version` | `Household#finish_shopping!` |
 | `undo_shopping` | `trip_public_id` | viagem é a mais recente | `Household#undo_shopping!` |
@@ -395,6 +395,13 @@ versão 0 que o primeiro deixou; o terceiro, a versão 1 do segundo.
   versão do item canônico, que é o que o resultado do primeiro passo registra.
 
 Observações:
+
+- `remove_item` só remove item vivo da casa e exige a versão observada ou herdada.
+  `unknown`/estrangeiro responde `not_found`; arquivado/removido responde `gone`;
+  versão divergente responde `conflict`. O ledger guarda `data.item` com UUID
+  citado/canônico, nome, categoria, estado, `purchased_at`, `lock_version`,
+  `created_at` e `position`, suficiente para um futuro `undo_remove` que cite o
+  comando de remoção original. Esse recibo não é um token temporário da PWA.
 
 - Categorização automática e detecção de duplicados são feitas **localmente**
   com a mesma normalização do Rails (`TextNormalizer`); o servidor é a
