@@ -81,7 +81,9 @@ class ShoppingScreensTest {
 
     private fun add(text: String) {
         compose.onNodeWithTag("add-input").performTextInput(text)
-        compose.onNodeWithTag("save-add").performClick()
+        compose.onNodeWithTag("save-add").assertIsDisplayed()
+        // Exercise the real Done action without racing IME/layout animation coordinates.
+        compose.onNodeWithTag("add-input").performImeAction()
         compose.waitUntil(10_000) {
             compose.onAllNodes(hasTestTag("feedback") and hasText("Salvo neste aparelho", substring = true)).fetchSemanticsNodes().isNotEmpty()
         }
