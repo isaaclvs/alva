@@ -1,6 +1,14 @@
 package net.ts.taild80ca0.atlas.twa.sync
 
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.core.app.ApplicationProvider
+import androidx.work.testing.TestListenableWorkerBuilder
+import androidx.work.ListenableWorker
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
+import net.ts.taild80ca0.atlas.twa.access.AccessGraph
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
 import net.ts.taild80ca0.atlas.twa.access.AccessCredential
@@ -181,4 +189,35 @@ class RailsSyncConvergenceTest {
         b.sync()
         assertEquals("B sees it exactly once", 1, b.state().items.count { it.name == name })
     }
+
+    @Test
+    fun workerRetriesALostAnswerThroughRailsWithoutAnActivityOrASecondEffect() = runBlocking<Unit> {
+        val proxy = ResponseDroppingProxy(Regex(":(\\d+)$").find(url)!!.groupValues[1].toInt()).also { closeables += it }
+        val a = device(tokenA, through = proxy.port)
+        val b = device(tokenB)
+        val name = newName()
+        a.sync()
+        a.add(name)
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        try {
+            // Rebuild the process entry point over the same durable Room queue; no activity is created.
+            AccessGraph.install(a.access, a.store, SyncController(a.cycle, scope))
+            proxy.dropNextResponses(1)
+            val first = TestListenableWorkerBuilder<SyncWorker>(context).build().doWork()
+            assertEquals(ListenableWorker.Result.retry(), first)
+            assertEquals(1, server().listItems.count { it.name == name })
+            assertEquals(1, a.db.commands().count())
+            val second = TestListenableWorkerBuilder<SyncWorker>(context).setRunAttemptCount(1).build().doWork()
+            assertEquals(ListenableWorker.Result.success(), second)
+            assertArrayEquals(proxy.requestBodies[0], proxy.requestBodies[1])
+            assertEquals(0, a.db.commands().count())
+            b.sync()
+            assertEquals(1, b.state().items.count { it.name == name })
+        } finally {
+            scope.cancel()
+            AccessGraph.install(null)
+        }
+    }
+
 }

@@ -16,7 +16,8 @@ sealed interface SyncStatus {
 
 /**
  * The trigger of [SyncCycle] for the screens: opening or resuming the app asks for a cycle, and the user can ask
- * again with a button. There is no worker or timer. It lives as long as the process (it is not tied to a screen),
+ * again with a button. The background worker shares this controller and its reports. It lives as long as the
+ * process (it is not tied to a screen),
  * so rotating the phone does not cancel a cycle, and a cycle that the system kills is recovered by the next one
  * from what the database holds (attempts are committed before their request).
  *
@@ -45,18 +46,34 @@ class SyncController(
         }
         if (!busy.compareAndSet(false, true)) return false
         lastStart = clock()
+        val previous = startReport()
+        scope.launch { finishRun(previous) }
+        return true
+    }
+
+    /** A WorkManager invocation must await completion, rather than launching an unowned coroutine. */
+    suspend fun runInBackground(): SyncReport {
+        if (!busy.compareAndSet(false, true)) return SyncReport(SyncOutcome.AlreadyRunning)
+        lastStart = clock()
+        return finishRun(startReport())
+    }
+
+    private fun startReport(): SyncReport? {
         val previous = _status.value.let { (it as? SyncStatus.Idle)?.last ?: (it as? SyncStatus.Running)?.last }
         _status.value = SyncStatus.Running(previous)
-        scope.launch {
-            var report = previous
-            try {
-                report = cycle.run().takeIf { it.outcome != SyncOutcome.AlreadyRunning } ?: previous
-            } finally {
-                _status.value = SyncStatus.Idle(report)
-                busy.set(false)
-            }
+        return previous
+    }
+
+    private suspend fun finishRun(previous: SyncReport?): SyncReport {
+        var report = previous
+        try {
+            val result = cycle.run()
+            report = result.takeIf { it.outcome != SyncOutcome.AlreadyRunning } ?: previous
+            return result
+        } finally {
+            _status.value = SyncStatus.Idle(report)
+            busy.set(false)
         }
-        return true
     }
 }
 

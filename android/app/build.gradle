@@ -294,6 +294,10 @@ dependencies {
     kspDebug 'androidx.room:room-compiler:2.7.2'
     debugImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
 
+    // Persistent synchronization belongs only to the native development client.
+    debugImplementation 'androidx.work:work-runtime-ktx:2.10.1'
+    androidTestImplementation 'androidx.work:work-testing:2.10.1'
+
     testImplementation 'junit:junit:4.13.2'
     // Real org.json for JVM tests (the android.jar one is a stub).
     testImplementation 'org.json:json:20250517'
@@ -410,7 +414,7 @@ androidComponents {
     }
 }
 
-// The local database (Room) is debug-only until the explicit
+// Local persistence and background sync are debug-only until the explicit
 // transition: the release TWA APK must keep its dependency set.
 tasks.register('verifyReleaseHasNoLocalPersistence') {
     def releaseGroups = provider {
@@ -422,7 +426,7 @@ tasks.register('verifyReleaseHasNoLocalPersistence') {
             .collect { it.moduleVersion?.group }.findAll { it != null }.toSet()
     }
     doLast {
-        def banned = ['androidx.room']
+        def banned = ['androidx.room', 'androidx.work']
         banned.each { group ->
             if (releaseGroups.get().any { it.startsWith(group) }) {
                 throw new GradleException("Release runtime classpath must not contain ${group}")
