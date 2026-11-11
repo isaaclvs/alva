@@ -132,6 +132,7 @@ object WireEnvelopeBuilder {
         val targets = subjects.filter { it.role == SubjectRole.TARGETS }
         if (recorded != null) {
             val consistent = recorded.size == targets.size &&
+                recorded.map { it.ordinal }.toSet() == targets.map { it.ordinal }.toSet() &&
                 recorded.all { seen -> targets.any { it.ordinal == seen.ordinal && it.publicId == seen.publicId } }
             if (!consistent) return refused(PreparationRefusal.INCONSISTENT_INTENT, "revive observations do not match the revived subjects")
         }

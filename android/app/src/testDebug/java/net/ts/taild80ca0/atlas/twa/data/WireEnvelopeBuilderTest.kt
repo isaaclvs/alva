@@ -302,6 +302,27 @@ class WireEnvelopeBuilderTest {
     }
 
     @Test
+    fun duplicateObservationsCannotStandInForAnotherRevivedItem() {
+        val duplicated = listOf(
+            ReviveObservation(0, item, 3, false),
+            ReviveObservation(0, item, 3, false),
+        )
+        val command = add(
+            listOf("Leite", "Pão"), listOf(target(item, 0), target(other, 1)),
+            dependsOn = "prior", touches = setOf(other), revives = duplicated,
+        )
+        val ids = Scripted(claim)
+        assertEquals(PreparationRefusal.INCONSISTENT_INTENT, refusal(command, ids))
+        assertEquals(0, ids.calls)
+    }
+
+    @Test
+    fun anUnknownSubjectRoleCannotBeUsedToApplyAResult() {
+        val document = built(add(listOf("Leite"), listOf(create(item))))
+        assertNull(WireItemLinks.of(document, listOf(WireSubject(item, "watches", 0))))
+    }
+
+    @Test
     fun everyBuiltDocumentPassesTheFreezeCheck() {
         val documents = listOf(
             add(listOf("Leite"), listOf(create(item))) to null,

@@ -37,6 +37,7 @@ object WireItemLinks {
         val ordered = subjects.sortedBy { it.ordinal }
         if (items.length() != ordered.size || ordered.indices.any { ordered[it].ordinal != it }) return null
         return ordered.map { subject ->
+            if (subject.role != SubjectRole.CREATES && subject.role != SubjectRole.TARGETS) return null
             val item = items.optJSONObject(subject.ordinal) ?: return null
             val wireId = item.optString("public_id").takeIf { it.isNotEmpty() } ?: return null
             val revived = item.optJSONObject("revives")?.optString("public_id")?.takeIf { it.isNotEmpty() }
