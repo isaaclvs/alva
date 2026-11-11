@@ -23,25 +23,38 @@ import org.json.JSONObject
  *    replaying it could bring an item back that no longer exists. Every other command
  *    replays its intent.
  * 3. throughout, ids resolve through the aliases the server revealed, so a command queued
- *    against a UUID the device made up acts on the item the server kept.
+ *    against a UUID the device made up acts on the item the server kept; and through the
+ *    provisional merges the replay itself finds ([ItemIdentities]), which are reported, not stored.
  *
  * Nothing here writes the queue, the aliases or the confirmed state.
  */
 class ProjectionRebuilder(private val db: AlvaDatabase) {
 
+    /** What the screens show ([items], by row id) and which ids are the same item ([identities]). */
+    class Projected(val items: Map<String, ListItemEntity>, val identities: ItemIdentities)
+
     suspend fun rebuild() {
+        db.withTransaction {
+            val projected = project()
+            db.listItems().clear()
+            db.listItems().upsert(projected.items.values.toList())
+        }
+    }
+
+    /** Only the identities: the same replay, written nowhere. For whatever has to find the commands behind a row. */
+    suspend fun identities(): ItemIdentities = project().identities
+
+    /** The replay itself; reads and writes nothing in the database. */
+    suspend fun project(): Projected =
         db.withTransaction {
             val confirmedRevision = db.syncState().get()?.confirmedRevision ?: 0L
             val aliases = db.aliases().all().associate { it.aliasPublicId to it.canonicalPublicId }
-            val sameAs = HashMap<String, String>()
-            val resolve: (String) -> String = { id ->
-                val key = id.lowercase()
-                sameAs[id] ?: sameAs[key] ?: aliases[key] ?: id
-            }
+            val identities = ItemIdentities(aliases)
             val projection = db.confirmedItems().all().associate { it.publicId to it.toProjection() }.toMutableMap()
+            val subjectsByCommand = db.commands().allSubjects().groupBy { it.commandId }
 
             for (command in db.commands().inOrder()) {
-                val subjects = db.commands().subjectsOf(command.id)
+                val subjects = subjectsByCommand[command.id].orEmpty().sortedBy { it.ordinal }
                 if (command.status == CommandStatus.ACKNOWLEDGED.name) {
                     val receipt = db.receipts().find(command.id)
                     if (receipt != null && receipt.revision > confirmedRevision) {
@@ -57,15 +70,13 @@ class ProjectionRebuilder(private val db: AlvaDatabase) {
                         subjects.map { ProjectedSubject(it.subjectPublicId, it.role, it.ordinal, it.categoryPublicId) },
                         command.createdAt,
                     ),
-                    resolve,
+                    identities::resolve,
                 )
                 replay.changed.forEach { projection[it.publicId] = it }
-                sameAs += replay.sameAs
+                identities.merge(replay.sameAs)
             }
-            db.listItems().clear()
-            db.listItems().upsert(projection.values.toList())
+            Projected(projection, identities)
         }
-    }
 
     /** The receipt's effect on the projection. Receipts were validated when they were applied; one that no longer validates contributes nothing. */
     private fun applyReceipt(

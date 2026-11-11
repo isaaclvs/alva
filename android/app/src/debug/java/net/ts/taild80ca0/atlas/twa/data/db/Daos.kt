@@ -98,6 +98,10 @@ interface CommandDao {
     @Query("SELECT * FROM command_subjects WHERE command_id = :id ORDER BY ordinal")
     suspend fun subjectsOf(id: String): List<CommandSubjectEntity>
 
+    /** Every subject of the queue, for readers that replay all of it (one query instead of one per command). */
+    @Query("SELECT * FROM command_subjects ORDER BY command_id, ordinal")
+    suspend fun allSubjects(): List<CommandSubjectEntity>
+
     /** Most recent queued command that touches any of the records, i.e. the one a new command depends on. */
     @Query(
         """
