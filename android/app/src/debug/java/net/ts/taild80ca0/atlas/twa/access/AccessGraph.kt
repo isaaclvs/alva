@@ -7,6 +7,9 @@ import net.ts.taild80ca0.atlas.twa.sync.BackgroundSync
 import net.ts.taild80ca0.atlas.twa.sync.ForegroundInvalidation
 import net.ts.taild80ca0.atlas.twa.sync.SyncingShoppingListStore
 import net.ts.taild80ca0.atlas.twa.data.list.RoomShoppingListStore
+import net.ts.taild80ca0.atlas.twa.data.list.ConflictResolver
+import net.ts.taild80ca0.atlas.twa.data.list.IdGenerator
+import net.ts.taild80ca0.atlas.twa.data.list.Clock
 import net.ts.taild80ca0.atlas.twa.data.list.ShoppingListStore
 import net.ts.taild80ca0.atlas.twa.BuildConfig
 import net.ts.taild80ca0.atlas.twa.data.db.AlvaDatabase
@@ -34,6 +37,7 @@ object AccessGraph {
     private var database: AlvaDatabase? = null
     private var listStore: ShoppingListStore? = null
     private var syncController: SyncController? = null
+    private var conflictResolver: ConflictResolver? = null
     @Volatile private var foregroundInvalidation: ForegroundInvalidation? = null
 
     /** True while a test installed its own graph: then nothing is built lazily (a test must never reach the real server). */
@@ -87,6 +91,14 @@ object AccessGraph {
         ).also { foregroundInvalidation = it }
     }
 
+    @Synchronized
+    fun conflictResolver(context: Context): ConflictResolver? {
+        if (overridden) return conflictResolver
+        return conflictResolver ?: ConflictResolver(
+            database(context), IdGenerator { java.util.UUID.randomUUID().toString() }, Clock { System.currentTimeMillis() },
+        ).also { conflictResolver = it }
+    }
+
     /** Called by the app entry, never by a worker: worker startup must not schedule another worker. */
     @Synchronized
     fun recoverBackgroundSync(context: Context) {
@@ -97,13 +109,14 @@ object AccessGraph {
     }
 
     /** Test hook: replaces (or, with null, drops) the instance, like a new process would. */
-    fun install(access: HouseAccess?, store: ShoppingListStore? = null, sync: SyncController? = null, foreground: ForegroundInvalidation? = null) {
+    fun install(access: HouseAccess?, store: ShoppingListStore? = null, sync: SyncController? = null, foreground: ForegroundInvalidation? = null, conflicts: ConflictResolver? = null) {
         synchronized(this) {
             foregroundInvalidation?.stop()
             foregroundInvalidation = foreground
             instance = access
             listStore = store
             syncController = sync
+            conflictResolver = conflicts
             overridden = access != null
             recoveryStarted = false
             background = null

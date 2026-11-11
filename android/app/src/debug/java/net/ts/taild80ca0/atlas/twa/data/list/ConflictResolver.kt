@@ -1,6 +1,11 @@
 package net.ts.taild80ca0.atlas.twa.data.list
 
 import androidx.room.withTransaction
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import net.ts.taild80ca0.atlas.twa.data.db.AlvaDatabase
 import net.ts.taild80ca0.atlas.twa.data.db.CommandEntity
 import net.ts.taild80ca0.atlas.twa.data.db.CommandResolutionEntity
@@ -27,6 +32,26 @@ class ConflictResolver(
         data object Stale : Result
         data object NotDiscardable : Result
     }
+
+    /** Only eligible roots, with descendants shown once as part of their oldest root. */
+    fun observe(): Flow<List<Preview>> = db.invalidationTracker.createFlow(
+        "commands", "command_subjects", "sync_state", "list_items", "sync_aliases", "command_receipts",
+        emitInitialState = true,
+    ).map {
+        db.withTransaction {
+            val commands = db.commands().inOrder()
+            val covered = mutableSetOf<String>()
+            buildList {
+                for (command in commands) {
+                    if (command.id in covered || command.status !in setOf("CONFLICT", "REJECTED")) continue
+                    val group = closure(command.id, commands) ?: continue
+                    val preview = makePreview(command.id, group)
+                    add(preview)
+                    covered.addAll(preview.commandIds)
+                }
+            }
+        }
+    }.distinctUntilChanged().flowOn(Dispatchers.IO)
 
     suspend fun preview(rootId: String): Preview? = db.withTransaction {
         val commands = db.commands().inOrder()
