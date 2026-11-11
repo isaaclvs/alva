@@ -231,6 +231,42 @@ jobs:
             android/app/build/outputs/androidTest-results
           if-no-files-found: ignore
 
+  android-rails-transport:
+    name: Android command transport against real Rails
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Install packages
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y libvips
+
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+
+      - name: Set up JDK
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+
+      # RAILS_ENV=test, a throwaway SQLite file and fixtures only; the script starts Rails on
+      # loopback, runs the Kotlin transport against it (including an answer lost after commit)
+      # and fails if that test was skipped.
+      - name: Run the Kotlin transport against an isolated Rails
+        env:
+          GRADLE_CMD: ./gradlew --no-daemon
+        run: script/android_rails_transport_check
+
   database:
     name: migrations, seeds and autoloading
     runs-on: ubuntu-24.04
