@@ -1,6 +1,10 @@
 package net.ts.taild80ca0.atlas.twa.data
 
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.withTimeout
 import net.ts.taild80ca0.atlas.twa.data.db.AlvaDatabase
 import net.ts.taild80ca0.atlas.twa.data.db.CommandEntity
 import net.ts.taild80ca0.atlas.twa.data.db.CommandSubjectEntity
@@ -124,4 +128,24 @@ class ConflictResolverTest : DatabaseTest() {
             db.openHelper.writableDatabase.execSQL("DROP TRIGGER fail_projection")
         }
     }
+
+    @Test fun observesEachGroupOnceAndEmitsItsRemovalAfterTheAtomicDiscard() = runBlocking {
+        val db = openDatabase()
+        add(db, "root")
+        add(db, "child", "root", attempts = 1, status = "REJECTED")
+        add(db, "grandchild", "child")
+        add(db, "independent", attempts = 0, status = "PENDING")
+        val updates = Channel<List<ConflictResolver.Preview>>(Channel.UNLIMITED)
+        val observer = launch { resolver(db).observe().collect { updates.send(it) } }
+        try {
+            val offered = withTimeout(5_000) { updates.receive() }
+            assertEquals(1, offered.size)
+            assertEquals(listOf("root", "child", "grandchild"), offered.single().commandIds)
+            assertTrue(resolver(db).discard(offered.single()) is ConflictResolver.Result.Discarded)
+            assertTrue(withTimeout(5_000) { updates.receive() }.isEmpty())
+            assertEquals(listOf("independent"), db.commands().inOrder().map { it.id })
+            assertEquals(1, db.resolutions().all().size)
+        } finally { observer.cancelAndJoin() }
+    }
+
 }
