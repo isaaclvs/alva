@@ -46,7 +46,7 @@ object AccessGraph {
             instance ?: build(context.applicationContext).also { instance = it }
         }
 
-    /** The one controller of this process: opening/resuming and the button ask it for a sync cycle. */
+    /** The one controller of this process: lifecycle, committed edits, connectivity and the button request cycles. */
     @Synchronized
     fun syncController(context: Context): SyncController? =
         syncController ?: if (overridden) null else run {

@@ -27,7 +27,7 @@ o destaque turquesa do Alva atual.
 ## Limites
 
 As telas continuam sem HTTP: adicionar e marcar só gravam no aparelho. A fila é enviada e
-o snapshot instalado por `SyncCycle`, pedido ao abrir/retomar ou pelo botão "Sincronizar agora" / "Tentar novamente"
+o snapshot instalado por `SyncCycle`, pedido ao abrir/retomar, depois de salvar uma inclusão ou marcação, no retorno da rede com o app aberto ou pelo botão "Sincronizar agora" / "Tentar novamente"
 na linha de estado (ver [android-sync-cycle.md](android-sync-cycle.md)), com os limites ali descritos. Antes da primeira carga do dicionário, nomes
 ficam no grupo Outros, sem inventar UUID de categoria. Não inclui edição,
 desfazer, habituais, comprar de novo, modo compras ou widget; essas tarefas

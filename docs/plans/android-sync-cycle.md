@@ -66,12 +66,38 @@ ou de habituais foi feita**: os dados são guardados, não interpretados.
 ## Gatilho
 
 Sem worker nem temporizador. `SyncController` pede um ciclo quando o app **abre ou retoma** (`ON_RESUME`; ignorado
-se o ciclo anterior começou há menos de 15 s) e quando o usuário toca em **"Sincronizar agora"** (vira
+se o ciclo anterior começou há menos de 15 s), **após adicionar ou marcar com sucesso no Room**, quando a
+**conexão padrão volta a ter internet validada pelo Android** enquanto a tela conectada está em primeiro plano,
+e quando o usuário toca em **"Sincronizar agora"** (vira
 **"Tentar novamente"** se o último ciclo não terminou sincronizado; nunca limitado). O painel de estado na área rolável das telas
 conta o que aconteceu em português, sem códigos: "Sincronizado.", "Sem conexão com o servidor…",
 "Aguardando o servidor confirmar N alterações enviadas. A lista não foi atualizada para não perder nada…", e
 acrescenta quantas alterações "precisam de atenção" (conflito/recusa/bloqueio: a intenção continua guardada e
 visível na lista) ou "ainda não puderam ser enviadas". Adicionar e marcar continuam sem esperar a rede. O painel pode crescer com os erros sem deslocar o campo e o botão de adicionar para fora da área disponível acima do teclado.
+
+Salvar continua sendo uma operação local: somente `IntentResult.Saved`, depois do commit da intenção e do
+comando, dispara o envio assíncrono. Duplicados, ações sem mudança e falhas não disparam ciclos. Alterações e
+retorno da rede ignoram o intervalo de retomada; se chegam durante um ciclo, são agrupados em **um ciclo seguinte**,
+sem sobrepor requisições nem perder a alteração que chegou depois da leitura da fila. O resultado de um ciclo
+não agenda outro: servidor indisponível não provoca repetição contínua. Novas alterações podem pedir novos ciclos.
+
+`ForegroundNetworkSync` registra o callback da rede padrão em `ON_RESUME` e o remove em `ON_PAUSE` ou ao sair
+da tela conectada; notificações repetidas da mesma conectividade não repetem o envio. A primeira notificação usa
+o mesmo limite da retomada. A permissão `ACCESS_NETWORK_STATE` pertence somente à variante debug. Não há
+push nem consulta periódica: alterações do outro celular chegam no próximo ciclo desses gatilhos.
+
+Validação dos gatilhos: `SyncControllerTest` cobre alteração logo após retomada, várias alterações durante um
+ciclo, retorno da rede e ausência de repetição por falha; `ShoppingScreensTest` cobre abertura, inclusão e marcação
+sem botão, duplicado sem ciclo e botão manual preservado.
+
+### Verificação da sincronização automática (11/11/2026)
+
+No emulador T3 `medium_phone` (Android 16/API 36), com APK local, Rails `test` e SQLite temporário:
+conectar; adicionar “Arroz automático” online; ativar modo avião/desligar Wi-Fi e remover o `adb reverse`
+(para que nem o loopback continue alcançando Rails); adicionar e marcar “Feijão offline”; conferir
+“Aguardando sincronização”; restaurar o reverse e a rede com a tela aberta. **Sem tocar no botão**, o estado
+passou a “Sincronizado” e o Rails guardou arroz pendente e feijão comprado. Esse ensaio verifica o callback real
+do Android e o transporte local; não substitui repetir a atualização nos celulares físicos.
 
 ## Como executar o cenário e testar o APK
 
@@ -102,12 +128,12 @@ para a casa real. Nada neste corte provisiona casa nova nem altera dados de prod
 aparelhos reais ainda não foi feita (#59).
 
 Ordem sugerida nos dois celulares: abrir e conectar (a primeira sincronização traz a lista, que pode estar vazia);
-em A, desligar a rede, adicionar e marcar; religar e tocar em "Sincronizar agora"; em B, abrir ou retomar o app
+em A, desligar a rede, adicionar e marcar; religar com o app aberto e aguardar a sincronização automática; em B, abrir ou retomar o app
 e conferir; marcar em B; voltar a A.
 
 ## Limites conhecidos (nada disto deve ser dado como pronto)
 
-- **Sem sincronização em segundo plano.** Só abrir/retomar e o botão. Com o app fechado nada sai nem chega.
+- **Sem sincronização em segundo plano.** Abrir/retomar, salvar alterações, retorno da rede com o app aberto e o botão. Com o app fechado não há novo gatilho.
 - **Tentativa sem resposta que não pode ser repetida segura o snapshot, de forma visível e sem apagar nada.** É o
   caso de `idempotency_conflict` (credencial antiga perdida: o Keystore apagado), de um dependente `BLOCKED` que já
   tinha sido enviado, e de uma recusa da requisição inteira (`Refused`/`Invalid`) cujos bytes não adiantam repetir.
