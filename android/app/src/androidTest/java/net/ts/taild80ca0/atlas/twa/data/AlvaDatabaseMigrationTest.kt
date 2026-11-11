@@ -425,9 +425,11 @@ class AlvaDatabaseMigrationTest {
             close()
         }
         val v4Tables = v2Tables + listOf("sync_aliases", "command_receipts")
-        val before = helper.runMigrationsAndValidate(name, 4, false).use { dump(it, v4Tables) }
-        assertTrue("every v4 table is populated", before.values.all { it.isNotEmpty() })
+        // `normalized_name` is also an old column of catalog_items, so the skipped names are removed from both sides
+        // and that old column is asserted on its own below.
         val newColumns = setOf("household_name", "normalized_name", "created_at_micros", "updated_at_micros", "purchased_at_micros", "server_order")
+        val before = helper.runMigrationsAndValidate(name, 4, false).use { dump(it, v4Tables, skip = newColumns) }
+        assertTrue("every v4 table is populated", before.values.all { it.isNotEmpty() })
 
         helper.runMigrationsAndValidate(name, 5, true, AlvaMigrations.MIGRATION_4_5).apply {
             assertEquals(
@@ -436,6 +438,7 @@ class AlvaDatabaseMigrationTest {
                 dump(this, v4Tables, skip = newColumns),
             )
             fun scalar(sql: String): String = query(sql).use { c -> c.moveToFirst(); c.getString(0) }
+            assertEquals("leite", scalar("SELECT normalized_name FROM catalog_items WHERE public_id = 'e-1'"))
             // Nothing is invented for rows that already existed.
             assertEquals("1", scalar("SELECT COUNT(*) FROM confirmed_items WHERE normalized_name IS NULL AND created_at_micros IS NULL AND updated_at_micros IS NULL AND purchased_at_micros IS NULL AND server_order IS NULL"))
             assertEquals("1", scalar("SELECT COUNT(*) FROM sync_state WHERE household_name IS NULL AND household_public_id = 'house-1' AND confirmed_revision = 840"))
