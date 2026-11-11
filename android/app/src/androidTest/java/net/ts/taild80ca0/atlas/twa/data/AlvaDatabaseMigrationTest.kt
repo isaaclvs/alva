@@ -23,7 +23,7 @@ import org.junit.Test
 /**
  * Migration policy: data (above all the queue) is never discarded.
  *
- * The 1 -> 2 (issue #42) and 2 -> 3 (issue #45) steps are tested with rows in every old table; the machinery tests
+ * The 1 -> 2 (issue #42), 2 -> 3 and 3 -> 4 (issue #45) steps are tested with rows in every old table; the machinery tests
  * prove the exported schemas, [MigrationTestHelper] and the factory's migration list work
  * and that a missing migration fails instead of erasing data. Each future version needs
  * its own test with data in the tables it changes.
@@ -302,6 +302,93 @@ class AlvaDatabaseMigrationTest {
                 true
             }
             assertTrue("foreign keys must stay enforced for the queue", refused)
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun version3To4KeepsEveryRowIncludingFrozenDocumentsAndAddsEmptyAliasAndReceiptTables() {
+        val frozen = """{"id":"c-1","type":"add_items","depends_on":null,"preconditions":{},"payload":{"items":[{"public_id":"i-local","name":"Leite"}]}}"""
+        helper.createDatabase(name, 3).apply {
+            execSQL("INSERT INTO sync_state (id, household_public_id, confirmed_revision) VALUES (1, 'house-1', 840)")
+            execSQL("INSERT INTO categories (public_id, name, position) VALUES ('cat-1', 'Laticínios', 2)")
+            execSQL("INSERT INTO catalog_items (public_id, name, normalized_name, category_public_id, learned) VALUES ('e-1', 'Leite', 'leite', 'cat-1', 0)")
+            execSQL("INSERT INTO catalog_state (id, dictionary_revision) VALUES (1, 17)")
+            execSQL(
+                "INSERT INTO confirmed_items (public_id, name, category_public_id, status, position, purchased_at, created_at, lock_version, trip_public_id) " +
+                    "VALUES ('i-confirmed', 'Café', 'cat-1', 1, 4, 55, 9, 3, NULL)",
+            )
+            execSQL(
+                "INSERT INTO list_items (public_id, name, category_public_id, status, position, purchased_at, created_at, lock_version, trip_public_id) " +
+                    "VALUES ('i-local', 'Leite', 'cat-1', 0, NULL, NULL, 10, NULL, NULL)",
+            )
+            // A frozen, already tried command; a dependent still unfrozen; and a conflict.
+            execSQL(
+                "INSERT INTO commands (id, type, payload, preconditions, depends_on, observed_revision, status, created_at, attempts, last_error_code, wire_document) " +
+                    "VALUES ('c-1', 'add_items', '{\"names\":[\"Leite\"]}', '{}', NULL, 840, 'IN_FLIGHT', 10, 2, NULL, ?)",
+                arrayOf<Any>(frozen),
+            )
+            execSQL(
+                "INSERT INTO commands (id, type, payload, preconditions, depends_on, observed_revision, status, created_at, attempts, last_error_code, wire_document) " +
+                    "VALUES ('c-2', 'set_item_state', '{\"public_id\":\"i-local\",\"desired\":\"purchased\"}', '{}', 'c-1', 840, 'PENDING', 11, 0, NULL, NULL)",
+            )
+            execSQL(
+                "INSERT INTO commands (id, type, payload, preconditions, depends_on, observed_revision, status, created_at, attempts, last_error_code, wire_document) " +
+                    "VALUES ('c-3', 'set_item_state', '{\"public_id\":\"i-confirmed\",\"desired\":\"pending\"}', '{\"lock_version\":3}', NULL, 840, 'CONFLICT', 12, 1, 'precondition_failed', NULL)",
+            )
+            execSQL("INSERT INTO command_subjects (command_id, subject_public_id, ordinal, role, category_public_id) VALUES ('c-1', 'i-local', 0, 'creates', 'cat-1')")
+            execSQL("INSERT INTO command_subjects (command_id, subject_public_id, ordinal, role, category_public_id) VALUES ('c-2', 'i-local', 0, 'targets', NULL)")
+            close()
+        }
+        val tables = v2Tables
+        val before = helper.runMigrationsAndValidate(name, 3, false).use { dump(it, tables) }
+        assertTrue("every v3 table is populated", before.values.all { it.isNotEmpty() })
+
+        helper.runMigrationsAndValidate(name, 4, true, AlvaMigrations.MIGRATION_3_4).apply {
+            assertEquals(
+                "no row of any table may change, move or disappear (only the new column is added)",
+                before,
+                dump(this, tables, skip = setOf("answered_attempt")),
+            )
+            fun scalar(sql: String): String = query(sql).use { c -> c.moveToFirst(); c.getString(0) }
+            assertEquals(frozen, scalar("SELECT wire_document FROM commands WHERE id = 'c-1'"))
+            // Nothing is known about the answers to attempts made before the column existed.
+            assertEquals("0,0,0", scalar("SELECT group_concat(answered_attempt) FROM (SELECT answered_attempt FROM commands ORDER BY sequence)"))
+            // The new tables start empty.
+            assertEquals("0", scalar("SELECT COUNT(*) FROM sync_aliases"))
+            assertEquals("0", scalar("SELECT COUNT(*) FROM command_receipts"))
+            // ...and work: an alias is unique, a receipt belongs to a command and goes with it
+            // (the raw helper connection does not enforce foreign keys unless asked).
+            execSQL("PRAGMA foreign_keys = ON")
+            execSQL("INSERT INTO sync_aliases (alias_public_id, canonical_public_id, source_command_id, revision) VALUES ('a-1', 'i-confirmed', 'c-1', 841)")
+            val twice = try {
+                execSQL("INSERT INTO sync_aliases (alias_public_id, canonical_public_id, source_command_id, revision) VALUES ('a-1', 'other', 'c-9', 842)")
+                false
+            } catch (e: SQLiteConstraintException) {
+                true
+            }
+            assertTrue("an alias can only be recorded once", twice)
+            val orphan = try {
+                execSQL("INSERT INTO command_receipts (command_id, outcome, via_duplicate, revision, house_revision, attempt, data_json, received_at) VALUES ('ghost', 'applied', 0, 1, 1, 1, '{}', 1)")
+                false
+            } catch (e: SQLiteConstraintException) {
+                true
+            }
+            assertTrue("a receipt needs its command", orphan)
+            execSQL("INSERT INTO command_receipts (command_id, outcome, via_duplicate, revision, house_revision, attempt, data_json, received_at) VALUES ('c-1', 'applied', 0, 841, 841, 2, '{}', 1)")
+            execSQL("DELETE FROM commands WHERE id = 'c-1'")
+            assertEquals("0", scalar("SELECT COUNT(*) FROM command_receipts"))
+            assertEquals("the alias outlives the command", "1", scalar("SELECT COUNT(*) FROM sync_aliases"))
+            close()
+        }
+
+        val db = AlvaDatabaseFactory.create(InstrumentationRegistry.getInstrumentation().targetContext, name)
+        try {
+            kotlinx.coroutines.runBlocking {
+                assertEquals(listOf("c-2", "c-3"), db.commands().inOrder().map { it.id })
+                assertEquals(listOf("a-1"), db.aliases().all().map { it.aliasPublicId })
+            }
         } finally {
             db.close()
         }

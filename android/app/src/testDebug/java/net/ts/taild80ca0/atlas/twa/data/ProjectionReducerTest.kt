@@ -121,4 +121,42 @@ class ProjectionReducerTest {
 
         assertTrue(ProjectionReducer.reduce(mapOf("a" to item("a")), command).isEmpty())
     }
+
+    private fun addOne(id: String, name: String) = ProjectedCommand(
+        CommandTypes.ADD_ITEMS, JSONObject().put("names", JSONArray(listOf(name))),
+        listOf(ProjectedSubject(id, SubjectRole.CREATES, 0)), 9,
+    )
+
+    @Test
+    fun aQueuedMarkActsOnTheItemTheServerKeptThroughTheAlias() {
+        val kept = item("kept")
+
+        val rows = ProjectionReducer.replay(mapOf("kept" to kept), setState("mine", "purchased")) { if (it == "mine") "kept" else it }.changed
+
+        assertEquals(listOf("kept"), rows.map { it.publicId })
+        assertEquals(ItemStatusCodes.PURCHASED, rows.single().status)
+        // Without the alias the id is simply not on the list, and nothing is recreated.
+        assertTrue(ProjectionReducer.replay(mapOf("kept" to kept), setState("mine", "purchased")) { it }.changed.isEmpty())
+    }
+
+    @Test
+    fun aCreateOfANameAnotherDeviceHasPendingIsLeftOutAndReportedAsTheSameItem() {
+        val theirs = item("theirs").copy(name = "Leite")
+
+        val replay = ProjectionReducer.replay(mapOf("theirs" to theirs), addOne("mine", "leite")) { it }
+
+        assertTrue(replay.changed.isEmpty())
+        assertEquals(mapOf("mine" to "theirs"), replay.sameAs)
+    }
+
+    @Test
+    fun aCreateIsNeverMergedWithAPurchaseOrAnArchivedItem() {
+        val bought = item("bought", ItemStatusCodes.PURCHASED, purchasedAt = 5).copy(name = "Leite")
+        val archived = item("old", trip = "trip-1").copy(name = "Leite")
+
+        val replay = ProjectionReducer.replay(mapOf("bought" to bought, "old" to archived), addOne("mine", "Leite")) { it }
+
+        assertEquals(listOf("mine"), replay.changed.map { it.publicId })
+        assertTrue(replay.sameAs.isEmpty())
+    }
 }

@@ -34,7 +34,7 @@ Código (variante debug, pacote `sync`): `CommandSender`, `CommandTransport` /
 
 | `CommandOutcome` | Quando | O que fazer depois (corte futuro) |
 | --- | --- | --- |
-| `Receipt` | 200 com resultado válido **deste** comando. O `status` pode ser `applied`, `noop`, `duplicate`, `conflict`, `rejected` ou `blocked` | o aplicador futuro confirma ou trata o conflito |
+| `Receipt` | 200 com resultado válido **deste** comando. O `status` pode ser `applied`, `noop`, `duplicate`, `conflict`, `rejected` ou `blocked` | `ReceiptApplier.apply` reconhece o comando (aliases + recibo guardado) ou registra a recusa |
 | `Transient` | rede, timeout, TLS, 5xx, 429 (`retryAfterSeconds`) | repetir o **mesmo** documento depois; `duplicate` se o servidor já tinha confirmado |
 | `Unauthorized` | 401/403 | reconectar; fila e documento intactos |
 | `Refused` | 422/outros 4xx na requisição inteira, ou documento acima do limite | repetir os mesmos bytes não ajuda |
@@ -62,10 +62,11 @@ HTTP 200 não é sucesso de todos os comandos: o `status` do resultado é que de
 
 ## Ainda pendente na #45
 
-Aplicar recibos e aliases (e remover comandos confirmados) numa transação; ordem da fila,
-lotes e dependências entre comandos (enviar um dependente antes da dependência só rende
-`blocked`); snapshot e reconciliação; sincronizar ao abrir/retomar; dois aparelhos
-convergindo. Nada disso está pronto e não deve ser afirmado.
+Aplicar recibos e aliases já existe (`ReceiptApplier`, ver
+[android-local-persistence.md](android-local-persistence.md#recibos-e-aliases-issue-45-quarto-corte)),
+mas **nada o chama sozinho**. Continuam pendentes: ordem da fila, lotes e dependências entre comandos
+(enviar um dependente antes da dependência só rende `blocked`); snapshot e reconciliação; sincronizar ao
+abrir/retomar; dois aparelhos convergindo. Nada disso está pronto e não deve ser afirmado.
 
 ## Como foi validado
 
@@ -82,7 +83,9 @@ convergindo. Nada disso está pronto e não deve ser afirmado.
   transporte: aplicar e reenviar (`duplicate`), **resposta perdida depois do commit**
   (um proxy de teste, `ResponseDroppingProxy`, lê a resposta completa do Rails e fecha a
   conexão sem repassá-la; não existe endpoint de falha em produção), dependente
-  `blocked`, conflito, rejeição, `idempotency_conflict`, credenciais recusadas. O script
+  `blocked`, conflito, rejeição, `idempotency_conflict`, credenciais recusadas e, com os recibos
+  reais passando pelo `ReceiptValidator`, nomes com espaço Unicode (NBSP, ideográfico) que o Rails
+  junta com `squish` e o mesmo nome em outra caixa/plural, que volta como `duplicate`. O script
   falha se o teste foi pulado. No CI é o job `android-rails-transport`.
 
 Limites: a parte Rails roda na **JVM**, não no Android; prova o contrato e o código HTTP/

@@ -98,6 +98,10 @@ interface CommandDao {
     @Query("SELECT * FROM command_subjects WHERE command_id = :id ORDER BY ordinal")
     suspend fun subjectsOf(id: String): List<CommandSubjectEntity>
 
+    /** Every subject of the queue, for readers that replay all of it (one query instead of one per command). */
+    @Query("SELECT * FROM command_subjects ORDER BY command_id, ordinal")
+    suspend fun allSubjects(): List<CommandSubjectEntity>
+
     /** Most recent queued command that touches any of the records, i.e. the one a new command depends on. */
     @Query(
         """
@@ -109,9 +113,46 @@ interface CommandDao {
     )
     suspend fun latestTouching(subjectIds: List<String>): CommandEntity?
 
-    /** `public_id`s with a queued command: the items the UI shows as "waiting to sync". */
-    @Query("SELECT DISTINCT subject_public_id FROM command_subjects")
+    /** Commands queued after [sequence] that touch any of the records, in device order. */
+    @Query(
+        """
+        SELECT DISTINCT c.* FROM commands c
+        JOIN command_subjects s ON s.command_id = c.id
+        WHERE s.subject_public_id IN (:subjectIds) AND c.sequence > :sequence
+        ORDER BY c.sequence
+        """,
+    )
+    suspend fun touchingAfter(subjectIds: List<String>, sequence: Long): List<CommandEntity>
+
+    /** `public_id`s with a command the server has not consumed yet: the items the UI shows as "waiting to sync". */
+    @Query(
+        """
+        SELECT DISTINCT s.subject_public_id FROM command_subjects s
+        JOIN commands c ON c.id = s.command_id
+        WHERE c.status != 'ACKNOWLEDGED'
+        """,
+    )
     suspend fun subjectIdsInQueue(): List<String>
+
+    /** Commands still to be sent or resolved (the server has not consumed them). */
+    @Query("SELECT COUNT(*) FROM commands WHERE status != 'ACKNOWLEDGED'")
+    suspend fun countAwaitingServer(): Int
+
+    /**
+     * Commands with an attempt the server never answered: it may or may not have applied them. Whatever the queue
+     * has since done to the command (blocked it because of another one, reopened it) is irrelevant; only an
+     * answer from the server, or its receipt, closes an attempt (`answered_attempt`, `ACKNOWLEDGED`).
+     */
+    @Query("SELECT id FROM commands WHERE status != 'ACKNOWLEDGED' AND attempts > answered_attempt ORDER BY sequence")
+    suspend fun unresolvedAttemptIds(): List<String>
+
+    /** The server answered [attempt] of [id] without consuming it. Never moves backwards. */
+    @Query("UPDATE commands SET answered_attempt = MAX(answered_attempt, :attempt) WHERE id = :id")
+    suspend fun recordAnswer(id: String, attempt: Int)
+
+    /** Commands whose `depends_on` is [id]. */
+    @Query("SELECT * FROM commands WHERE depends_on = :id ORDER BY sequence")
+    suspend fun dependentsOf(id: String): List<CommandEntity>
 
     @Query("SELECT COUNT(*) FROM commands WHERE status = :status")
     suspend fun countByStatus(status: String): Int
@@ -144,4 +185,33 @@ interface CommandDao {
     /** Removes a command the server confirmed. Its subjects go with it (cascade). */
     @Query("DELETE FROM commands WHERE id = :id")
     suspend fun delete(id: String)
+}
+
+@Dao
+interface AliasDao {
+    @Query("SELECT * FROM sync_aliases WHERE alias_public_id = :aliasPublicId")
+    suspend fun find(aliasPublicId: String): SyncAliasEntity?
+
+    @Query("SELECT * FROM sync_aliases ORDER BY alias_public_id")
+    suspend fun all(): List<SyncAliasEntity>
+
+    /** Aliases that point at any of [canonicalIds]. */
+    @Query("SELECT * FROM sync_aliases WHERE canonical_public_id IN (:canonicalIds)")
+    suspend fun pointingAt(canonicalIds: List<String>): List<SyncAliasEntity>
+
+    /** Plain INSERT: a second, different answer for the same alias is a constraint failure, not an overwrite. */
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insert(alias: SyncAliasEntity)
+}
+
+@Dao
+interface ReceiptDao {
+    @Query("SELECT * FROM command_receipts WHERE command_id = :commandId")
+    suspend fun find(commandId: String): CommandReceiptEntity?
+
+    @Query("SELECT * FROM command_receipts")
+    suspend fun all(): List<CommandReceiptEntity>
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insert(receipt: CommandReceiptEntity)
 }

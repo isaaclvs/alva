@@ -128,6 +128,9 @@ class RoomShoppingListStore(
         revives: List<ReviveObservation> = emptyList(),
     ): String {
         val now = clock.nowMillis()
+        // Who is the same item as whom, for the queue as it is before this command: what the server said
+        // (aliases) and what the projection had to assume to show one row (see ItemIdentities).
+        val identities = ProjectionRebuilder(db).identities()
         val projected = ProjectedCommand(
             type, payload, subjects.map { ProjectedSubject(it.id, it.role, it.ordinal, it.categoryPublicId) }, now,
         )
@@ -136,7 +139,11 @@ class RoomShoppingListStore(
         db.listItems().upsert(ProjectionReducer.reduce(current, projected))
 
         val commandId = ids.newId()
-        val ancestor = if (touched.isEmpty()) null else db.commands().latestTouching(touched)
+        // A command may cite the item by another id of the same item: an alias the server revealed, or the
+        // UUID of a create the projection folded into the row (the commands behind that row are still the
+        // item's history, and the next one has to depend on the last of them).
+        val touchedIds = identities.citedAs(touched)
+        val ancestor = if (touched.isEmpty()) null else db.commands().latestTouching(touchedIds)
         val status = if (ancestor != null && CommandStatus.valueOf(ancestor.status).stopsDependents) {
             CommandStatus.BLOCKED
         } else {
@@ -148,7 +155,9 @@ class RoomShoppingListStore(
             // `covered`: the command this one depends on is the last to have touched that item,
             // so the server can hand its resulting version on. Decided here, with the queue as it is.
             ReviveObservation.toPreconditions(
-                revives.map { it.copy(covered = ancestor != null && db.commands().latestTouching(listOf(it.publicId))?.id == ancestor.id) },
+                revives.map {
+                    it.copy(covered = ancestor != null && db.commands().latestTouching(identities.citedAs(listOf(it.publicId)))?.id == ancestor.id)
+                },
             )
         }
         db.commands().insert(
@@ -171,36 +180,24 @@ class RoomShoppingListStore(
 
     /**
      * Recomputes the projection as confirmed state + every queued command, in
-     * device order. Reconciliation (a later task) calls this after writing a new
-     * confirmed state, so a remote read never erases a local action.
+     * device order (see [ProjectionRebuilder]: commands the server already consumed
+     * contribute their receipt, ids resolve through the aliases). Reconciliation calls this
+     * after writing a new confirmed state, so a remote read never erases a local action.
      */
-    suspend fun rebuildProjection() {
-        db.withTransaction {
-            val projection = db.confirmedItems().all()
-                .associate { it.publicId to it.toProjection() }
-                .toMutableMap()
-            for (command in db.commands().inOrder()) {
-                val subjects = db.commands().subjectsOf(command.id)
-                    .map { ProjectedSubject(it.subjectPublicId, it.role, it.ordinal, it.categoryPublicId) }
-                val changed = ProjectionReducer.reduce(
-                    projection,
-                    ProjectedCommand(command.type, JSONObject(command.payload), subjects, command.createdAt),
-                )
-                changed.forEach { projection[it.publicId] = it }
-            }
-            db.listItems().clear()
-            db.listItems().upsert(projection.values.toList())
-        }
-    }
+    suspend fun rebuildProjection() = ProjectionRebuilder(db).rebuild()
 
     private suspend fun readState(): ListState {
-        val awaiting = db.commands().subjectIdsInQueue().toSet()
+        // An item waits for the server under the id the row has: a queued command may still cite the
+        // UUID the device made up, which the server turned into an alias of the item that was kept, or
+        // which the projection folded into an item another phone already had (ItemIdentities).
+        val identities = ProjectionRebuilder(db).identities()
+        val awaiting = db.commands().subjectIdsInQueue().flatMap { listOf(it, identities.resolve(it)) }.toSet()
         val needsAttention = CommandStatus.entries.filter { it.stopsDependents }
             .sumOf { db.commands().countByStatus(it.name) }
         return ListState(
             items = db.listItems().live().map { it.toDomain(it.publicId in awaiting) },
             categories = db.categories().all().map { Category(it.publicId, it.name, it.position) },
-            queuedCommands = db.commands().count(),
+            queuedCommands = db.commands().countAwaitingServer(),
             needsAttention = needsAttention,
             confirmedRevision = db.syncState().get()?.confirmedRevision ?: 0L,
         )
@@ -216,16 +213,4 @@ private fun ListItemEntity.toDomain(awaitingSync: Boolean) = ListItem(
     status = ItemStatus.fromCode(status),
     purchasedAt = purchasedAt,
     awaitingSync = awaitingSync,
-)
-
-private fun net.ts.taild80ca0.atlas.twa.data.db.ConfirmedItemEntity.toProjection() = ListItemEntity(
-    publicId = publicId,
-    name = name,
-    categoryPublicId = categoryPublicId,
-    status = status,
-    position = position,
-    purchasedAt = purchasedAt,
-    createdAt = createdAt,
-    lockVersion = lockVersion,
-    tripPublicId = tripPublicId,
 )

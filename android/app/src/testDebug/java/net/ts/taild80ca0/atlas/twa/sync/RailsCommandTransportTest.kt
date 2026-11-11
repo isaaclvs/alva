@@ -9,6 +9,10 @@ import net.ts.taild80ca0.atlas.twa.access.AccessCredential
 import net.ts.taild80ca0.atlas.twa.access.ServerEndpoint
 import net.ts.taild80ca0.atlas.twa.data.db.SubjectRole
 import net.ts.taild80ca0.atlas.twa.data.list.IdGenerator
+import net.ts.taild80ca0.atlas.twa.data.list.ItemOutcome
+import net.ts.taild80ca0.atlas.twa.data.list.ReceiptCheck
+import net.ts.taild80ca0.atlas.twa.data.list.ReceiptRefusal
+import net.ts.taild80ca0.atlas.twa.data.list.ReceiptValidator
 import net.ts.taild80ca0.atlas.twa.data.list.WireBuild
 import net.ts.taild80ca0.atlas.twa.data.list.WireEnvelopeBuilder
 import net.ts.taild80ca0.atlas.twa.data.list.WireSource
@@ -293,5 +297,145 @@ class RailsCommandTransportTest {
         val outcome = send(newId(), document) // asks for a different command's receipt
 
         assertEquals(CommandOutcome.Invalid(InvalidResponse.WRONG_COMMAND), outcome)
+    }
+
+    // ---- the business data of real receipts, through the validator the applier uses ------------------
+
+    private val noAliases: (String) -> String? = { null }
+
+    /** Applied or noop (or the original of a duplicate), judged like the applier does. */
+    private fun check(
+        type: String,
+        document: String,
+        subjects: List<WireSubject>,
+        receipt: CommandReceipt,
+        known: (String) -> String? = noAliases,
+    ): ReceiptCheck {
+        val applied = receipt.status == ReceiptStatus.APPLIED ||
+            (receipt.status == ReceiptStatus.DUPLICATE && receipt.originalStatus == ReceiptStatus.APPLIED)
+        return ReceiptValidator.check(type, document, subjects, applied, receipt.dataJson!!, known)
+    }
+
+    private fun valid(check: ReceiptCheck) = (check as? ReceiptCheck.Valid ?: error("Rails' own answer was refused: $check")).effect
+
+    @Test
+    fun railsOwnAnswersToAnAddAndItsReplayPassTheReceiptValidator() {
+        val itemId = newId()
+        val commandId = newId()
+        val document = addDocument(commandId, itemId, newName())
+        val subjects = listOf(WireSubject(itemId, SubjectRole.CREATES, 0))
+
+        val first = valid(check("add_items", document, subjects, receipt(send(commandId, document))))
+        assertEquals(ItemOutcome.CREATED, first.items.single().outcome)
+        assertEquals(0, first.items.single().lockVersion)
+        assertTrue(first.aliases.isEmpty())
+
+        // The replay (a lost answer's repeat) is a `duplicate` of an `applied` and describes the same item.
+        val replay = valid(check("add_items", document, subjects, receipt(send(commandId, document))))
+        assertEquals(first.items, replay.items)
+    }
+
+    @Test
+    fun railsOwnAnswerForANameAnotherDeviceAlreadyAddedRevealsTheAliasTheValidatorRecords() {
+        val name = newName()
+        val keptId = newId()
+        val keptCommand = newId()
+        assertEquals(ReceiptStatus.APPLIED, receipt(send(keptCommand, addDocument(keptCommand, keptId, name))).status)
+
+        val mineId = newId()
+        val commandId = newId()
+        val document = addDocument(commandId, mineId, name.uppercase())
+        val subjects = listOf(WireSubject(mineId, SubjectRole.CREATES, 0))
+        val noop = receipt(send(commandId, document))
+        assertEquals(ReceiptStatus.NOOP, noop.status)
+
+        val effect = valid(check("add_items", document, subjects, noop))
+        assertEquals(ItemOutcome.DUPLICATE, effect.items.single().outcome)
+        assertEquals(keptId, effect.items.single().canonicalPublicId)
+        assertEquals(listOf(mineId to keptId), effect.aliases.map { it.alias to it.canonical })
+
+        // A mark that cites the alias is answered with the canonical item: known, it validates; unknown, it must wait.
+        val markId = newId()
+        val mark = setStateDocument(markId, mineId, "purchased", dependsOn = commandId)
+        val markSubjects = listOf(WireSubject(mineId, SubjectRole.TARGETS, 0))
+        val marked = receipt(send(markId, mark))
+        assertEquals(ReceiptStatus.APPLIED, marked.status)
+        assertEquals(
+            ReceiptRefusal.ALIAS_UNKNOWN,
+            (check("set_item_state", mark, markSubjects, marked) as ReceiptCheck.Invalid).reason,
+        )
+        val state = valid(check("set_item_state", mark, markSubjects, marked) { if (it == mineId) keptId else null })
+        assertEquals(keptId, state.items.single().canonicalPublicId)
+        assertEquals(1, state.items.single().lockVersion)
+
+        // Already in that state: a noop that keeps the version and still validates.
+        val againId = newId()
+        val again = setStateDocument(againId, mineId, "purchased", dependsOn = markId)
+        val noopReceipt = receipt(send(againId, again))
+        assertEquals(ReceiptStatus.NOOP, noopReceipt.status)
+        assertTrue(check("set_item_state", again, markSubjects, noopReceipt) { if (it == mineId) keptId else null } is ReceiptCheck.Valid)
+    }
+
+    @Test
+    fun railsOwnAnswerToARevivePassesAndTheClaimBecomesAnAliasOfThePurchase() {
+        val name = newName()
+        val itemId = newId()
+        val addId = newId()
+        val markId = newId()
+        assertEquals(ReceiptStatus.APPLIED, receipt(send(addId, addDocument(addId, itemId, name))).status)
+        assertEquals(ReceiptStatus.APPLIED, receipt(send(markId, setStateDocument(markId, itemId, "purchased", dependsOn = addId))).status)
+
+        // Typed again: the stored intent says which purchase and which version the user saw (1, after add and mark).
+        val reviveId = newId()
+        val claimId = newId()
+        val subjects = listOf(WireSubject(itemId, SubjectRole.TARGETS, 0))
+        val document = (
+            WireEnvelopeBuilder.build(
+                WireSource(
+                    reviveId, "add_items", null, 0,
+                    JSONObject().put("names", org.json.JSONArray().put(name)).toString(),
+                    """{"revives":[{"ordinal":0,"public_id":"$itemId","lock_version":1,"covered":false}]}""",
+                    subjects, null,
+                ),
+                IdGenerator { claimId },
+            ) as WireBuild.Built
+        ).document
+
+        val applied = receipt(send(reviveId, document))
+        assertEquals(ReceiptStatus.APPLIED, applied.status)
+        val effect = valid(check("add_items", document, subjects, applied))
+        assertEquals(ItemOutcome.REVIVED, effect.items.single().outcome)
+        assertEquals(itemId, effect.items.single().canonicalPublicId)
+        assertEquals(2, effect.items.single().lockVersion)
+        assertEquals(listOf(claimId to itemId), effect.aliases.map { it.alias to it.canonical })
+    }
+
+    @Test
+    fun railsSquishesUnicodeWhitespaceAndItsAnswersToAnotherSpellingOfTheNameStillPassTheValidator() {
+        val word = UUID.randomUUID().toString().filter { it.isLetter() }.take(10) + "a"
+        val createdId = newId()
+        val createCommand = newId()
+        // NBSP and the ideographic space between the words, and at the edges: Rails squishes them all.
+        val typed = "\u3000Teste\u00a0\u2003$word\u202f"
+        val create = addDocument(createCommand, createdId, typed)
+        val subjects = listOf(WireSubject(createdId, SubjectRole.CREATES, 0))
+        val applied = receipt(send(createCommand, create))
+        assertEquals(ReceiptStatus.APPLIED, applied.status)
+        assertEquals("Rails created the squished name", "Teste $word", JSONObject(applied.dataJson!!).getJSONArray("items").getJSONObject(0).getString("name"))
+        assertEquals(ItemOutcome.CREATED, valid(check("add_items", create, subjects, applied)).items.single().outcome)
+
+        // Typed again in plural, other case, different spaces: the same item, found by the matching key.
+        val againId = newId()
+        val againCommand = newId()
+        val again = addDocument(againCommand, againId, "  TESTE\u00a0\u00a0${word}s ")
+        val noop = receipt(send(againCommand, again))
+        assertEquals(ReceiptStatus.NOOP, noop.status)
+        val effect = valid(check("add_items", again, listOf(WireSubject(againId, SubjectRole.CREATES, 0)), noop))
+        assertEquals(ItemOutcome.DUPLICATE, effect.items.single().outcome)
+        assertEquals(createdId, effect.items.single().canonicalPublicId)
+
+        // And the same answer must not satisfy a command for another name.
+        val other = addDocument(againCommand, againId, "Detergente")
+        assertTrue(check("add_items", other, listOf(WireSubject(againId, SubjectRole.CREATES, 0)), noop) is ReceiptCheck.Invalid)
     }
 }
