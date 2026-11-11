@@ -34,6 +34,7 @@ novo/servidor existente foram aprovados pelo usuário em 10/11/2026.
 - Persistência Android (Room, fila e migrações): `docs/plans/android-local-persistence.md`
 - Acesso à casa no Android (senha uma vez, Keystore, backup, reconexão): `docs/plans/android-house-access.md`
 - Envio de comandos no Android (uma tentativa, recibos, teste contra Rails real): `docs/plans/android-command-transport.md`
+- Ciclo de sincronização no Android (snapshot, fila ordenada, abrir/retomar, dois aparelhos, limites): `docs/plans/android-sync-cycle.md`
 
 Fluxo de entrega da migração: branch curta criada da `main` atualizada e PR
 sempre para `main`, sem `staging`/`develop`/branch longa de migração; commits

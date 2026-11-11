@@ -26,8 +26,9 @@ o destaque turquesa do Alva atual.
 
 ## Limites
 
-Não envia a fila nem aplica snapshots (#45). Não há promessa de convergência
-entre aparelhos nesta entrega. Antes da primeira carga do dicionário, nomes
+As telas continuam sem HTTP: adicionar e marcar só gravam no aparelho. A fila é enviada e
+o snapshot instalado por `SyncCycle`, pedido ao abrir/retomar ou pelo botão "Sincronizar agora" / "Tentar novamente"
+na linha de estado (ver [android-sync-cycle.md](android-sync-cycle.md)), com os limites ali descritos. Antes da primeira carga do dicionário, nomes
 ficam no grupo Outros, sem inventar UUID de categoria. Não inclui edição,
 desfazer, habituais, comprar de novo, modo compras ou widget; essas tarefas
 seguem no acompanhamento #33.

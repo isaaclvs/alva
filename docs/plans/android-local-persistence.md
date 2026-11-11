@@ -277,9 +277,9 @@ offline. Então um comando consumido (`applied`, `noop` ou `duplicate` de um del
 
 Ele sai da fila (`DELETE`, recibo junto) quando o recibo já está coberto pelo confirmado **e** nenhum
 comando seguinte ainda sem documento congelado depende dele (esse precisa do comando para saber qual
-item ele toca e emprestar a versão; ver `WirePreparer`). Hoje nenhum código instala snapshot, então na
-prática o comando fica retido; a regra de liberação é exercitada nos testes ao gravar o estado confirmado
-direto. **O cliente de snapshot é o próximo corte**, e é ele quem remove o que o snapshot cobre.
+item ele toca e emprestar a versão; ver `WirePreparer`). O comando fica retido até um snapshot cobrir o recibo:
+o `SnapshotInstaller` ([android-sync-cycle.md](android-sync-cycle.md)) aplica a mesma regra e remove o que o
+snapshot cobre.
 
 **Validação (`ReceiptValidator`).** O transporte já provou envelope, id, status e revisões; o
 validador confere o `data` contra o **documento congelado** e os `command_subjects`:
@@ -392,7 +392,11 @@ seguem abertas), nem instalação de snapshot, nem orquestrador, nem decisão do
   antigas. `AlvaMigrationsTest` (JVM) e `AlvaDatabaseMigrationTest`
   (instrumentado) cobrem a cadeia e a existência dos schemas. Preferir passos
   aditivos.
-- A versão atual é **4** (`MIGRATION_3_4`, issue #45: duas tabelas novas e vazias,
+- A versão atual é **5** (`MIGRATION_4_5`, issue #45, snapshot: colunas novas e nulas em `confirmed_items`
+  (`normalized_name`, instantes em microssegundos, `server_order`) e `sync_state.household_name`, e as tabelas
+  vazias `archived_items`, `shopping_trips`, `habitual_items` e `tombstones`; nada existente muda e
+  `schemas/1-4.json` ficam intactos; `AlvaDatabaseMigrationTest` migra um v4 com linhas nas dez tabelas e
+  compara cada uma). A **4** foi (`MIGRATION_3_4`, issue #45: duas tabelas novas e vazias,
   `sync_aliases` e `command_receipts`, e a coluna `commands.answered_attempt` com `DEFAULT 0` ("nenhuma
   tentativa foi respondida"); nenhum dado existente muda, e
   `schemas/1-3.json` ficam intactos; `AlvaDatabaseMigrationTest` migra um v3 com linhas nas
@@ -427,7 +431,9 @@ seguem abertas), nem instalação de snapshot, nem orquestrador, nem decisão do
   versão da intenção, recusas que preservam a fila, legados, corrida de duas
   preparações, falha de SQL e transação externa) e a aplicação de recibos
   (`ReceiptApplierTest`: aliases, retenção, recusas, tentativas sem resposta que um bloqueio local não
-  resolve, revive redirecionado, fusão provisória). Rodar localmente exige emulador/aparelho:
+  resolve, revive redirecionado, fusão provisória), o instalador de snapshot (`SnapshotInstallerTest`: bootstrap vazio,
+  precisão e ordem, intenções reaplicadas, liberação, cada recusa sem alterar nada, falha de SQL revertendo tudo) e o
+  ciclo (`SyncCycleTest`, `RailsSyncConvergenceTest`). Rodar localmente exige emulador/aparelho:
   `./gradlew connectedDebugAndroidTest` em `android/`.
 - Não coberto: matar o processo de verdade e reiniciar o aparelho (simulado
   lendo o arquivo por outra conexão sem fechar o escritor); fica para a
@@ -467,7 +473,7 @@ qualquer das saídas. Situação após a #39 (detalhes em
 5. **Fechada para `add_items` (#39).** Nome vazio após normalização é
    `invalid_name`, como na PWA. Não foi introduzido limite de comprimento
    exclusivo do sync; o cliente deve preservar a mesma regra de presença.
-6. **Aberta** (#45, snapshot): a versão 1 do banco é a fundação da lista/fila, não o
+6. **Fechada no quinto corte (Room 5, só armazenamento)** (#45, snapshot): a versão 1 do banco é a fundação da lista/fila, não o
    armazenamento completo do snapshot. Antes de ingerir o documento em #45,
    estender o schema com os campos/coleções necessários (incluindo
    `normalized_name`, `updated_at` e ordem estável do servidor), com migração e
@@ -509,11 +515,14 @@ continua aberta; próximos PRs pequenos, cada um sobre a `main` já integrada:
    consumidos viram `ACKNOWLEDGED` com o recibo guardado, aliases duráveis, `conflict`/`rejected`/
    `blocked` sem perder intenção e bloqueando só os dependentes. Falta a decisão do usuário sobre um
    conflito e a orquestração (quem aplica o que o `CommandSender` devolve, em que ordem).
-4. Snapshot e reconciliação (**próximo corte**): cliente do `GET /api/v1/snapshot` (casa pelo
-   vínculo, `schema_version`, revisões monotônicas da casa e do dicionário), recusar enquanto
-   `unresolvedAttempts()` não for vazio, transação única com dicionário e `confirmed_items`,
-   ingestão dos campos extras (microssegundos, `normalized_name`, `updated_at`, ordem do servidor,
-   arquivados, viagens, habituais, tombstones), liberar os `ACKNOWLEDGED` cobertos e reprojetar.
-5. Ciclo de vida: sincronizar ao abrir/retomar com rede.
-6. Validação: Rails real em teste, falha após commit e reenvio, e dois aparelhos
-   antes de qualquer promessa de convergência.
+4. ~~Snapshot e reconciliação~~ — **quinto corte feito** (ver [android-sync-cycle.md](android-sync-cycle.md)):
+   cliente do `GET /api/v1/snapshot` com leitura estrita, instalação em uma transação (casa pelo vínculo,
+   `schema_version`, revisões monotônicas, recusa enquanto houver tentativa sem resposta), ingestão dos campos
+   extras (lacunas 6 e 9: microssegundos, `normalized_name`, `updated_at`, ordem do servidor, arquivados, viagens,
+   habituais, tombstones), liberação dos `ACKNOWLEDGED` cobertos e reprojeção. Os dados do histórico são guardados,
+   não usados por tela.
+5. ~~Orquestração e ciclo de vida~~ — **sexto corte feito**: `SyncCycle` (fila em ordem, sem laço em
+   conflito/bloqueio) e `SyncController` (abrir/retomar e botão). Sem worker em segundo plano.
+6. Validação: Rails real com dois bancos Room no emulador e resposta perdida após o commit
+   (`script/android_rails_sync_check`) feita; **falta** verificar nos dois aparelhos reais (#59) e decidir o que fazer
+   com tentativa sem resposta que não pode ser repetida (credencial perdida) e com conflitos (tela de resolução).
