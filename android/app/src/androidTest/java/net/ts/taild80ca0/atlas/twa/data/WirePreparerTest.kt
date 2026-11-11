@@ -312,7 +312,7 @@ class WirePreparerTest : DatabaseTest() {
     @Test
     fun aFailingStatementPersistsNothingAndALaterPreparationStartsClean() = runBlocking {
         val db = openDatabase()
-        val store = storeOn(db, ScriptedIds(item, cmd("01"), cmd("02")))
+        val store = storeOn(db, ScriptedIds(item, cmd("01"), cmd("02"), cmd("03")))
         store.execute(ListIntent.AddItems(listOf("Leite")))
         store.execute(ListIntent.SetItemState(item, ItemStatus.PURCHASED))
         store.execute(ListIntent.AddText("Leite"))
@@ -460,9 +460,8 @@ class WirePreparerTest : DatabaseTest() {
 
         assertEquals(PreparationRefusal.ENVELOPE_TOO_LARGE, preparer.prepare(big).refusal())
         assertEquals(31, org.json.JSONObject(db.commands().find(big)!!.payload).getJSONArray("names").length())
-        assertEquals(before.first.map { it.copy(wireDocument = null) }, db.commands().inOrder().map { it.copy(wireDocument = null) }.also {
-            assertNull(db.commands().find(big)!!.wireDocument)
-        })
+        assertNull(db.commands().find(big)!!.wireDocument)
+        assertEquals(before, queue(db))
 
         assertEquals(30, entries(preparer.prepare(text).prepared().document).length())
     }
@@ -476,7 +475,7 @@ class WirePreparerTest : DatabaseTest() {
         db.commands().setStatus(cmd("01"), CommandStatus.CONFLICT.name, "precondition_failed")
         db.commands().setStatus(cmd("02"), CommandStatus.BLOCKED.name, "dependency_not_applied")
         db.openHelper.writableDatabase.execSQL(
-            "INSERT INTO commands (id, type, payload, preconditions, observed_revision, status, created_at) VALUES ('rm', 'remove_item', '{}', '{}', 0, 'PENDING', 1)",
+            "INSERT INTO commands (id, type, payload, preconditions, observed_revision, status, created_at, attempts) VALUES ('rm', 'remove_item', '{}', '{}', 0, 'PENDING', 1, 0)",
         )
         val before = queue(db)
         val preparer = WirePreparer(db)
@@ -498,7 +497,6 @@ class WirePreparerTest : DatabaseTest() {
         assertTrue(store.execute(ListIntent.SetItemState(item, ItemStatus.PURCHASED)) is IntentResult.Saved)
         store.rebuildProjection()
 
-        assertEquals(listOf("cmd-order"), listOf("cmd-order"))
         assertEquals(listOf(cmd("01"), cmd("02")), db.commands().inOrder().map { it.id })
         assertNull(db.commands().find(cmd("02"))!!.wireDocument)
         assertEquals(ItemStatusCodes.PURCHASED, db.listItems().find(item)!!.status)
