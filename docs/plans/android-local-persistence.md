@@ -19,7 +19,8 @@ para `src/main` e as dependências para `implementation`.
 | --- | --- | --- |
 | Estado confirmado | `sync_state`, `categories`, `catalog_items`, `catalog_state`, `confirmed_items` | Só a reconciliação (#45), nunca uma ação do usuário |
 | Projeção local | `list_items` | Cada ação, na mesma transação do comando; ou `rebuildProjection()` |
-| Fila | `commands`, `command_subjects` | Cada ação |
+| Fila | `commands`, `command_subjects` | Cada ação; o aplicador de recibos muda status |
+| Aliases e recibos | `sync_aliases`, `command_receipts` | Só o aplicador de recibos (ver "Recibos e aliases") |
 
 - Todo registro sincronizado é chaveado pelo `public_id` (UUID) do servidor.
   Item criado offline já nasce com UUID do aparelho (`command_subjects`,
@@ -252,6 +253,95 @@ cliente de transporte contra o Rails real é o `script/android_rails_transport_c
 (ver [android-command-transport.md](android-command-transport.md)). O servidor segue como autoridade: a validação estrutural do cliente
 não substitui as regras do Rails.
 
+## Recibos e aliases (issue #45, quarto corte)
+
+Código: `sync/ReceiptApplier.kt` (a transação), `data/list/ReceiptValidator.kt` (puro: valida o `data`
+de negócio), `data/list/ProjectionRebuilder.kt` (a projeção com recibos e aliases). Banco na versão **4**.
+**Continua sem snapshot, sem orquestrador e sem ciclo de vida**: nada aqui chama a rede nem decide
+quando enviar; `ReceiptApplier.apply(SendAttempt.Sent)` é chamado por quem enviou, depois de o
+`CommandSender` ter retornado (nunca dentro da transação dele).
+
+**Por que o comando não é apagado ao ser confirmado.** O `data` de um recibo traz nome, estado,
+`purchased_at` e `lock_version` do item canônico, mas **não** categoria, `created_at` nem
+`normalized_name`. O aparelho não consegue montar um `confirmed_items` com isso e não inventa o resto;
+tampouco move `confirmed_revision`, que afirma que a lista inteira foi reconciliada. Apagar a fila
+agora perderia o único registro do que o servidor fez, e `rebuildProjection` perderia o item criado
+offline. Então um comando consumido (`applied`, `noop` ou `duplicate` de um deles) vira
+`ACKNOWLEDGED` e guarda o recibo (`command_receipts`, apagado junto com ele). Nunca é reenviado
+(o `beginAttempt` o recusa) e não conta como "aguardando sincronização".
+
+| Camada | Efeito de um comando `ACKNOWLEDGED` na projeção |
+| --- | --- |
+| recibo mais novo que `confirmed_revision` | mostra o que o recibo diz (nome, estado, `purchased_at`, versão do item canônico), com a categoria que o aparelho escolheu, só para exibição |
+| recibo menor ou igual a `confirmed_revision` | **nada**: o confirmado já contém o efeito, e o que aconteceu depois (outro aparelho removeu/arquivou) não pode ser desfeito reaplicando o comando |
+
+Ele sai da fila (`DELETE`, recibo junto) quando o recibo já está coberto pelo confirmado **e** nenhum
+comando seguinte ainda sem documento congelado depende dele (esse precisa do comando para saber qual
+item ele toca e emprestar a versão; ver `WirePreparer`). Hoje nenhum código instala snapshot, então na
+prática o comando fica retido; a regra de liberação é exercitada nos testes ao gravar o estado confirmado
+direto. **O cliente de snapshot é o próximo corte**, e é ele quem remove o que o snapshot cobre.
+
+**Validação (`ReceiptValidator`).** O transporte já provou envelope, id, status e revisões; o
+validador confere o `data` contra o **documento congelado** e os `command_subjects`:
+
+- `add_items`: um resultado por entrada, na ordem do documento, citando o UUID enviado; `created`
+  mantém o UUID, o nome digitado (comparado pela chave de matching, então o `squish` do servidor não
+  importa), pendente, versão 0; `revived` é a compra que o documento dizia reviver, só para entrada
+  de revive, pendente e com versão acima da que o usuário viu; `duplicate` pode apontar para
+  qualquer item. `applied` exige ao menos um `created`/`revived`; `noop`, nenhum.
+- `set_item_state`: `data.item` com o UUID citado, no estado desejado, `purchased_at` coerente, e, se
+  `applied`, versão ≥ 1. O canônico tem de ser o que o UUID citado resolve pelos aliases **já conhecidos**.
+  Se o servidor devolve outro e o aparelho ainda não sabe o alias, é `ALIAS_UNKNOWN`: falta aplicar o
+  recibo anterior (reenviar a dependência devolve `duplicate`).
+- Resultado de outro comando (`item` para `add_items` e vice-versa), UUID/estado/versão impossível,
+  alias que contradiz o gravado, canônico que seria ele mesmo alias, revisão `applied` 0, revisão menor
+  que a do recibo da dependência, número de tentativa que o comando nunca fez: `Refused`, **sem
+  gravar nada** (fila, projeção, aliases e recibos idênticos antes e depois).
+
+**Aliases (`sync_aliases`).** `alias_public_id → canonical_public_id`, gravados na mesma transação do
+reconhecimento e **nunca removidos** (sobrevivem ao comando que os revelou, por isso `source_command_id`
+não é chave estrangeira). Cobrem o UUID de uma adição que o servidor unificou e a reivindicação de um
+revive. Sem cadeias, sem mudar um alias já gravado e sem alias que seja item confirmado. Reaplicar o
+mesmo recibo não duplica nada. O que isso dá aos comandos que continuam na fila:
+
+- `rebuildProjection` resolve os ids citados (`set_item_state`, revive) pelos aliases, então um
+  `set_item_state` preparado e congelado com o UUID do aparelho age no item que o servidor manteve.
+  **O `wire_document` e a intenção desse comando nunca são reescritos**; o servidor resolve o alias do
+  mesmo jeito.
+- um novo comando sobre a linha do item canônico procura o ancestral também pelos UUIDs que são alias dele
+  (`latestTouching`), para o `depends_on` continuar apontando o último comando que tocou o item.
+- "aguardando sincronização" usa o id da linha, não o UUID do alias.
+
+**Recusas do servidor (`conflict`, `rejected`, `blocked`).** Intenção, payload e documento ficam; só o
+status e `last_error_code` mudam. Os dependentes por `depends_on`, **inclusive os transitivos**, viram
+`BLOCKED` (`dependency_not_applied`); comandos que não dependem dele seguem `PENDING`. `blocked` cuja
+dependência ainda não foi enviada ou está em voo só diz que a ordem estava errada: o comando volta a
+`PENDING` (`WaitingForDependency`, sem laço: o aplicador não conta tentativas); se a dependência está em
+conflito, rejeitada ou nem está mais na fila, o comando fica `BLOCKED` e pede reconciliação. Um recibo de
+recusa é correlacionado pelo **número da tentativa**: o de uma tentativa mais antiga que a última, ou o
+de um comando já consumido, é `Stale` e não muda nada, então uma recusa atrasada não derruba a
+confirmação nova. Um recibo consumido que chega depois de um conflito registrado vence e reabre os
+dependentes que só estavam bloqueados por ele. Resolver um conflito de verdade (revisão do usuário,
+reemissão) não existe ainda.
+
+**Tentativas sem resposta.** `ReceiptApplier.unresolvedAttempts()` lista os comandos `IN_FLIGHT` com
+tentativa já contada: o servidor pode ou não tê-los aplicado. **Um snapshot não pode ser instalado, e a
+fila não pode ser reaplicada sobre ele, enquanto essa lista não estiver vazia**: um snapshot lido depois
+de outro aparelho remover/arquivar o item não o mostra, e reaplicar o comando antigo o traria de volta.
+A saída é reenviar os mesmos bytes (o servidor responde `duplicate` ou a recusa real) e aplicar a
+resposta; nada é adivinhado pelo nome nem removido por ambiguidade. O instalador de snapshot (próximo
+corte) deve recusar com um resultado tipado quando a lista não for vazia.
+
+**Reprojeção (`ProjectionRebuilder`).** Além dos recibos e aliases, um `creates` cujo nome o confirmado
+já tem **pendente** (outro aparelho adicionou o mesmo nome) não vira uma segunda linha: fica de fora e
+os comandos seguintes agem no item que existe, como o servidor fará com o alias. Nunca funde com um
+comprado ou arquivado, e nunca revive um comprado por conta própria (isso exige `revives`).
+
+**Limites desta entrega.** Não há `confirmed_items` novos, nem precisão de microssegundos,
+`normalized_name`, `updated_at`, arquivados, viagens, habituais ou tombstones locais (lacunas 6 e 9
+seguem abertas), nem instalação de snapshot, nem orquestrador, nem decisão do usuário para conflitos.
+`purchased_at` do recibo é guardado em milissegundos (a precisão total fica para o snapshot).
+
 ## Durabilidade e migrações
 
 - O banco abre com `PRAGMA synchronous = FULL`: uma ação confirmada ao usuário
@@ -263,8 +353,11 @@ não substitui as regras do Rails.
   antigas. `AlvaMigrationsTest` (JVM) e `AlvaDatabaseMigrationTest`
   (instrumentado) cobrem a cadeia e a existência dos schemas. Preferir passos
   aditivos.
-- A versão atual é **3** (`MIGRATION_2_3`, issue #45: acrescenta `commands.wire_document`
-  nulo; veja a seção anterior). `MIGRATION_1_2` (issue #42) é aditiva: cria
+- A versão atual é **4** (`MIGRATION_3_4`, issue #45: duas tabelas novas e vazias,
+  `sync_aliases` e `command_receipts`; nenhuma tabela ou coluna existente muda, e
+  `schemas/1-3.json` ficam intactos; `AlvaDatabaseMigrationTest` migra um v3 com linhas nas
+  oito tabelas, inclusive documento congelado, e compara cada uma). `MIGRATION_2_3` (issue #45:
+  acrescenta `commands.wire_document` nulo; veja a seção anterior). `MIGRATION_1_2` (issue #42) é aditiva: cria
   `catalog_items` (índice único em `normalized_name`) e `catalog_state`, e
   acrescenta `command_subjects.category_public_id` (nulo para o que já estava na
   fila). Lista, fila, UUIDs e `schemas/1.json` ficam intactos.
@@ -332,15 +425,15 @@ qualquer das saídas. Situação após a #39 (detalhes em
 5. **Fechada para `add_items` (#39).** Nome vazio após normalização é
    `invalid_name`, como na PWA. Não foi introduzido limite de comprimento
    exclusivo do sync; o cliente deve preservar a mesma regra de presença.
-6. **Aberta** (#45): a versão 1 do banco é a fundação da lista/fila, não o
+6. **Aberta** (#45, snapshot): a versão 1 do banco é a fundação da lista/fila, não o
    armazenamento completo do snapshot. Antes de ingerir o documento em #45,
    estender o schema com os campos/coleções necessários (incluindo
    `normalized_name`, `updated_at` e ordem estável do servidor), com migração e
    testes. O snapshot usa microssegundos; os campos locais atuais são
    milissegundos. Preservar a precisão necessária aos desempates do histórico em
-   #54, sem presumir equivalência entre eles. Novo: guardar também os aliases
-   devolvidos por `add_items` (`public_id` → `canonical_public_id`), para que
-   comandos ainda na fila e telas encontrem o item canônico.
+   #54, sem presumir equivalência entre eles. Os aliases devolvidos por `add_items`
+   (`public_id` → `canonical_public_id`) **estão guardados** desde o quarto corte
+   (`sync_aliases`).
 
 7. **Fechada no servidor (#39); adaptação local no segundo corte da #45.** Reativar
    leva `revives.public_id` e a versão observada (guardada na intenção) ou herdada
@@ -370,12 +463,15 @@ continua aberta; próximos PRs pequenos, cada um sobre a `main` já integrada:
    preparado/congelado por chamada, com a tentativa contada antes da rede,
    falhas classificadas e recibo tipado e validado. Falta a ordenação da fila
    inteira, lotes e a orquestração (quem chama `attempt` e quando).
-3. Resultados e aliases: remover comandos confirmados, gravar aliases
-   (`public_id` → `canonical_public_id`), `conflict`/`rejected`/`blocked` sem
-   perder intenção, bloqueio só dos dependentes.
-4. Snapshot e reconciliação: transação única, ignorar snapshot antigo, ingestão
-   dos campos extras (precisão em microssegundos, `normalized_name`), reaplicar a
-   fila sobre o confirmado, sem ressuscitar registros removidos/arquivados.
+3. ~~Resultados e aliases~~ — **quarto corte feito** (ver "Recibos e aliases"): recibos
+   consumidos viram `ACKNOWLEDGED` com o recibo guardado, aliases duráveis, `conflict`/`rejected`/
+   `blocked` sem perder intenção e bloqueando só os dependentes. Falta a decisão do usuário sobre um
+   conflito e a orquestração (quem aplica o que o `CommandSender` devolve, em que ordem).
+4. Snapshot e reconciliação (**próximo corte**): cliente do `GET /api/v1/snapshot` (casa pelo
+   vínculo, `schema_version`, revisões monotônicas da casa e do dicionário), recusar enquanto
+   `unresolvedAttempts()` não for vazio, transação única com dicionário e `confirmed_items`,
+   ingestão dos campos extras (microssegundos, `normalized_name`, `updated_at`, ordem do servidor,
+   arquivados, viagens, habituais, tombstones), liberar os `ACKNOWLEDGED` cobertos e reprojetar.
 5. Ciclo de vida: sincronizar ao abrir/retomar com rede.
 6. Validação: Rails real em teste, falha após commit e reenvio, e dois aparelhos
    antes de qualquer promessa de convergência.
