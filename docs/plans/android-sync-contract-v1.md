@@ -199,7 +199,7 @@ um comando já enviado.
 | `add_items` | `items: [{ public_id, name, revives? }]` (já separados no aparelho, de 1 a 30) | `revives` por item, só para trazer de volta uma compra | `Household#add_items` (`#add_item_for_sync`) |
 | `set_item_state` | `public_id`, `desired: "pending"\|"purchased"` | `lock_version` (herdado de `depends_on` quando este tocou o item) | `ListItem#toggle_purchased!` (estado desejado, nunca toggle) |
 | `undo_item_state` | `public_id`, `status`, `purchased_at` | `lock_version` | `PurchaseUndo` / `#undo_purchase!` |
-| `correct_item` | `public_id`, `name`, `category_id?` | `lock_version` | `ListItem#correct` + `ItemCategorizer.learn` |
+| `correct_item` | `public_id`, `name`, `category_id?` (UUID público) | `lock_version` herdado de `depends_on` ou observado; `dictionary_revision` obrigatória com categoria manual | executor transacional + `ItemCategorizer.learn` condicional |
 | `remove_item` | `public_id` | `lock_version` | `ListItemSnapshot` + `destroy` |
 | `restore_item` | campos do item removido (nome, categoria, `purchased_at`, `created_at`, `position`) | item não existe / não há pendente homônimo | `Household#restore_item` |
 | `finish_shopping` | `items: [{ public_id, lock_version }]` — só os comprados vistos neste aparelho | cada `lock_version` | `Household#finish_shopping!` |
@@ -406,6 +406,52 @@ Observações:
   explicitamente os itens vistos e suas versões.
 - Comandos que a PWA já faz em lote (`update_all`) também incrementam a revisão
   (ver abaixo); o Android não depende de callbacks por item.
+
+### Corrigir item (`correct_item`, issue #47)
+
+```json
+{
+  "id": "<uuid do comando>",
+  "type": "correct_item",
+  "depends_on": null,
+  "preconditions": { "lock_version": 2, "dictionary_revision": 4 },
+  "payload": {
+    "public_id": "<uuid do item ou alias>",
+    "name": "Leite integral",
+    "category_id": "<uuid público da categoria escolhida>"
+  }
+}
+```
+
+`name` é obrigatório, não vazio, e tem espaços normalizados. `category_id`
+(apesar do nome, sempre UUID público) ausente/nulo significa nenhuma escolha
+manual: renomear recategoriza automaticamente; nome inalterado mantém categoria.
+Categoria explícita, inclusive igual à atual, significa escolha manual para o
+nome informado e exige `dictionary_revision` inteiro não negativo.
+
+A versão do item segue a mesma regra de `set_item_state`: maior versão entre a
+explícita e a herdada do resultado de `depends_on` para o item canônico. Versão
+explícita malformada é recusada, mesmo havendo dependência válida. `lock_version`
+errada retorna `conflict/precondition_failed` com `reason: version_changed` e
+`current`. Renomear para outro pendente retorna `reason: duplicate_pending`, sem
+salvar nem aprender. Item arquivado/removido retorna `gone`; desconhecido e item
+de outra casa retornam o mesmo `not_found`. Campos inválidos retornam
+`malformed_command` com `data.field`; nome vazio retorna `invalid_name`.
+
+O item recebe a categoria manual mesmo quando a revisão do dicionário mudou.
+Nesse caso só o aprendizado é adiado: o resultado consumido (`applied`/`noop`)
+contém `learning_pending: { category_id, dictionary_revision }` para revisão
+explícita no cliente. O dicionário atual não é sobrescrito. A comparação da
+revisão e a escrita ocorrem sob o lock de escrita SQLite já adquirido pelo
+processador, serializando também correções em casas diferentes.
+
+`data.item` contém os campos comuns de recibo e `category_public_id` (ou nulo).
+`data.learned` indica se este comando mudou o dicionário; `data.dictionary_revision`
+informa a revisão resultante. Mudança só no dicionário também é `applied`, move a
+revisão da casa e publica a mudança; sem mudança no item nem no dicionário é
+`noop`. A entrada aprendida continua protegida contra seeds. O ledger guarda
+esse resultado integral: reenvio do mesmo comando retorna o recibo original,
+mesmo se outro aparelho já tiver alterado o item/dicionário depois.
 
 ## Idempotência e deduplicação
 

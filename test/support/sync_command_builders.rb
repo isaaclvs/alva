@@ -15,4 +15,15 @@ module SyncCommandBuilders
     command["preconditions"] = { "lock_version" => lock_version } if lock_version
     command
   end
+
+  def correct_item_command(public_id, name, lock_version: nil, category_id: nil, dictionary_revision: nil, id: uuid, depends_on: nil)
+    command = { "id" => id, "type" => "correct_item", "depends_on" => depends_on,
+      "payload" => { "public_id" => public_id, "name" => name } }
+    command["payload"]["category_id"] = category_id if category_id
+    preconditions = {}
+    preconditions["lock_version"] = lock_version unless lock_version.nil?
+    preconditions["dictionary_revision"] = dictionary_revision unless dictionary_revision.nil?
+    command["preconditions"] = preconditions
+    command
+  end
 end

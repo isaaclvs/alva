@@ -17,7 +17,8 @@ class SyncCommandProcessor
   # introduces it.
   EXECUTORS = {
     "add_items" => SyncCommands::AddItems,
-    "set_item_state" => SyncCommands::SetItemState
+    "set_item_state" => SyncCommands::SetItemState,
+    "correct_item" => SyncCommands::CorrectItem
   }.freeze
 
   # `dependency` is the ledger row (SyncCommand) of the command named by
