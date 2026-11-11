@@ -45,7 +45,7 @@ abstract class AlvaDatabase : RoomDatabase() {
  *   changes copy data into the new shape inside the migration.
  */
 object AlvaMigrations {
-    const val CURRENT_VERSION = 2
+    const val CURRENT_VERSION = 3
 
     /**
      * 1 -> 2 (issue #42, local matching): additive only. The synced dictionary gets
@@ -71,8 +71,20 @@ object AlvaMigrations {
         }
     }
 
+    /**
+     * 2 -> 3 (issue #45, first cut): additive only. A command can carry the frozen wire
+     * document that is resent verbatim. Every existing row gets NULL, i.e. "not frozen":
+     * the queue, its order, UUIDs, intent JSON, attempts and subjects are untouched, and
+     * nothing is converted or invented for commands that were already queued.
+     */
+    val MIGRATION_2_3: Migration = object : Migration(2, 3) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `commands` ADD COLUMN `wire_document` TEXT")
+        }
+    }
+
     /** Contiguous chain from version 1 to [CURRENT_VERSION]. */
-    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2)
+    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
 }
 
 object AlvaDatabaseFactory {
