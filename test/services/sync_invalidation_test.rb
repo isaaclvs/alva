@@ -26,6 +26,7 @@ class SyncInvalidationTest < ActiveSupport::TestCase
     assert_broadcasts(stream, 0) { @household.add_item("Arroz") }
     assert_broadcasts(stream, 1) { @household.list_items.first.toggle_purchased! }
     assert_broadcasts(stream, 1) { @household.finish_shopping! }
+    assert_broadcasts(stream, 1) { @household.remove_item(@household.list_items.on_list.first) }
   end
 
   test "rollback publishes nothing" do
