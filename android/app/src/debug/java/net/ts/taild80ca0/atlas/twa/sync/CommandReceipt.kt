@@ -1,5 +1,8 @@
 package net.ts.taild80ca0.atlas.twa.sync
 
+import java.nio.ByteBuffer
+import java.nio.charset.CharacterCodingException
+import java.nio.charset.CodingErrorAction
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
@@ -96,8 +99,16 @@ object CommandReceiptParser {
     private const val MAX_ERROR_CODE = 64
 
     fun parse(body: ByteArray, expectedCommandId: String): ReceiptParse {
+        val text = try {
+            Charsets.UTF_8.newDecoder()
+                .onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT)
+                .decode(ByteBuffer.wrap(body)).toString()
+        } catch (_: CharacterCodingException) {
+            return invalid(InvalidResponse.NOT_JSON)
+        }
         val root = try {
-            val tokener = JSONTokener(String(body, Charsets.UTF_8))
+            val tokener = JSONTokener(text)
             val value = tokener.nextValue()
             if (value !is JSONObject || tokener.nextClean() != 0.toChar()) return invalid(InvalidResponse.NOT_JSON)
             value
@@ -128,6 +139,7 @@ object CommandReceiptParser {
         var originalStatus: ReceiptStatus? = null
         var error: String? = null
         if (status.recordedByServer) {
+            if (result.has("error") && !result.isNull("error")) return invalid(InvalidResponse.INCOHERENT)
             revision = whole(result.opt("revision")) ?: return invalid(InvalidResponse.WRONG_SHAPE)
             // The house revision only grows: a recorded result can never be newer than the batch's end.
             if (revision > houseRevision) return invalid(InvalidResponse.INCOHERENT)

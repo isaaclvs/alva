@@ -28,8 +28,9 @@ enum class TransientCause {
 }
 
 /**
- * The result of exactly one request for one command. It carries no HTTP detail, no body,
- * no secret and no credential, so it is safe to log and to show. None of the cases removes,
+ * The result of exactly one request for one command. No outcome carries the credential.
+ * A receipt contains business data: do not log its payload or show raw fields as UI messages.
+ * None of the cases removes,
  * confirms or edits anything: the queue is the caller's, and applying a [Receipt] is the
  * job of the reconciliation that comes after this transport.
  */

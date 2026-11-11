@@ -32,7 +32,10 @@ enum class NotSentReason {
 }
 
 sealed interface SendAttempt {
-    /** Nothing was sent and no attempt was counted. The command and the queue are untouched. */
+    /**
+     * Nothing was sent and no attempt was counted. Preparation may have frozen the document;
+     * the local intent and projection are unchanged.
+     */
     data class NotSent(
         val reason: NotSentReason,
         val detail: String,

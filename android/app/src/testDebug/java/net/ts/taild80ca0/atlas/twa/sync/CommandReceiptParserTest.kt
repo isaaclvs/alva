@@ -135,6 +135,21 @@ class CommandReceiptParserTest {
     }
 
     @Test
+    fun malformedUtf8CannotBeReplacedAndAcceptedAsReceiptData() {
+        val text = body(applied()).replace("\"lock_version\":0", "\"lock_version\":0,\"name\":\"broken\"")
+        val bytes = text.toByteArray(Charsets.UTF_8)
+        bytes[text.indexOf("broken")] = 0xc3.toByte() // followed by ASCII, not a UTF-8 continuation
+
+        val result = CommandReceiptParser.parse(bytes, id)
+        assertEquals(ReceiptParse.Invalid(InvalidResponse.NOT_JSON), result)
+    }
+
+    @Test
+    fun anAppliedResultWithAnErrorIsNotACoherentReceipt() {
+        assertEquals(InvalidResponse.INCOHERENT, invalid(body(applied(",\"error\":\"precondition_failed\""))))
+    }
+
+    @Test
     fun fieldsTheClientDoesNotKnowAreIgnoredNotRejected() {
         val r = receipt("""{"revision":841,"future":true,"results":[{"id":"$id","status":"blocked","error":"dependency_not_applied","depends_on":"x","more":1}],"snapshot_required":false}""")
 
