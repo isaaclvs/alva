@@ -126,7 +126,10 @@ Código: `data/list/WireOutbox.kt` e `WireDocument.kt`; coluna
   candidato posterior (válido ou não) é ignorado e o original volta.
 - **`beginAttempt(commandId)`** (transação): soma `attempts`, passa o comando a
   `IN_FLIGHT` e devolve o documento congelado; um futuro remetente só põe bytes na
-  rede depois disso. Recusa comando sem documento, inexistente ou
+  rede depois do commit. O remetente deve chamar esse método **fora de qualquer
+  transação Room externa** e aguardar o retorno; não envolver tentativa e HTTP
+  numa transação maior. Se houver transação externa, `Started` ainda é provisório
+  até o commit dela (o teste de rollback cobre esse caso). Recusa comando sem documento, inexistente ou
   `BLOCKED`/`CONFLICT`/`REJECTED`. `IN_FLIGHT` pode ser tentado de novo (processo
   morto no meio). Erros de SQL propagam e desfazem tudo, inclusive dentro de uma
   transação maior do chamador.

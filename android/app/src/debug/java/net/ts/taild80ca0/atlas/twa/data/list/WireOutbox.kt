@@ -52,8 +52,10 @@ sealed interface AttemptResult {
  *
  * Both operations are single Room transactions and join the caller's transaction if there
  * is one. SQL errors propagate (the transaction is rolled back); refusals are values.
- * There is no network here: a future sender calls [beginAttempt], and only when it returns
- * [AttemptResult.Started] puts the returned document on the wire.
+ * There is no network here. A future sender must call [beginAttempt] outside any caller-owned
+ * Room transaction, and send only after [AttemptResult.Started] returns: then this operation's
+ * transaction has committed. When joined to an outer transaction, Started is provisional
+ * until that outer commit; never wrap beginAttempt and the HTTP call in one Room transaction.
  */
 class WireOutbox(private val db: AlvaDatabase) {
 
