@@ -88,7 +88,7 @@ data class ListState(
     /** Live items (not archived), in creation order. */
     val items: List<ListItem>,
     val categories: List<Category>,
-    /** Commands in the queue, whatever their status. */
+    /** Commands the server has not consumed yet, whatever their status (a consumed one waits for a snapshot but is not "awaiting sync"). */
     val queuedCommands: Int,
     /** Queued commands that need the user: conflict, rejected or blocked. */
     val needsAttention: Int,

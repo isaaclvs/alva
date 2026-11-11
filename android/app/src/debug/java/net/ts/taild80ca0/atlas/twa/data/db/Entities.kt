@@ -241,7 +241,12 @@ data class CommandReceiptEntity(
     /** The result's `data` object, untouched. */
     @ColumnInfo(name = "data_json") val dataJson: String,
     @ColumnInfo(name = "received_at") val receivedAt: Long,
-)
+) {
+    companion object {
+        const val APPLIED = "applied"
+        const val NOOP = "noop"
+    }
+}
 
 object ItemStatusCodes {
     const val PENDING = 0

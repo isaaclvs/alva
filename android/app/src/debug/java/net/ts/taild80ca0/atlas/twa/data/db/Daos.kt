@@ -109,9 +109,27 @@ interface CommandDao {
     )
     suspend fun latestTouching(subjectIds: List<String>): CommandEntity?
 
-    /** `public_id`s with a queued command: the items the UI shows as "waiting to sync". */
-    @Query("SELECT DISTINCT subject_public_id FROM command_subjects")
+    /** `public_id`s with a command the server has not consumed yet: the items the UI shows as "waiting to sync". */
+    @Query(
+        """
+        SELECT DISTINCT s.subject_public_id FROM command_subjects s
+        JOIN commands c ON c.id = s.command_id
+        WHERE c.status != 'ACKNOWLEDGED'
+        """,
+    )
     suspend fun subjectIdsInQueue(): List<String>
+
+    /** Commands still to be sent or resolved (the server has not consumed them). */
+    @Query("SELECT COUNT(*) FROM commands WHERE status != 'ACKNOWLEDGED'")
+    suspend fun countAwaitingServer(): Int
+
+    /** Commands sent at least once whose outcome was never recorded: the server may or may not have applied them. */
+    @Query("SELECT id FROM commands WHERE status = 'IN_FLIGHT' AND attempts > 0 ORDER BY sequence")
+    suspend fun unresolvedAttemptIds(): List<String>
+
+    /** Commands whose `depends_on` is [id]. */
+    @Query("SELECT * FROM commands WHERE depends_on = :id ORDER BY sequence")
+    suspend fun dependentsOf(id: String): List<CommandEntity>
 
     @Query("SELECT COUNT(*) FROM commands WHERE status = :status")
     suspend fun countByStatus(status: String): Int

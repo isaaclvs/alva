@@ -136,7 +136,9 @@ class RoomShoppingListStore(
         db.listItems().upsert(ProjectionReducer.reduce(current, projected))
 
         val commandId = ids.newId()
-        val ancestor = if (touched.isEmpty()) null else db.commands().latestTouching(touched)
+        // A command may cite the item by an alias (the UUID the device made up before the server kept another).
+        val touchedIds = touched + db.aliases().pointingAt(touched).map { it.aliasPublicId }
+        val ancestor = if (touched.isEmpty()) null else db.commands().latestTouching(touchedIds)
         val status = if (ancestor != null && CommandStatus.valueOf(ancestor.status).stopsDependents) {
             CommandStatus.BLOCKED
         } else {
@@ -148,7 +150,10 @@ class RoomShoppingListStore(
             // `covered`: the command this one depends on is the last to have touched that item,
             // so the server can hand its resulting version on. Decided here, with the queue as it is.
             ReviveObservation.toPreconditions(
-                revives.map { it.copy(covered = ancestor != null && db.commands().latestTouching(listOf(it.publicId))?.id == ancestor.id) },
+                revives.map {
+                    val ids = listOf(it.publicId) + db.aliases().pointingAt(listOf(it.publicId)).map { alias -> alias.aliasPublicId }
+                    it.copy(covered = ancestor != null && db.commands().latestTouching(ids)?.id == ancestor.id)
+                },
             )
         }
         db.commands().insert(
@@ -171,36 +176,23 @@ class RoomShoppingListStore(
 
     /**
      * Recomputes the projection as confirmed state + every queued command, in
-     * device order. Reconciliation (a later task) calls this after writing a new
-     * confirmed state, so a remote read never erases a local action.
+     * device order (see [ProjectionRebuilder]: commands the server already consumed
+     * contribute their receipt, ids resolve through the aliases). Reconciliation calls this
+     * after writing a new confirmed state, so a remote read never erases a local action.
      */
-    suspend fun rebuildProjection() {
-        db.withTransaction {
-            val projection = db.confirmedItems().all()
-                .associate { it.publicId to it.toProjection() }
-                .toMutableMap()
-            for (command in db.commands().inOrder()) {
-                val subjects = db.commands().subjectsOf(command.id)
-                    .map { ProjectedSubject(it.subjectPublicId, it.role, it.ordinal, it.categoryPublicId) }
-                val changed = ProjectionReducer.reduce(
-                    projection,
-                    ProjectedCommand(command.type, JSONObject(command.payload), subjects, command.createdAt),
-                )
-                changed.forEach { projection[it.publicId] = it }
-            }
-            db.listItems().clear()
-            db.listItems().upsert(projection.values.toList())
-        }
-    }
+    suspend fun rebuildProjection() = ProjectionRebuilder(db).rebuild()
 
     private suspend fun readState(): ListState {
-        val awaiting = db.commands().subjectIdsInQueue().toSet()
+        // An item waits for the server under the id the row has: a queued command may still cite the
+        // UUID the device made up, which the server turned into an alias of the item that was kept.
+        val aliases = db.aliases().all().associate { it.aliasPublicId to it.canonicalPublicId }
+        val awaiting = db.commands().subjectIdsInQueue().flatMap { listOfNotNull(it, aliases[it.lowercase()]) }.toSet()
         val needsAttention = CommandStatus.entries.filter { it.stopsDependents }
             .sumOf { db.commands().countByStatus(it.name) }
         return ListState(
             items = db.listItems().live().map { it.toDomain(it.publicId in awaiting) },
             categories = db.categories().all().map { Category(it.publicId, it.name, it.position) },
-            queuedCommands = db.commands().count(),
+            queuedCommands = db.commands().countAwaitingServer(),
             needsAttention = needsAttention,
             confirmedRevision = db.syncState().get()?.confirmedRevision ?: 0L,
         )
@@ -216,16 +208,4 @@ private fun ListItemEntity.toDomain(awaitingSync: Boolean) = ListItem(
     status = ItemStatus.fromCode(status),
     purchasedAt = purchasedAt,
     awaitingSync = awaitingSync,
-)
-
-private fun net.ts.taild80ca0.atlas.twa.data.db.ConfirmedItemEntity.toProjection() = ListItemEntity(
-    publicId = publicId,
-    name = name,
-    categoryPublicId = categoryPublicId,
-    status = status,
-    position = position,
-    purchasedAt = purchasedAt,
-    createdAt = createdAt,
-    lockVersion = lockVersion,
-    tripPublicId = tripPublicId,
 )
