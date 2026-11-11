@@ -246,9 +246,10 @@ que ela tocava o item; é recusado (`REVIVE_OBSERVATION_LOST`) em vez de supor.
 cliente congela para cada intenção. O Kotlin (JVM e instrumentado) monta os mesmos
 a partir de intenções guardadas, e `test/controllers/api/v1/android_wire_documents_test.rb`
 os envia ao `POST /api/v1/commands` real e confere o que o Rails responde
-(`applied`, `revived`, alias). Isso mostra que o Rails aceita essas formas; **não é
-o cliente Android falando com o servidor** (não há transporte) e não prova
-convergência. O servidor segue como autoridade: a validação estrutural do cliente
+(`applied`, `revived`, alias). Isso mostra que o Rails aceita essas formas; por si
+só **não é o cliente Android falando com o servidor** e não prova convergência. O
+cliente de transporte contra o Rails real é o `script/android_rails_transport_check`
+(ver [android-command-transport.md](android-command-transport.md)). O servidor segue como autoridade: a validação estrutural do cliente
 não substitui as regras do Rails.
 
 ## Durabilidade e migrações
@@ -364,9 +365,11 @@ continua aberta; próximos PRs pequenos, cada um sobre a `main` já integrada:
    guardados) e os revives/marcações sem versão recuperável pedem snapshot e
    reemissão com UUIDs novos, como prevê o contrato; `ENVELOPE_TOO_LARGE` pede a
    divisão explícita (#53).
-2. Transporte: `POST /api/v1/commands` em lotes ordenados, `Authorization` do
-   cofre, falhas de transporte e de HTTP, `duplicate` tratado como sucesso,
-   reenvio do mesmo documento.
+2. Transporte — **terceiro corte feito, só a tentativa única** (ver
+   [android-command-transport.md](android-command-transport.md)): um comando
+   preparado/congelado por chamada, com a tentativa contada antes da rede,
+   falhas classificadas e recibo tipado e validado. Falta a ordenação da fila
+   inteira, lotes e a orquestração (quem chama `attempt` e quando).
 3. Resultados e aliases: remover comandos confirmados, gravar aliases
    (`public_id` → `canonical_public_id`), `conflict`/`rejected`/`blocked` sem
    perder intenção, bloqueio só dos dependentes.
