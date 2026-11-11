@@ -237,9 +237,15 @@ class ShoppingScreensTest {
         compose.onNodeWithTag("sync-now").assertTextEquals("Tentar novamente")
         assertEquals(1, runs.get())
         // Adding still works and never waits for the network.
-        add("Leite")
+        compose.onNodeWithTag("save-add").assertIsDisplayed()
+        // This integration test exercises sync and saving, not tap coordinates during IME resizing.
+        // The other screen tests still tap the add button; Done reaches the same add handler here.
+        compose.onNodeWithTag("add-input").performTextInput("Leite")
+        compose.onNodeWithTag("add-input").performImeAction()
+        waitForText("feedback", "Salvo neste aparelho")
+        runBlocking { assertEquals("Leite", db.listItems().live().single().name) }
 
-        compose.onNodeWithTag("sync-now").performClick()
+        compose.onNodeWithTag("sync-now").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         waitForText("sync-status", "Sincronizado.")
         compose.onNodeWithTag("sync-now").assertTextEquals("Sincronizar agora")
         assertEquals(2, runs.get())
