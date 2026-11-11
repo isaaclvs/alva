@@ -77,7 +77,12 @@ class RoomShoppingListStore(
             }
         }
         val payload = JSONObject().put("names", JSONArray(changing.map { it.typedName() }))
-        val commandId = projectAndEnqueue(CommandTypes.ADD_ITEMS, payload, lockVersion = null, subjects)
+        // What the user saw of each purchase being revived is fixed now, not when the request is
+        // prepared: a snapshot applied in between must not pose as the version they saw.
+        val seen = changing.mapIndexedNotNull { index, step ->
+            (step as? AddStep.Revive)?.let { ReviveObservation(index, it.item.publicId, it.item.lockVersion, covered = false) }
+        }
+        val commandId = projectAndEnqueue(CommandTypes.ADD_ITEMS, payload, lockVersion = null, subjects, seen)
         return IntentResult.Saved(commandId, subjects.map { it.id }, additions)
     }
 
@@ -120,6 +125,7 @@ class RoomShoppingListStore(
         payload: JSONObject,
         lockVersion: Int?,
         subjects: List<Subject>,
+        revives: List<ReviveObservation> = emptyList(),
     ): String {
         val now = clock.nowMillis()
         val projected = ProjectedCommand(
@@ -136,7 +142,15 @@ class RoomShoppingListStore(
         } else {
             CommandStatus.PENDING
         }
-        val preconditions = JSONObject().apply { if (lockVersion != null) put("lock_version", lockVersion) }
+        val preconditions = if (revives.isEmpty()) {
+            JSONObject().apply { if (lockVersion != null) put("lock_version", lockVersion) }
+        } else {
+            // `covered`: the command this one depends on is the last to have touched that item,
+            // so the server can hand its resulting version on. Decided here, with the queue as it is.
+            ReviveObservation.toPreconditions(
+                revives.map { it.copy(covered = ancestor != null && db.commands().latestTouching(listOf(it.publicId))?.id == ancestor.id) },
+            )
+        }
         db.commands().insert(
             CommandEntity(
                 id = commandId,

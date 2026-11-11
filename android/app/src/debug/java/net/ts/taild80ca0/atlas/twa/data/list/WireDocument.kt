@@ -50,7 +50,7 @@ object WireDocument {
         val payload = document.opt("payload") as? JSONObject ?: return "payload must be an object"
         return when (type) {
             CommandTypes.ADD_ITEMS -> addItemsProblem(payload, preconditions)
-            CommandTypes.SET_ITEM_STATE -> setItemStateProblem(payload)
+            CommandTypes.SET_ITEM_STATE -> setItemStateProblem(payload, preconditions)
             else -> "type $type has no wire form yet"
         }
     }
@@ -77,14 +77,33 @@ object WireDocument {
             if (publicId.isNullOrBlank()) return "items[$index].public_id must be a string"
             if (!seen.add(publicId.lowercase())) return "items[$index].public_id repeats"
             if (item.opt("name") !is String) return "items[$index].name must be a string"
-            if (item.has("revives") && (item.opt("revives") as? JSONObject)?.opt("public_id") !is String) {
-                return "items[$index].revives must carry a public_id"
+            if (item.has("revives")) {
+                val revives = item.opt("revives") as? JSONObject
+                val revived = revives?.opt("public_id") as? String
+                if (revived.isNullOrBlank()) return "items[$index].revives must carry a public_id"
+                // The server treats a UUID it already knows as a duplicate and revives nothing.
+                if (revived.lowercase() == publicId.lowercase()) {
+                    return "items[$index].public_id must be a new claim, not the purchase it revives"
+                }
+                if (revives.has("lock_version")) {
+                    val version = revives.opt("lock_version")
+                    if (!(version is Int || version is Long) || (version as Number).toLong() < 0) {
+                        return "items[$index].revives.lock_version must be an integer >= 0"
+                    }
+                }
             }
         }
         return null
     }
 
-    private fun setItemStateProblem(payload: JSONObject): String? {
+    private fun setItemStateProblem(payload: JSONObject, preconditions: JSONObject): String? {
+        preconditions.keys().asSequence().firstOrNull { it != "lock_version" }?.let { return "set_item_state takes only lock_version as a precondition, not $it" }
+        if (preconditions.has("lock_version")) {
+            val version = preconditions.opt("lock_version")
+            if (!(version is Int || version is Long) || (version as Number).toLong() < 0) {
+                return "preconditions.lock_version must be an integer >= 0"
+            }
+        }
         if ((payload.opt("public_id") as? String).isNullOrBlank()) return "payload.public_id must be a string"
         if (payload.opt("desired") !in DESIRED) return "payload.desired must be pending or purchased"
         return null

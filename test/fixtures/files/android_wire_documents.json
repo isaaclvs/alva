@@ -1,0 +1,78 @@
+{
+  "_about": "Command documents exactly as the Android client freezes them (WireEnvelopeBuilder), one case per local intent. The Kotlin suites build each case from a stored intent and compare it with these documents; test/controllers/api/v1/android_wire_documents_test.rb posts the same documents to POST /api/v1/commands and checks what Rails answers. Expectations are written by hand. UUIDs of seeded items come from test/fixtures/list_items.yml (milk 40..01 is pending, detergent 40..02 is purchased, both at lock_version 0).",
+  "cases": [
+    {
+      "name": "offline_add_mark_then_typed_again",
+      "about": "add offline, mark purchased, type the name again: the revive needs no version because depends_on lends it, and its entry carries a NEW claim UUID, never the purchase's own.",
+      "documents": [
+        {
+          "id": "5f0c2f0e-0000-4000-8000-0000000000a1", "type": "add_items", "depends_on": null, "preconditions": {},
+          "payload": { "items": [ { "public_id": "9a1d0000-0000-4000-8000-000000000001", "name": "Tapioca" } ] }
+        },
+        {
+          "id": "5f0c2f0e-0000-4000-8000-0000000000a2", "type": "set_item_state", "depends_on": "5f0c2f0e-0000-4000-8000-0000000000a1", "preconditions": {},
+          "payload": { "public_id": "9a1d0000-0000-4000-8000-000000000001", "desired": "purchased" }
+        },
+        {
+          "id": "5f0c2f0e-0000-4000-8000-0000000000a3", "type": "add_items", "depends_on": "5f0c2f0e-0000-4000-8000-0000000000a2", "preconditions": {},
+          "payload": { "items": [ {
+            "public_id": "9a1d0000-0000-4000-8000-0000000000c1", "name": "Tapioca",
+            "revives": { "public_id": "9a1d0000-0000-4000-8000-000000000001" }
+          } ] }
+        }
+      ],
+      "expect": {
+        "statuses": [ "applied", "applied", "applied" ],
+        "last_item": { "outcome": "revived", "public_id": "9a1d0000-0000-4000-8000-0000000000c1", "canonical_public_id": "9a1d0000-0000-4000-8000-000000000001", "status": "pending" }
+      }
+    },
+    {
+      "name": "seen_purchase_is_revived_with_its_version",
+      "about": "a purchase the user saw in a snapshot at lock_version 0 is revived with exactly that version.",
+      "documents": [
+        {
+          "id": "5f0c2f0e-0000-4000-8000-0000000000b1", "type": "add_items", "depends_on": null, "preconditions": {},
+          "payload": { "items": [ {
+            "public_id": "9a1d0000-0000-4000-8000-0000000000c2", "name": "Detergente",
+            "revives": { "public_id": "40000000-0000-4000-8000-000000000002", "lock_version": 0 }
+          } ] }
+        }
+      ],
+      "expect": {
+        "statuses": [ "applied" ],
+        "last_item": { "outcome": "revived", "public_id": "9a1d0000-0000-4000-8000-0000000000c2", "canonical_public_id": "40000000-0000-4000-8000-000000000002", "status": "pending" }
+      }
+    },
+    {
+      "name": "created_batch_keeps_device_uuids",
+      "about": "several names typed together travel in order, each with the UUID the device made, and observed_revision is accepted but decides nothing.",
+      "documents": [
+        {
+          "id": "5f0c2f0e-0000-4000-8000-0000000000d1", "type": "add_items", "depends_on": null, "observed_revision": 7, "preconditions": {},
+          "payload": { "items": [
+            { "public_id": "9a1d0000-0000-4000-8000-0000000000e1", "name": "Banana" },
+            { "public_id": "9a1d0000-0000-4000-8000-0000000000e2", "name": "Pão de forma" }
+          ] }
+        }
+      ],
+      "expect": {
+        "statuses": [ "applied" ],
+        "last_item": { "outcome": "created", "public_id": "9a1d0000-0000-4000-8000-0000000000e2", "canonical_public_id": "9a1d0000-0000-4000-8000-0000000000e2", "status": "pending" }
+      }
+    },
+    {
+      "name": "mark_with_the_version_the_user_saw",
+      "about": "set_item_state sends the desired state (never a toggle) and the version seen in the snapshot.",
+      "documents": [
+        {
+          "id": "5f0c2f0e-0000-4000-8000-0000000000f1", "type": "set_item_state", "depends_on": null, "preconditions": { "lock_version": 0 },
+          "payload": { "public_id": "40000000-0000-4000-8000-000000000001", "desired": "purchased" }
+        }
+      ],
+      "expect": {
+        "statuses": [ "applied" ],
+        "last_item": { "public_id": "40000000-0000-4000-8000-000000000001", "canonical_public_id": "40000000-0000-4000-8000-000000000001", "status": "purchased" }
+      }
+    }
+  ]
+}

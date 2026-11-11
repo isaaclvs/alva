@@ -251,6 +251,12 @@ um comando já enviado.
 - O comando é tudo ou nada. Qualquer item em conflito ou rejeitado desfaz o
   comando inteiro (nada fica gravado, nem aliases) e o resultado traz `index` e
   `public_id` do item que parou o lote.
+- **O UUID do item é novo, o do comprado vai em `revives`.** O `public_id` de uma
+  entrada que reativa é um UUID gerado pelo aparelho para aquela reivindicação (vira
+  alias do comprado); nunca o UUID do próprio comprado, que o servidor já conhece e
+  trata como `duplicate` sem reviver. O cliente Android gera essa reivindicação uma
+  vez e a guarda no documento congelado (ver
+  [android-local-persistence.md](android-local-persistence.md)).
 - **Comprado não volta sozinho.** Se o nome casa com um item *comprado*, o
   servidor só o traz de volta quando o item diz qual compra o aparelho viu:
   `revives: { public_id, lock_version }`. O item tem de estar na lista, comprado,
