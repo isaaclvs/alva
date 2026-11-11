@@ -31,11 +31,17 @@ class FakeHouseServer(private val house: String = SnapshotFixtures.HOUSE) : Comm
     var applyThenLoseTheAnswer = 0
     var snapshotOutcome: (() -> SnapshotOutcome?)? = null
     private val scripted = HashMap<String, Pair<ReceiptStatus, String>>()
+    private val requestRefusals = HashMap<String, CommandOutcome.Refused>()
     private var clock = 1_700_000_000_000L
 
     /** The next request for [commandId] is refused with [status] and [error] without any effect. */
     fun refuse(commandId: String, status: ReceiptStatus, error: String) {
         scripted[commandId] = status to error
+    }
+
+    /** The next request for [commandId] is refused as a whole ([outcome]), before any command runs. */
+    fun refuseRequest(commandId: String, outcome: CommandOutcome.Refused) {
+        requestRefusals[commandId] = outcome
     }
 
     /** Another device adds [name] directly (not through this device's queue). */
@@ -59,6 +65,7 @@ class FakeHouseServer(private val house: String = SnapshotFixtures.HOUSE) : Comm
     override suspend fun send(credential: AccessCredential, commandId: String, document: String): CommandOutcome {
         received += commandId to document
         if (unreachable) return CommandOutcome.Transient(TransientCause.NETWORK)
+        requestRefusals.remove(commandId)?.let { return it }
         if (failBeforeApplying > 0) {
             failBeforeApplying--
             return CommandOutcome.Transient(TransientCause.TIMEOUT)

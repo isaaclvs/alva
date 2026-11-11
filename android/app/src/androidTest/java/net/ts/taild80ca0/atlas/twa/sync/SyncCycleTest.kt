@@ -243,6 +243,33 @@ class SyncCycleTest {
     }
 
     @Test
+    fun aRequestRefusedAsAWholeIsNotResentAndDoesNotHoldTheSnapshot() = runBlocking<Unit> {
+        val a = device()
+        a.add("Leite")
+        a.add("Pão")
+        val (refused, independent) = a.db.commands().inOrder().map { it.id }
+        server.refuseRequest(refused, CommandOutcome.Refused(422, "malformed_command"))
+
+        val report = a.cycle.run()
+
+        assertTrue("$report", report.outcome is SyncOutcome.Synced)
+        assertEquals(1, report.needsAttention)
+        assertEquals(listOf(refused, independent), server.received.map { it.first })
+        val kept = a.db.commands().inOrder().single()
+        assertEquals(refused, kept.id)
+        assertEquals("REJECTED", kept.status)
+        assertEquals("malformed_command", kept.lastErrorCode)
+        assertTrue("the intent is still shown", a.names().any { it.first == "Leite" })
+        val resolver = net.ts.taild80ca0.atlas.twa.data.list.ConflictResolver(
+            a.db, net.ts.taild80ca0.atlas.twa.data.list.IdGenerator { "decision" }, net.ts.taild80ca0.atlas.twa.data.list.Clock { 0L },
+        )
+        assertEquals("offered for an explicit discard", net.ts.taild80ca0.atlas.twa.data.list.ConflictResolver.Kind.REFUSED, resolver.preview(refused)!!.kind)
+
+        assertTrue(a.cycle.run().outcome is SyncOutcome.Synced)
+        assertEquals("never resent in a loop", 2, server.received.size)
+    }
+
+    @Test
     fun aFailureOnTheSecondCommandKeepsTheFirstConsumedAndTheSecondUnresolved() = runBlocking<Unit> {
         // The first request goes through; the second times out before the server applies it.
         val seen = java.util.concurrent.atomic.AtomicInteger()
