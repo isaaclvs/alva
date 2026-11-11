@@ -89,12 +89,15 @@ object AlvaMigrations {
 
     /**
      * 3 -> 4 (issue #45, receipts and aliases): additive only. Two new, empty tables: the
-     * aliases the server revealed and the receipts it gave for commands it consumed. No
-     * existing table or column is touched, so the list, the queue, the frozen documents and
-     * their UUIDs are exactly as they were.
+     * aliases the server revealed and the receipts it gave for commands it consumed; and
+     * `commands.answered_attempt`, the newest attempt the server itself answered with a
+     * refusal. Every existing row gets 0, "no attempt of this command was ever answered": the
+     * queue, the frozen documents and their UUIDs are exactly as they were, and a command that
+     * was sent before stays unresolved until the server answers it (nothing is guessed).
      */
     val MIGRATION_3_4: Migration = object : Migration(3, 4) {
         override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `commands` ADD COLUMN `answered_attempt` INTEGER NOT NULL DEFAULT 0")
             db.execSQL(
                 "CREATE TABLE IF NOT EXISTS `sync_aliases` (`alias_public_id` TEXT NOT NULL, " +
                     "`canonical_public_id` TEXT NOT NULL, `source_command_id` TEXT NOT NULL, " +

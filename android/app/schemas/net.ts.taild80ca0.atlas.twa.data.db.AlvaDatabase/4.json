@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 4,
-    "identityHash": "52281b87ef6c33612c2fce6747a324ec",
+    "identityHash": "98eef988009117af4628724d116c037e",
     "entities": [
       {
         "tableName": "sync_state",
@@ -296,7 +296,7 @@
       },
       {
         "tableName": "commands",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`sequence` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `id` TEXT NOT NULL, `type` TEXT NOT NULL, `payload` TEXT NOT NULL, `preconditions` TEXT NOT NULL, `depends_on` TEXT, `observed_revision` INTEGER NOT NULL, `status` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `attempts` INTEGER NOT NULL, `last_error_code` TEXT, `wire_document` TEXT)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`sequence` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `id` TEXT NOT NULL, `type` TEXT NOT NULL, `payload` TEXT NOT NULL, `preconditions` TEXT NOT NULL, `depends_on` TEXT, `observed_revision` INTEGER NOT NULL, `status` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `attempts` INTEGER NOT NULL, `last_error_code` TEXT, `wire_document` TEXT, `answered_attempt` INTEGER NOT NULL DEFAULT 0)",
         "fields": [
           {
             "fieldPath": "sequence",
@@ -366,6 +366,13 @@
             "fieldPath": "wireDocument",
             "columnName": "wire_document",
             "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "answeredAttempt",
+            "columnName": "answered_attempt",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
           }
         ],
         "primaryKey": {
@@ -585,7 +592,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '52281b87ef6c33612c2fce6747a324ec')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '98eef988009117af4628724d116c037e')"
     ]
   }
 }

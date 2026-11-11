@@ -113,6 +113,17 @@ interface CommandDao {
     )
     suspend fun latestTouching(subjectIds: List<String>): CommandEntity?
 
+    /** Commands queued after [sequence] that touch any of the records, in device order. */
+    @Query(
+        """
+        SELECT DISTINCT c.* FROM commands c
+        JOIN command_subjects s ON s.command_id = c.id
+        WHERE s.subject_public_id IN (:subjectIds) AND c.sequence > :sequence
+        ORDER BY c.sequence
+        """,
+    )
+    suspend fun touchingAfter(subjectIds: List<String>, sequence: Long): List<CommandEntity>
+
     /** `public_id`s with a command the server has not consumed yet: the items the UI shows as "waiting to sync". */
     @Query(
         """
@@ -127,9 +138,17 @@ interface CommandDao {
     @Query("SELECT COUNT(*) FROM commands WHERE status != 'ACKNOWLEDGED'")
     suspend fun countAwaitingServer(): Int
 
-    /** Commands sent at least once whose outcome was never recorded: the server may or may not have applied them. */
-    @Query("SELECT id FROM commands WHERE status = 'IN_FLIGHT' AND attempts > 0 ORDER BY sequence")
+    /**
+     * Commands with an attempt the server never answered: it may or may not have applied them. Whatever the queue
+     * has since done to the command (blocked it because of another one, reopened it) is irrelevant; only an
+     * answer from the server, or its receipt, closes an attempt (`answered_attempt`, `ACKNOWLEDGED`).
+     */
+    @Query("SELECT id FROM commands WHERE status != 'ACKNOWLEDGED' AND attempts > answered_attempt ORDER BY sequence")
     suspend fun unresolvedAttemptIds(): List<String>
+
+    /** The server answered [attempt] of [id] without consuming it. Never moves backwards. */
+    @Query("UPDATE commands SET answered_attempt = MAX(answered_attempt, :attempt) WHERE id = :id")
+    suspend fun recordAnswer(id: String, attempt: Int)
 
     /** Commands whose `depends_on` is [id]. */
     @Query("SELECT * FROM commands WHERE depends_on = :id ORDER BY sequence")

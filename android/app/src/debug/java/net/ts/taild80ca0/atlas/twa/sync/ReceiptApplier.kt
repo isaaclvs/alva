@@ -4,12 +4,15 @@ import androidx.room.withTransaction
 import net.ts.taild80ca0.atlas.twa.data.db.AlvaDatabase
 import net.ts.taild80ca0.atlas.twa.data.db.CommandEntity
 import net.ts.taild80ca0.atlas.twa.data.db.CommandReceiptEntity
+import net.ts.taild80ca0.atlas.twa.data.db.SubjectRole
 import net.ts.taild80ca0.atlas.twa.data.db.SyncAliasEntity
 import net.ts.taild80ca0.atlas.twa.data.list.AliasClaim
 import net.ts.taild80ca0.atlas.twa.data.list.Clock
 import net.ts.taild80ca0.atlas.twa.data.list.CommandStatus
+import net.ts.taild80ca0.atlas.twa.data.list.ItemOutcome
 import net.ts.taild80ca0.atlas.twa.data.list.ProjectionRebuilder
 import net.ts.taild80ca0.atlas.twa.data.list.ReceiptCheck
+import net.ts.taild80ca0.atlas.twa.data.list.ReceiptItem
 import net.ts.taild80ca0.atlas.twa.data.list.ReceiptRefusal
 import net.ts.taild80ca0.atlas.twa.data.list.ReceiptValidator
 import net.ts.taild80ca0.atlas.twa.data.list.WireSubject
@@ -35,12 +38,16 @@ sealed interface ApplyResult {
      * recorded ([aliases]) and its effect is in the projection. [retained]: the command stays queued as
      * `ACKNOWLEDGED` with its receipt, because no snapshot at or after the receipt's revision has been installed
      * (or a later command still needs it); `confirmed_revision` and the confirmed items did not move.
+     * [held]: later commands that were about a purchase this one meant to revive and that the server answered
+     * with another item (see [ReceiptApplier]); they are `BLOCKED` with their intent and document intact, and
+     * so is whatever depends on them.
      */
     data class Acknowledged(
         val commandId: String,
         val aliases: List<AliasClaim>,
         val retained: Boolean,
         val snapshotRequired: Boolean,
+        val held: List<String> = emptyList(),
     ) : ApplyResult
 
     /** The command had already been consumed; applying the same answer again changed nothing. */
@@ -89,6 +96,21 @@ sealed interface ApplyResult {
  * it, the command is `BLOCKED` and needs reconciliation. Refusals are correlated by attempt number: one for an
  * attempt older than the latest, or for a command already consumed, is [ApplyResult.Stale] and changes nothing.
  *
+ * **A revive the server answered with another item.** Typing a purchased name again sends an `add_items` that revives
+ * that purchase (S). The server looks for a *pending* item of the name first, so if one appeared meanwhile (T) the
+ * answer is a `duplicate` of T and S stays purchased. A later command about S (a mark the user made on the
+ * "revived" row) was frozen against S and would now act on the old purchase while the user sees T, silently losing
+ * what they meant. Such commands, and what depends on them, become `BLOCKED` (`revive_redirected`) and need
+ * reconciliation; their payload and frozen document stay as they are. S and T are two different real items: no alias
+ * S→T is ever recorded, and independent commands are untouched.
+ *
+ * **Answers and attempts.** Whether the server has *answered an attempt* is recorded apart from the queue's status
+ * (`commands.answered_attempt`): only a refusal that proves the command had no effect closes its attempt, and only
+ * for the attempt it answers. Blocking a dependent because its dependency failed is the device's decision, not an
+ * answer, so a dependent that was in flight stays unresolved. A rejection `idempotency_conflict` closes nothing
+ * either: the server gives it for a different content *and* for the same content from another lineage (the secret
+ * of the old one was lost), so it does not tell whether the old effect happened.
+ *
  * Anything else that does not hold is [ApplyResult.Refused] with nothing written. There is no network here;
  * `CommandSender`'s `Sent` is applied after it returns, never inside its transaction.
  */
@@ -120,7 +142,8 @@ class ReceiptApplier(
      * The commands that were sent and have no recorded answer, in queue order. For each of them the server may
      * have applied the command, so **a snapshot must not be installed and the queue must not be replayed over it
      * until each was resolved**: send the same document again (the answer is `duplicate`, or the real refusal) and
-     * [apply] it. A snapshot read after another device removed or archived the item would otherwise
+     * [apply] it. What counts is whether the server answered the attempt, not the command's status: a dependent
+     * blocked or reopened by the queue is still listed, and an `idempotency_conflict` does not take a command out. A snapshot read after another device removed or archived the item would otherwise
      * not show it, and replaying the old command over it would bring it back. An empty list is the precondition
      * of installing a snapshot; nothing is guessed from a name that happens to match.
      */
@@ -184,6 +207,7 @@ class ReceiptApplier(
             ),
         )
         if (previous.stopsDependents) reopenDependents(command.id)
+        val held = holdWhatWasAboutARedirectedRevive(command, effect.items, subjects, known)
 
         val covered = revision <= (db.syncState().get()?.confirmedRevision ?: 0L)
         val needed = db.commands().dependentsOf(command.id).any { it.wireDocument == null }
@@ -191,7 +215,36 @@ class ReceiptApplier(
         if (!retained) db.commands().delete(command.id)
 
         rebuilder.rebuild()
-        return ApplyResult.Acknowledged(command.id, effect.aliases, retained, receipt.snapshotRequired)
+        return ApplyResult.Acknowledged(command.id, effect.aliases, retained, receipt.snapshotRequired, held)
+    }
+
+    /**
+     * A revive of purchase S that the server answered with a `duplicate` of another item: the commands queued after
+     * it that touch S (or an id that is an alias of S) cannot be sent as they are. Returns the commands held, in
+     * queue order, dependents included. No alias is recorded: S and the item the server kept are different items.
+     */
+    private suspend fun holdWhatWasAboutARedirectedRevive(
+        command: CommandEntity,
+        items: List<ReceiptItem>,
+        subjects: List<net.ts.taild80ca0.atlas.twa.data.db.CommandSubjectEntity>,
+        known: Map<String, String>,
+    ): List<String> {
+        val purchases = items.filter { it.outcome == ItemOutcome.DUPLICATE }.mapNotNull { item ->
+            val subject = subjects.firstOrNull { it.ordinal == item.ordinal && it.role == SubjectRole.TARGETS } ?: return@mapNotNull null
+            val purchase = subject.subjectPublicId.lowercase()
+            subject.subjectPublicId.takeIf { item.canonicalPublicId != (known[purchase] ?: purchase) }
+        }
+        if (purchases.isEmpty()) return emptyList()
+
+        val cited = (purchases + db.aliases().pointingAt(purchases.map { it.lowercase() }).map { it.aliasPublicId }).distinct()
+        val held = ArrayList<String>()
+        for (later in db.commands().touchingAfter(cited, command.sequence)) {
+            if (later.status != CommandStatus.PENDING.name && later.status != CommandStatus.IN_FLIGHT.name) continue
+            db.commands().setStatus(later.id, CommandStatus.BLOCKED.name, REVIVE_REDIRECTED)
+            held += later.id
+            held += blockDependents(later.id)
+        }
+        return held.distinct()
     }
 
     /** Dependents blocked because this chain stopped, once the chain moves again: back to `PENDING`. */
@@ -215,6 +268,9 @@ class ReceiptApplier(
         if (command.status == CommandStatus.ACKNOWLEDGED.name) return ApplyResult.Stale(command.id, StaleReason.ALREADY_ACKNOWLEDGED)
         if (attempt < command.attempts) return ApplyResult.Stale(command.id, StaleReason.ATTEMPT_SUPERSEDED)
         val error = receipt.error ?: return ApplyResult.Refused(command.id, ReceiptRefusal.MALFORMED_DATA, "no error code")
+        // The server spoke about this attempt: it had no effect, so the attempt is no longer in doubt. Except for an
+        // idempotency_conflict, which says nothing about what an older lineage of this device already made it do.
+        if (error != IDEMPOTENCY_CONFLICT) db.commands().recordAnswer(command.id, attempt)
 
         if (receipt.status == ReceiptStatus.BLOCKED) {
             val dependency = command.dependsOn?.let { db.commands().find(it) }
@@ -254,8 +310,14 @@ class ReceiptApplier(
         return blocked
     }
 
-    private companion object {
+    companion object {
         /** The contract's code for "the command I depend on has no record", reused for a local block. */
         const val DEPENDENCY_NOT_APPLIED = "dependency_not_applied"
+
+        /** Local code: a command about a purchase the server did not revive; only reconciliation moves it. */
+        const val REVIVE_REDIRECTED = "revive_redirected"
+
+        /** The server's code for the same id with other content or from another lineage. */
+        const val IDEMPOTENCY_CONFLICT = "idempotency_conflict"
     }
 }

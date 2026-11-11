@@ -346,9 +346,15 @@ class AlvaDatabaseMigrationTest {
         assertTrue("every v3 table is populated", before.values.all { it.isNotEmpty() })
 
         helper.runMigrationsAndValidate(name, 4, true, AlvaMigrations.MIGRATION_3_4).apply {
-            assertEquals("no row of any table may change, move or disappear", before, dump(this, tables))
+            assertEquals(
+                "no row of any table may change, move or disappear (only the new column is added)",
+                before,
+                dump(this, tables, skip = setOf("answered_attempt")),
+            )
             fun scalar(sql: String): String = query(sql).use { c -> c.moveToFirst(); c.getString(0) }
             assertEquals(frozen, scalar("SELECT wire_document FROM commands WHERE id = 'c-1'"))
+            // Nothing is known about the answers to attempts made before the column existed.
+            assertEquals("0,0,0", scalar("SELECT group_concat(answered_attempt) FROM (SELECT answered_attempt FROM commands ORDER BY sequence)"))
             // The new tables start empty.
             assertEquals("0", scalar("SELECT COUNT(*) FROM sync_aliases"))
             assertEquals("0", scalar("SELECT COUNT(*) FROM command_receipts"))

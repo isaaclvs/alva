@@ -149,6 +149,16 @@ data class CommandEntity(
      * then were never kept.
      */
     @ColumnInfo(name = "wire_document") val wireDocument: String? = null,
+    /**
+     * The newest attempt number the **server itself** answered with a refusal that left no doubt that the command
+     * had no effect (`conflict`, `rejected`, `blocked`), 0 if none. It is what tells "the server said no" apart from
+     * "this device stopped the command": a dependent that was in flight when its dependency failed becomes
+     * `BLOCKED` here, but its own attempt (`attempts > answered_attempt`) is still unanswered, because the server
+     * may have applied it before, or after, whatever happened to the dependency. A consumed command (`ACKNOWLEDGED`)
+     * is answered by its receipt. `status` is the queue's view and moves for local reasons; this column only moves
+     * when the server speaks.
+     */
+    @ColumnInfo(name = "answered_attempt", defaultValue = "0") val answeredAttempt: Int = 0,
 )
 
 /**

@@ -645,4 +645,152 @@ class ReceiptApplierTest : DatabaseTest() {
         assertEquals(CommandStatus.PENDING.name, statusOf(db, cmd("a3")))
     }
 
+    // ---- answers, attempts and what the queue merely decided ------------------------------------------
+
+    @Test
+    fun aRefusalClosesOnlyTheAttemptItAnswers() = runBlocking {
+        val db = openDatabase()
+        val store = storeOn(db, ScriptedIds(local, cmd("a1"), cmd("a2")))
+        store.execute(ListIntent.AddText("Leite"))
+        store.execute(ListIntent.SetItemState(local, ItemStatus.PURCHASED))
+        prepareAndBegin(db, cmd("a1"))
+        val first = prepareAndBegin(db, cmd("a2"))
+        val second = (WireOutbox(db).beginAttempt(cmd("a2")) as AttemptResult.Started).attempt
+        val invalid = { refusal(cmd("a2"), ReceiptStatus.REJECTED, "invalid_name") }
+
+        assertTrue(applier(db).apply(cmd("a2"), first, invalid()) is ApplyResult.Stale)
+        assertEquals("the answer to attempt 1 says nothing about attempt 2", listOf(cmd("a1"), cmd("a2")), applier(db).unresolvedAttempts())
+
+        assertTrue(applier(db).apply(cmd("a2"), second, invalid()) is ApplyResult.Recorded)
+        assertEquals(2, db.commands().find(cmd("a2"))!!.answeredAttempt)
+        assertEquals(listOf(cmd("a1")), applier(db).unresolvedAttempts())
+    }
+
+    @Test
+    fun aDependentReopenedWhenItsDependencyIsConsumedStillOwesItsAnswer() = runBlocking {
+        val db = openDatabase()
+        val store = storeOn(db, ScriptedIds(local, cmd("a1"), cmd("a2")))
+        store.execute(ListIntent.AddText("Leite"))
+        store.execute(ListIntent.SetItemState(local, ItemStatus.PURCHASED))
+        val root = prepareAndBegin(db, cmd("a1"))
+        val dependent = prepareAndBegin(db, cmd("a2"))
+        applier(db).apply(cmd("a1"), root, refusal(cmd("a1"), ReceiptStatus.CONFLICT, "precondition_failed"))
+        assertEquals(listOf(cmd("a1"), cmd("a2")), db.commands().inOrder().map { it.id })
+        assertEquals("the conflict was answered, the blocked dependent was not", listOf(cmd("a2")), applier(db).unresolvedAttempts())
+
+        // The "conflict" was a stale one after all: the root had been applied. The dependent goes back to the queue.
+        applier(db).apply(cmd("a1"), root, consumed(cmd("a1"), items(entry(local)), ReceiptStatus.DUPLICATE))
+        assertEquals(CommandStatus.PENDING.name, statusOf(db, cmd("a2")))
+        assertEquals("reopened, and still never answered", listOf(cmd("a2")), applier(db).unresolvedAttempts())
+
+        val mark = consumed(cmd("a2"), itemData(entry(local, status = "purchased", at = bought, lock = 1, outcome = null)), revision = 842)
+        assertTrue(applier(db).apply(cmd("a2"), dependent, mark) is ApplyResult.Acknowledged)
+        assertTrue(applier(db).unresolvedAttempts().isEmpty())
+    }
+
+    @Test
+    fun aBlockedAnswerThatOnlyMeansWaitCountsAsAnAnswer() = runBlocking {
+        val db = openDatabase()
+        val store = storeOn(db, ScriptedIds(local, cmd("a1"), cmd("a2")))
+        store.execute(ListIntent.AddText("Leite"))
+        store.execute(ListIntent.SetItemState(local, ItemStatus.PURCHASED))
+        prepareAndBegin(db, cmd("a1"))
+        val attempt = prepareAndBegin(db, cmd("a2"))
+
+        assertTrue(applier(db).apply(cmd("a2"), attempt, refusal(cmd("a2"), ReceiptStatus.BLOCKED, "dependency_not_applied")) is ApplyResult.WaitingForDependency)
+
+        assertEquals("the server said it did nothing; only a1 is in doubt", listOf(cmd("a1")), applier(db).unresolvedAttempts())
+    }
+
+    @Test
+    fun anIdempotencyConflictDoesNotProveThatTheOldEffectDidNotHappen() = runBlocking {
+        val db = openDatabase()
+        val store = storeOn(db, ScriptedIds(local, cmd("a1"), cmd("a2")))
+        store.execute(ListIntent.AddText("Leite"))
+        store.execute(ListIntent.SetItemState(local, ItemStatus.PURCHASED))
+        val attempt = prepareAndBegin(db, cmd("a1"))
+        prepareAndBegin(db, cmd("a2"))
+
+        // A lineage lost with the Keystore answers like this for a command that its previous lineage may well have applied.
+        val result = applier(db).apply(cmd("a1"), attempt, refusal(cmd("a1"), ReceiptStatus.REJECTED, "idempotency_conflict"))
+
+        assertTrue(result is ApplyResult.Recorded)
+        assertEquals(CommandStatus.REJECTED.name, statusOf(db, cmd("a1")))
+        assertEquals(0, db.commands().find(cmd("a1"))!!.answeredAttempt)
+        assertEquals("neither it nor its blocked dependent is resolved", listOf(cmd("a1"), cmd("a2")), applier(db).unresolvedAttempts())
+    }
+
+    // ---- a revive the server answered with another item -------------------------------------------------
+
+    @Test
+    fun aRedirectedReviveHoldsEverythingAboutThePurchaseAfterItAndNothingElseAndMakesNoAlias() = runBlocking {
+        val db = openDatabase()
+        val store = storeOn(db, ScriptedIds(cmd("a1"), cmd("a2"), cmd("a3"), other, cmd("a4")))
+        seedConfirmed(db, 800, confirmed(purchase, "Leite", lock = 3, purchased = true))
+        store.execute(ListIntent.AddText("Leite"))
+        store.execute(ListIntent.SetItemState(purchase, ItemStatus.PURCHASED))
+        store.execute(ListIntent.SetItemState(purchase, ItemStatus.PENDING)) // never prepared
+        store.execute(ListIntent.AddText("Pão")) // independent
+        val attempt = prepareAndBegin(db, cmd("a1"), claims = { claim("c1") })
+        assertTrue(WirePreparer(db).prepare(cmd("a2")) is PreparationResult.Prepared)
+        val intent = db.commands().inOrder().map { it.payload to it.preconditions }
+
+        val reply = consumed(cmd("a1"), items(entry(claim("c1"), kept, "Leite", lock = 4, outcome = "duplicate")), ReceiptStatus.NOOP)
+        val result = applier(db).apply(cmd("a1"), attempt, reply) as ApplyResult.Acknowledged
+
+        assertEquals(listOf(cmd("a2"), cmd("a3")), result.held)
+        assertEquals(ReceiptApplier.REVIVE_REDIRECTED, db.commands().find(cmd("a2"))!!.lastErrorCode)
+        assertEquals(CommandStatus.BLOCKED.name, statusOf(db, cmd("a3")))
+        assertEquals(CommandStatus.PENDING.name, statusOf(db, cmd("a4")))
+        assertEquals("intent and bytes are as the user left them", intent, db.commands().inOrder().map { it.payload to it.preconditions })
+        // Two real items: the claim is an alias of the item the server kept, and the purchase is nobody's alias.
+        assertEquals(listOf(claim("c1") to kept), db.aliases().all().map { it.aliasPublicId to it.canonicalPublicId })
+        assertEquals("the server's item is on the list as its own row", ItemStatusCodes.PENDING, db.listItems().find(kept)!!.status)
+        // A new command about the purchase waits behind the held ones.
+        assertTrue(store.execute(ListIntent.SetItemState(purchase, ItemStatus.PURCHASED)) is IntentResult.Saved)
+        assertEquals(CommandStatus.BLOCKED.name, db.commands().inOrder().last().status)
+    }
+
+    @Test
+    fun aReviveThatWasRevivedLeavesItsDependentsSendable() = runBlocking {
+        val db = openDatabase()
+        val store = storeOn(db, ScriptedIds(cmd("a1"), cmd("a2")))
+        seedConfirmed(db, 800, confirmed(purchase, "Leite", lock = 3, purchased = true))
+        store.execute(ListIntent.AddText("Leite"))
+        store.execute(ListIntent.SetItemState(purchase, ItemStatus.PURCHASED))
+        val attempt = prepareAndBegin(db, cmd("a1"), claims = { claim("c1") })
+        assertTrue(WirePreparer(db).prepare(cmd("a2")) is PreparationResult.Prepared)
+
+        val reply = consumed(cmd("a1"), items(entry(claim("c1"), purchase, "Leite", lock = 4, outcome = "revived")), revision = 801)
+        val result = applier(db).apply(cmd("a1"), attempt, reply) as ApplyResult.Acknowledged
+
+        assertTrue(result.held.isEmpty())
+        assertEquals(CommandStatus.PENDING.name, statusOf(db, cmd("a2")))
+    }
+
+    // ---- a merge the projection made on its own ------------------------------------------------------------
+
+    @Test
+    fun aProvisionalMergeIsNeverAnAliasAndTheRealAnswerReplacesIt() = runBlocking {
+        val db = openDatabase()
+        val store = storeOn(db, ScriptedIds(local, cmd("a1"), cmd("a2"), cmd("a3")))
+        store.execute(ListIntent.AddText("Leite"))
+        val first = prepareAndBegin(db, cmd("a1"))
+        store.execute(ListIntent.SetItemState(local, ItemStatus.PURCHASED))
+        seedConfirmed(db, 800, confirmed(kept, "Leite", lock = 0))
+        store.execute(ListIntent.SetItemState(kept, ItemStatus.PENDING))
+        assertTrue("the guess is not something the server said", db.aliases().all().isEmpty())
+
+        // The next action is prepared against the row the user acted on; the document is its own, and says who comes first.
+        val prepared = WirePreparer(db).prepare(cmd("a3")) as PreparationResult.Prepared
+        assertEquals(cmd("a2"), org.json.JSONObject(prepared.document).getString("depends_on"))
+        assertEquals(kept, org.json.JSONObject(prepared.document).getJSONObject("payload").getString("public_id"))
+
+        // The server's own answer arrives and makes the same merge official.
+        applier(db).apply(cmd("a1"), first, consumed(cmd("a1"), items(entry(local, kept, outcome = "duplicate", lock = 0)), ReceiptStatus.NOOP, revision = 801))
+        assertEquals(listOf(local to kept), db.aliases().all().map { it.aliasPublicId to it.canonicalPublicId })
+        assertEquals(listOf(kept), db.listItems().all().map { it.publicId })
+        assertEquals(cmd("a2"), db.commands().find(cmd("a3"))!!.dependsOn)
+        assertTrue(store.observe().first().items.single().awaitingSync)
+    }
 }
