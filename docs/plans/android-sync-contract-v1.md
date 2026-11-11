@@ -201,7 +201,7 @@ um comando já enviado.
 | `undo_item_state` | `public_id`, `status`, `purchased_at` | `lock_version` | `PurchaseUndo` / `#undo_purchase!` |
 | `correct_item` | `public_id`, `name`, `category_id?` (UUID público) | `lock_version` herdado de `depends_on` ou observado; `dictionary_revision` obrigatória com categoria manual | executor transacional + `ItemCategorizer.learn` condicional |
 | `remove_item` | `public_id` | `lock_version` (herdado de `depends_on` quando este tocou o item) | `Household#remove_item` |
-| `restore_item` | campos do item removido (nome, categoria, `purchased_at`, `created_at`, `position`) | item não existe / não há pendente homônimo | `Household#restore_item` |
+| `undo_remove` | vazio; `depends_on` referencia o comando de remoção | remoção original ainda vigente; sem pendente homônimo | compensação pelos atributos do ledger, sem token web |
 | `finish_shopping` | `items: [{ public_id, lock_version }]` — só os comprados vistos neste aparelho | cada `lock_version` | `Household#finish_shopping!` |
 | `undo_shopping` | `trip_public_id` | viagem é a mais recente | `Household#undo_shopping!` |
 | `create_habitual` | `name` | — | `HabitualItemsController#create` |
@@ -277,7 +277,7 @@ um comando já enviado.
   `rejected` / `public_id_conflict`; a resposta é a mesma nos dois casos e não
   diz de quem é o UUID. UUID de item removido ou arquivado desta casa é
   `rejected` / `gone` (`data.reason`: `removed` ou `archived`); só um novo
-  `add_items` com **outro** UUID (ou `restore_item`) coloca o nome de volta.
+  `add_items` com **outro** UUID (ou `undo_remove`) coloca o nome de volta.
 
 Dois aparelhos que adicionam o mesmo nome: o primeiro comando cria o item, o
 segundo recebe `noop` com `duplicate` e o UUID dele como alias. Exemplo real do
@@ -400,7 +400,7 @@ Observações:
   `unknown`/estrangeiro responde `not_found`; arquivado/removido responde `gone`;
   versão divergente responde `conflict`. O ledger guarda `data.item` com UUID
   citado/canônico, nome, `category_public_id` (UUID ou nulo), `normalized_name`,
-  estado, `purchased_at`, `lock_version`, `created_at`, `updated_at` e `position`, suficiente para um futuro `undo_remove` que cite o
+  estado, `purchased_at`, `lock_version`, `created_at`, `updated_at` e `position`, usado por `undo_remove`, que referencia o
   comando de remoção original. Esse recibo não é um token temporário da PWA.
 
 - Categorização automática e detecção de duplicados são feitas **localmente**
@@ -413,6 +413,54 @@ Observações:
   explicitamente os itens vistos e suas versões.
 - Comandos que a PWA já faz em lote (`update_all`) também incrementam a revisão
   (ver abaixo); o Android não depende de callbacks por item.
+
+### Desfazer remoção (`undo_remove`, issue #49)
+
+```json
+{
+  "id": "<novo UUID do comando de desfazer>",
+  "type": "undo_remove",
+  "depends_on": "<UUID do remove_item original>",
+  "payload": {}
+}
+```
+
+- `depends_on` é obrigatório e deve referenciar um `remove_item` aplicado da
+  mesma casa e linhagem. A dependência pode ter sido criada por uma credencial
+  anterior dessa linhagem. Dependência desconhecida, estrangeira ou de outra
+  linhagem responde `blocked/dependency_not_applied`, sem revelar o recibo;
+  dependência ausente responde `rejected/malformed_command`; outro tipo de
+  comando responde `rejected/invalid_removal`.
+- Os atributos vêm exclusivamente de `data.item` do ledger original; campos
+  enviados no payload não alteram a restauração. Não existe prazo no servidor
+  nem dependência do token assinado de um minuto usado pela PWA.
+- O UUID canônico deve continuar removido, com tombstone `ListItem` da casa e
+  revisão exatamente igual à revisão do recibo original. Item vivo responde
+  `conflict/precondition_failed`, razão `item_present`; arquivado,
+  `item_archived`; tombstone ausente ou de outra remoção, `removal_changed`.
+  Assim, restaurar e remover novamente (inclusive pela PWA) não permite que um
+  desfazer antigo compense a remoção nova.
+- Pendente homônimo pela normalização existente responde conflito
+  `duplicate_pending`. Categoria original não nula que deixou de existir
+  responde conflito `category_missing`. Esses conflitos não consomem o UUID
+  nem removem o tombstone; a intenção permanece para resolução no cliente.
+- Restaura o mesmo UUID canônico, aliases existentes, nome, categoria, estado,
+  `purchased_at`, `created_at`, `updated_at` e posição. A chave inteira interna
+  pode mudar. Não aprende nem recategoriza pelo dicionário atual, inclusive
+  quando a categoria original era nula.
+- A versão restaurada é a `lock_version` removida **mais um**, impedindo que
+  edições anteriores à remoção sobrescrevam a restauração. Comandos dependentes
+  de `undo_remove` herdam a versão nova pelo recibo, como os demais comandos.
+- Restauração, retirada do tombstone, incremento da revisão e novo ledger são
+  atômicos. Broadcasts Turbo e invalidações nativas só saem depois do commit.
+  Falha no ledger reverte tudo e permite tentar o mesmo comando novamente.
+- O resultado aplicado contém `data.removal_id` e `data.item` no formato de
+  `ItemData`, incluindo `category_public_id`. Reenviar os mesmos bytes e UUID
+  devolve `duplicate` com o recibo original, mesmo se o item mudou depois.
+  Outro UUID de desfazer passa novamente pelas precondições; não restaura duas
+  vezes nem sobrescreve o item que já voltou.
+- Esta rota é exclusiva de sync. A remoção e o desfazer web existentes mantêm
+  suas rotas, tokens e comportamento.
 
 ### Corrigir item (`correct_item`, issue #47)
 
@@ -465,7 +513,8 @@ mesmo se outro aparelho já tiver alterado o item/dicionário depois.
 Implementado na issue #38 (`SyncCommand`, `SyncCommandProcessor`) e ligado ao
 endpoint `POST /api/v1/commands` na #39. Os comandos de negócio registram seu
 executor em `SyncCommandProcessor::EXECUTORS` nas tasks que os introduzem; hoje
-são `add_items` e `set_item_state` (`app/services/sync_commands/`). Um tipo ainda
+são `add_items`, `set_item_state`, `correct_item`, `remove_item` e
+`undo_remove` (`app/services/sync_commands/`). Um tipo ainda
 não implementado responde `rejected` / `unsupported_command`.
 
 ### O que é gravado, e quando
@@ -866,7 +915,7 @@ conflito persistente, um aviso recuperável.
    apresenta o estado atual para revisão; não sobrescreve nem remove uma versão
    desconhecida.
 7. **Ação sobre item removido ou arquivado.** `gone`; não recriar implicitamente.
-   Só `add_items`/`restore_item` explícitos restauram.
+   Só `add_items`/`undo_remove` explícitos restauram.
 8. **Compra feita offline.** Envia IDs e versões dos comprados vistos neste
    aparelho; nunca arquiva todos os comprados que existirem ao receber.
 9. **Um item dessa compra mudou enquanto isso.** Finalização atômica: se alguma

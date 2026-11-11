@@ -19,7 +19,8 @@ class SyncCommandProcessor
     "add_items" => SyncCommands::AddItems,
     "set_item_state" => SyncCommands::SetItemState,
     "correct_item" => SyncCommands::CorrectItem,
-    "remove_item" => SyncCommands::RemoveItem
+    "remove_item" => SyncCommands::RemoveItem,
+    "undo_remove" => SyncCommands::UndoRemove
   }.freeze
 
   # `dependency` is the ledger row (SyncCommand) of the command named by
