@@ -216,16 +216,14 @@ class ShoppingScreensTest {
         compose.onNodeWithText("Café").assertIsDisplayed()
     }
 
-    @Test fun opensWithOneSyncAndTheButtonAsksAgainShowingWhatHappened() {
-        val results = java.util.concurrent.LinkedBlockingQueue(
-            listOf(
-                net.ts.taild80ca0.atlas.twa.sync.SyncReport(net.ts.taild80ca0.atlas.twa.sync.SyncOutcome.Offline(net.ts.taild80ca0.atlas.twa.sync.TransientCause.NETWORK), needsAttention = 1),
-                net.ts.taild80ca0.atlas.twa.sync.SyncReport(net.ts.taild80ca0.atlas.twa.sync.SyncOutcome.Synced(7)),
-            ),
-        )
+    @Test fun openingAddingAndMarkingSyncAutomaticallyAndTheButtonStillWorks() {
         val runs = java.util.concurrent.atomic.AtomicInteger()
         val sync = net.ts.taild80ca0.atlas.twa.sync.SyncController(
-            net.ts.taild80ca0.atlas.twa.sync.SyncRunner { runs.incrementAndGet(); results.take() },
+            net.ts.taild80ca0.atlas.twa.sync.SyncRunner {
+                if (runs.incrementAndGet() == 1)
+                    net.ts.taild80ca0.atlas.twa.sync.SyncReport(net.ts.taild80ca0.atlas.twa.sync.SyncOutcome.Offline(net.ts.taild80ca0.atlas.twa.sync.TransientCause.NETWORK), needsAttention = 1)
+                else net.ts.taild80ca0.atlas.twa.sync.SyncReport(net.ts.taild80ca0.atlas.twa.sync.SyncOutcome.Synced(7))
+            },
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Job() + kotlinx.coroutines.Dispatchers.Default),
         )
 
@@ -241,9 +239,22 @@ class ShoppingScreensTest {
         add("Leite")
         runBlocking { assertEquals("Leite", db.listItems().live().single().name) }
 
+        waitForText("sync-status", "Sincronizado.")
+        assertEquals(2, runs.get())
+        // A duplicate does not enqueue anything and must not start another cycle.
+        compose.onNodeWithTag("add-input").performTextInput("Leite")
+        compose.onNodeWithTag("save-add").performClick()
+        waitForText("feedback", "Já está na lista")
+        assertEquals(2, runs.get())
+        compose.onNodeWithTag("nav-list").performClick()
+        val id = runBlocking { db.listItems().live().single().publicId }
+        compose.onNodeWithTag("item-$id").performClick()
+        assertMarked(id, true)
+        compose.waitUntil(10_000) { runs.get() == 3 && sync.status.value is net.ts.taild80ca0.atlas.twa.sync.SyncStatus.Idle }
         compose.onNodeWithTag("sync-now").performScrollTo().assertIsDisplayed().performClick()
+        compose.waitUntil(10_000) { runs.get() == 4 && sync.status.value is net.ts.taild80ca0.atlas.twa.sync.SyncStatus.Idle }
         waitForText("sync-status", "Sincronizado.")
         compose.onNodeWithTag("sync-now").assertTextEquals("Sincronizar agora")
-        assertEquals(2, runs.get())
+        assertEquals(4, runs.get())
     }
 }

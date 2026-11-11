@@ -1,6 +1,5 @@
 package net.ts.taild80ca0.atlas.twa.sync
 
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,49 +13,68 @@ sealed interface SyncStatus {
     data class Running(val last: SyncReport?) : SyncStatus
 }
 
-/**
- * The trigger of [SyncCycle] for the screens: opening or resuming the app asks for a cycle, and the user can ask
- * again with a button. There is no worker or timer. It lives as long as the process (it is not tied to a screen),
- * so rotating the phone does not cancel a cycle, and a cycle that the system kills is recovered by the next one
- * from what the database holds (attempts are committed before their request).
- *
- * An automatic request (resume) is ignored while a cycle runs or if the previous one started less than
- * [autoIntervalMillis] ago, so coming back to the app does not hammer the server; a manual one only waits for
- * the running cycle.
- */
+/** Process-scoped sync. Resume is throttled; committed edits and restored connectivity are never dropped. */
 class SyncController(
     private val cycle: SyncRunner,
     private val scope: CoroutineScope,
     private val autoIntervalMillis: Long = 15_000,
     private val clock: () -> Long = { System.nanoTime() / 1_000_000 },
 ) {
-    private val busy = AtomicBoolean(false)
+    private val lock = Any()
+    private var busy = false
+    private var pending = false
+    private var lastStart: Long? = null
     private val _status = MutableStateFlow<SyncStatus>(SyncStatus.Idle(null))
     val status: StateFlow<SyncStatus> = _status.asStateFlow()
 
-    @Volatile
-    private var lastStart: Long? = null
+    fun request(manual: Boolean): Boolean = enqueue(throttled = !manual, followUp = false)
 
-    /** Returns true when a cycle was started. */
-    fun request(manual: Boolean): Boolean {
-        if (!manual) {
-            val started = lastStart
-            if (started != null && clock() - started < autoIntervalMillis) return false
+    /** Called only after a local commit, or when connectivity returns. Coalesce events during a cycle. */
+    fun changed(): Boolean = enqueue(throttled = false, followUp = true)
+
+    private fun enqueue(throttled: Boolean, followUp: Boolean): Boolean = synchronized(lock) {
+        if (busy) {
+            if (followUp) pending = true
+            return@synchronized false
         }
-        if (!busy.compareAndSet(false, true)) return false
+        val started = lastStart
+        if (throttled && started != null && clock() - started < autoIntervalMillis) return@synchronized false
+        busy = true
         lastStart = clock()
-        val previous = _status.value.let { (it as? SyncStatus.Idle)?.last ?: (it as? SyncStatus.Running)?.last }
+        val previous = (_status.value as SyncStatus.Idle).last
         _status.value = SyncStatus.Running(previous)
         scope.launch {
             var report = previous
+            var completed = false
             try {
-                report = cycle.run().takeIf { it.outcome != SyncOutcome.AlreadyRunning } ?: previous
+                do {
+                    report = cycle.run().takeIf { it.outcome != SyncOutcome.AlreadyRunning } ?: report
+                    val again = synchronized(lock) {
+                        if (pending) {
+                            pending = false
+                            lastStart = clock()
+                            _status.value = SyncStatus.Running(report)
+                            true
+                        } else {
+                            _status.value = SyncStatus.Idle(report)
+                            busy = false
+                            false
+                        }
+                    }
+                } while (again)
+                completed = true
             } finally {
-                _status.value = SyncStatus.Idle(report)
-                busy.set(false)
+                synchronized(lock) {
+                    // A normal completion already released the lock to a possible new request.
+                    if (!completed) {
+                        _status.value = SyncStatus.Idle(report)
+                        busy = false
+                        pending = false
+                    }
+                }
             }
         }
-        return true
+        true
     }
 }
 
