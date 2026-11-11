@@ -65,7 +65,8 @@ ou de habituais foi feita**: os dados são guardados, não interpretados.
 
 ## Gatilho
 
-Sem worker nem temporizador. `SyncController` pede um ciclo quando o app **abre ou retoma** (`ON_RESUME`; ignorado
+Além do [worker persistente](android-background-sync.md) da #46, `SyncController` pede um ciclo quando o app
+**abre ou retoma** (`ON_RESUME`; ignorado
 se o ciclo anterior começou há menos de 15 s) e quando o usuário toca em **"Sincronizar agora"** (vira
 **"Tentar novamente"** se o último ciclo não terminou sincronizado; nunca limitado). O painel de estado na área rolável das telas
 conta o que aconteceu em português, sem códigos: "Sincronizado.", "Sem conexão com o servidor…",
@@ -98,8 +99,9 @@ cd android && ./gradlew assembleDebug      # app/build/outputs/apk/debug/app-deb
 
 Sem `-PalvaServerUrl` o APK aponta para o servidor real (`https://atlas.taild80ca0.ts.net`). **Conectar com a senha
 da casa ali é um ato deliberado**: o aparelho passa a receber a lista real e a enviar o que for adicionado ou marcado
-para a casa real. Nada neste corte provisiona casa nova nem altera dados de produção; a verificação nos dois
-aparelhos reais ainda não foi feita (#59).
+para a casa real. Nada neste corte provisiona casa nova nem altera dados de produção. A verificação física da
+primeira fatia foi confirmada pelo usuário em 11/11/2026; o novo worker tem validação própria, descrita no documento
+da #46.
 
 Ordem sugerida nos dois celulares: abrir e conectar (a primeira sincronização traz a lista, que pode estar vazia);
 em A, desligar a rede, adicionar e marcar; religar e tocar em "Sincronizar agora"; em B, abrir ou retomar o app
@@ -107,7 +109,8 @@ e conferir; marcar em B; voltar a A.
 
 ## Limites conhecidos (nada disto deve ser dado como pronto)
 
-- **Sem sincronização em segundo plano.** Só abrir/retomar e o botão. Com o app fechado nada sai nem chega.
+- **Segundo plano:** o [worker da #46](android-background-sync.md) envia alterações locais com rede; mudanças
+  apenas no outro aparelho ainda dependem de abrir/retomar ou do botão, até o corte ActionCable.
 - **Tentativa sem resposta que não pode ser repetida segura o snapshot, de forma visível e sem apagar nada.** É o
   caso de `idempotency_conflict` (credencial antiga perdida: o Keystore apagado), de um dependente `BLOCKED` que já
   tinha sido enviado, e de uma recusa da requisição inteira (`Refused`/`Invalid`) cujos bytes não adiantam repetir.
@@ -120,7 +123,8 @@ e conferir; marcar em B; voltar a A.
 - O snapshot é sempre completo (sem incremental), com teto de 32 MB; um ciclo grande consome dados móveis.
 - A ordem da lista viva usa `created_at` em milissegundos (relógio do servidor para o que veio dele, do aparelho
   para o que ainda é local). A ordem e a precisão do servidor ficam guardadas, mas a tela ainda não as usa.
-- Testes em emulador (loopback via `adb reverse`) e JVM; nenhum aparelho físico, rede real, servidor com tráfego de
-  outros clientes ou morte real do processo no meio do ciclo (simulada reabrindo o arquivo).
+- Testes automatizados em emulador (loopback via `adb reverse`) e JVM; a primeira fatia também foi validada nos
+  dois celulares pelo usuário. Não há teste automatizado de morte real do processo no meio do ciclo (simulada
+  reabrindo o arquivo).
 - `SyncCycleTest` usa um servidor de mentira para provocar falhas exatas; só o `RailsSyncConvergenceTest` prova o
   contrato com o Rails de verdade.

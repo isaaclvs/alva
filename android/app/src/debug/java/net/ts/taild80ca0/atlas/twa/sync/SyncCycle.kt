@@ -70,8 +70,8 @@ fun interface SyncRunner {
  *
  * The network is never inside a Room transaction: each attempt commits before its request, each answer is applied
  * in its own transaction afterwards, and the snapshot is fully read before the installer opens its one.
- * Cycles do not overlap (a second call returns [SyncOutcome.AlreadyRunning]). There is no background worker or timer
- * here: something has to call [run] (opening or resuming the app, or the explicit button).
+ * Cycles do not overlap (a second call returns [SyncOutcome.AlreadyRunning]). Callers include opening/resuming,
+ * the explicit button and the persistent worker; scheduling stays outside this cycle.
  */
 class SyncCycle(
     private val db: AlvaDatabase,

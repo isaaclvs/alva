@@ -22,6 +22,7 @@ class MainActivity : ComponentActivity() {
         val access = AccessGraph.houseAccess(this)
         val store = AccessGraph.shoppingListStore(this)
         val sync = AccessGraph.syncController(this)
+        AccessGraph.recoverBackgroundSync(this)
         setContent {
             AlvaTheme {
                 Surface {
