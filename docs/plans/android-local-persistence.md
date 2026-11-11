@@ -526,3 +526,11 @@ continua aberta; próximos PRs pequenos, cada um sobre a `main` já integrada:
 6. Validação: Rails real com dois bancos Room no emulador e resposta perdida após o commit
    (`script/android_rails_sync_check`) feita; **falta** verificar nos dois aparelhos reais (#59) e decidir o que fazer
    com tentativa sem resposta que não pode ser repetida (credencial perdida) e com conflitos (tela de resolução).
+
+## Descarte auditado (Room 6, #45)
+
+A [resolução local de conflitos](android-conflict-resolution.md) acrescenta a
+tabela `command_resolutions` por migração 5→6. Só recusas definitivas podem ser
+retiradas da fila mediante preview revalidado, junto com seus dependentes e
+uma cópia integral para auditoria. Tentativas incertas permanecem protegidas.
+O serviço ainda precisa ser ligado à interface; não representa conclusão da #45.

@@ -467,4 +467,34 @@ class AlvaDatabaseMigrationTest {
             db.close()
         }
     }
+
+    @Test
+    fun version5To6PreservesFrozenQueueAndEveryOldTableAndAddsEmptyAudit() {
+        helper.createDatabase(name, 5).apply {
+            execSQL("INSERT INTO sync_state (id, household_public_id, confirmed_revision, household_name) VALUES (1, 'house-1', 840, 'Nossa casa')")
+            execSQL("INSERT INTO commands (id, type, payload, preconditions, depends_on, observed_revision, status, created_at, attempts, last_error_code, wire_document, answered_attempt) VALUES ('c-1', 'add_items', '{}', '{}', NULL, 840, 'CONFLICT', 10, 2, 'precondition_failed', 'frozen-bytes', 2)")
+            execSQL("INSERT INTO command_subjects (command_id, subject_public_id, ordinal, role, category_public_id) VALUES ('c-1', 'i-local', 0, 'creates', NULL)")
+            close()
+        }
+        val oldTables = v2Tables + listOf("sync_aliases", "command_receipts", "archived_items", "shopping_trips", "habitual_items", "tombstones")
+        val before = helper.runMigrationsAndValidate(name, 5, false).use { dump(it, oldTables) }
+        helper.runMigrationsAndValidate(name, 6, true, AlvaMigrations.MIGRATION_5_6).use { migrated ->
+            assertEquals(before, dump(migrated, oldTables))
+            migrated.query("SELECT COUNT(*) FROM command_resolutions").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(0, cursor.getInt(0))
+            }
+        }
+        val db = AlvaDatabaseFactory.create(InstrumentationRegistry.getInstrumentation().targetContext, name)
+        try {
+            kotlinx.coroutines.runBlocking {
+                assertEquals("frozen-bytes", db.commands().find("c-1")?.wireDocument)
+                assertEquals(2, db.commands().find("c-1")?.answeredAttempt)
+                assertTrue(db.resolutions().all().isEmpty())
+            }
+        } finally {
+            db.close()
+        }
+    }
+
 }
