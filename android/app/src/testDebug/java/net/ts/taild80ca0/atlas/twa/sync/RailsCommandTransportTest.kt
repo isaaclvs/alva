@@ -409,4 +409,33 @@ class RailsCommandTransportTest {
         assertEquals(2, effect.items.single().lockVersion)
         assertEquals(listOf(claimId to itemId), effect.aliases.map { it.alias to it.canonical })
     }
+
+    @Test
+    fun railsSquishesUnicodeWhitespaceAndItsAnswersToAnotherSpellingOfTheNameStillPassTheValidator() {
+        val word = UUID.randomUUID().toString().filter { it.isLetter() }.take(10) + "a"
+        val createdId = newId()
+        val createCommand = newId()
+        // NBSP and the ideographic space between the words, and at the edges: Rails squishes them all.
+        val typed = "\u3000Teste\u00a0\u2003$word\u202f"
+        val create = addDocument(createCommand, createdId, typed)
+        val subjects = listOf(WireSubject(createdId, SubjectRole.CREATES, 0))
+        val applied = receipt(send(createCommand, create))
+        assertEquals(ReceiptStatus.APPLIED, applied.status)
+        assertEquals("Rails created the squished name", "Teste $word", JSONObject(applied.dataJson!!).getJSONArray("items").getJSONObject(0).getString("name"))
+        assertEquals(ItemOutcome.CREATED, valid(check("add_items", create, subjects, applied)).items.single().outcome)
+
+        // Typed again in plural, other case, different spaces: the same item, found by the matching key.
+        val againId = newId()
+        val againCommand = newId()
+        val again = addDocument(againCommand, againId, "  TESTE\u00a0\u00a0${word}s ")
+        val noop = receipt(send(againCommand, again))
+        assertEquals(ReceiptStatus.NOOP, noop.status)
+        val effect = valid(check("add_items", again, listOf(WireSubject(againId, SubjectRole.CREATES, 0)), noop))
+        assertEquals(ItemOutcome.DUPLICATE, effect.items.single().outcome)
+        assertEquals(createdId, effect.items.single().canonicalPublicId)
+
+        // And the same answer must not satisfy a command for another name.
+        val other = addDocument(againCommand, againId, "Detergente")
+        assertTrue(check("add_items", other, listOf(WireSubject(againId, SubjectRole.CREATES, 0)), noop) is ReceiptCheck.Invalid)
+    }
 }
