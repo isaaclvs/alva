@@ -122,6 +122,25 @@ interface CommandDao {
     @Query("UPDATE commands SET status = :status, last_error_code = :errorCode WHERE id = :id")
     suspend fun setStatus(id: String, status: String, errorCode: String?)
 
+    /**
+     * Stores the wire document once. Guarded in SQL, so the first writer wins even if two
+     * callers race: the document can only go from NULL to a value, never be replaced, and
+     * never be created for a row that may already have been sent (`attempts > 0`).
+     * Returns the number of rows written (0 or 1).
+     */
+    @Query("UPDATE commands SET wire_document = :document WHERE id = :id AND wire_document IS NULL AND attempts = 0")
+    suspend fun freezeWireDocument(id: String, document: String): Int
+
+    /**
+     * Counts one attempt and marks the command in flight, only for a frozen command in a
+     * status that may be sent. Returns the number of rows written (0 or 1).
+     */
+    @Query(
+        "UPDATE commands SET attempts = attempts + 1, status = :inFlight " +
+            "WHERE id = :id AND wire_document IS NOT NULL AND status IN (:sendable)",
+    )
+    suspend fun recordAttempt(id: String, inFlight: String, sendable: List<String>): Int
+
     /** Removes a command the server confirmed. Its subjects go with it (cascade). */
     @Query("DELETE FROM commands WHERE id = :id")
     suspend fun delete(id: String)
