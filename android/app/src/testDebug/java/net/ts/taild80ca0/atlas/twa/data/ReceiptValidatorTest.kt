@@ -292,4 +292,35 @@ class ReceiptValidatorTest {
         assertTrue("reviving another name cannot satisfy the command", revived is ReceiptCheck.Invalid)
     }
 
+    @Test
+    fun everyKindOfUnicodeWhitespaceIsSquishedLikeRailsBeforeComparingNames() {
+        val typed = "\u3000Pão\u00a0\u2003 francês\u202f"
+        val document = addDocument(entry(mine, typed))
+        assertTrue(addCheck("""{"items":[${item(mine, name = "Pão francês")}]}""", document = document) is ReceiptCheck.Valid)
+        // Squish collapses, it does not delete: "Pãofrancês" is another name.
+        assertTrue(addCheck("""{"items":[${item(mine, name = "Pãofrancês")}]}""", document = document) is ReceiptCheck.Invalid)
+    }
+
+    @Test
+    fun aDuplicateOrReviveMayBeAnotherCasePluralOrAccentOfTheNameButNeverAnotherName() {
+        val bananas = addDocument(entry(mine, "  Bananas\u00a0"))
+        val duplicate = addCheck("""{"items":[${item(mine, theirs, name = "banana", outcome = "duplicate")}]}""", document = bananas, applied = false)
+        assertTrue("the existing item is called Banana, the user typed Bananas: $duplicate", duplicate is ReceiptCheck.Valid)
+        val caps = addCheck("""{"items":[${item(mine, theirs, name = "PÃO", outcome = "duplicate")}]}""", document = addDocument(entry(mine, "pães")), applied = false)
+        assertTrue("pães and PÃO share a key: $caps", caps is ReceiptCheck.Valid)
+
+        val revive = addDocument(entry(claim, "Detergentes", revives = purchase))
+        val subjects = listOf(WireSubject(purchase, SubjectRole.TARGETS, 0))
+        val plural = addCheck("""{"items":[${item(claim, purchase, name = "Detergente", lock = 4, outcome = "revived")}]}""", document = revive, subjects = subjects)
+        assertTrue("$plural", plural is ReceiptCheck.Valid)
+        val other = addCheck("""{"items":[${item(claim, purchase, name = "Sabão", lock = 4, outcome = "revived")}]}""", document = revive, subjects = subjects)
+        assertEquals(ReceiptRefusal.ITEM_MISMATCH, refusal(other))
+    }
+
+    @Test
+    fun aCreatedNameIsTheSquishedTypedNameNotAPluralOfIt() {
+        val document = addDocument(entry(mine, "Banana"))
+        assertTrue(addCheck("""{"items":[${item(mine, name = "banana")}]}""", document = document) is ReceiptCheck.Valid)
+        assertEquals(ReceiptRefusal.ITEM_MISMATCH, refusal(addCheck("""{"items":[${item(mine, name = "Bananas")}]}""", document = document)))
+    }
 }

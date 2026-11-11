@@ -2,6 +2,7 @@ package net.ts.taild80ca0.atlas.twa.data.list
 
 import net.ts.taild80ca0.atlas.twa.data.db.ItemStatusCodes
 import net.ts.taild80ca0.atlas.twa.data.db.SubjectRole
+import net.ts.taild80ca0.atlas.twa.data.matching.RubyText
 import net.ts.taild80ca0.atlas.twa.data.matching.TextNormalizer
 import org.json.JSONArray
 import org.json.JSONException
@@ -104,8 +105,10 @@ sealed interface ReceiptCheck {
  * - **Coherent state.** `created`/`revived` are pending without `purchased_at`; `created` is version 0, `revived` a version
  *   above the one the user saw; a `set_item_state` entry is in the desired state, `applied` with a version
  *   above 0. `applied` needs at least one created/revived entry and `noop` none.
- * - **Names.** A created entry has the name that was typed (compared as the matching key, so the server's
- *   whitespace squish does not matter).
+ * - **Names.** Rails squishes the typed name (Unicode white space included) before using it. A created entry has
+ *   that name (compared without case and accents); a `duplicate` or `revived` entry is an existing item found by
+ *   the matching key of that name, so it has the same key (a plural or another case of the name is fine, another
+ *   name is not).
  *
  * Aliases to record are derived here; whether recording them contradicts what the device already
  * has is checked by the caller against the database ([knownAlias]).
@@ -183,16 +186,17 @@ object ReceiptValidator {
                     if (link.role != SubjectRole.CREATES) return mismatch(link.ordinal, "created for a revive")
                     if (canonical != cited) return mismatch(link.ordinal, "created under another UUID")
                     if (!fresh || parsed.lockVersion != 0) return mismatch(link.ordinal, "a created item is pending at version 0")
-                    if (TextNormalizer.plain(parsed.name) != TextNormalizer.plain(typed)) return mismatch(link.ordinal, "created under another name")
+                    if (TextNormalizer.plain(parsed.name) != TextNormalizer.plain(railsSquish(typed))) return mismatch(link.ordinal, "created under another name")
                 }
                 ItemOutcome.REVIVED -> {
                     if (link.role != SubjectRole.TARGETS) return mismatch(link.ordinal, "revived without a revive")
                     if (canonical != link.revivedPublicId?.lowercase()) return mismatch(link.ordinal, "revived another purchase")
                     if (!fresh) return mismatch(link.ordinal, "a revived item is pending")
+                    if (!sameItemName(parsed.name, typed)) return mismatch(link.ordinal, "revived under another name")
                     val seen = (revives?.opt("lock_version") as? Number)?.toInt()
                     if (parsed.lockVersion < 1 || (seen != null && parsed.lockVersion <= seen)) return mismatch(link.ordinal, "a revive moves the version")
                 }
-                ItemOutcome.DUPLICATE -> Unit
+                ItemOutcome.DUPLICATE -> if (!sameItemName(parsed.name, typed)) return mismatch(link.ordinal, "a duplicate of another name")
                 ItemOutcome.UPDATED -> return mismatch(link.ordinal, "updated is not an add_items outcome")
             }
             items += ReceiptItem(link.ordinal, cited, canonical, parsed.name, parsed.status, parsed.purchasedAt, parsed.lockVersion, parsed.outcome)
@@ -204,6 +208,20 @@ object ReceiptValidator {
         if (applied != changed) return invalid(ReceiptRefusal.ITEM_MISMATCH, "the status and the outcomes disagree")
         return aliasProblem(aliases, items, knownAlias) ?: ReceiptCheck.Valid(ReceiptEffect(items, aliases))
     }
+
+    /**
+     * What Rails does to a typed name before it creates or looks anything up: `squish` (Unicode white space,
+     * not the ASCII-only squish [TextNormalizer] applies after transliterating).
+     */
+    private fun railsSquish(typed: String) = RubyText.squish(typed)
+
+    /**
+     * The item the server answers with (an existing one, for `duplicate` and `revived`) was found by the
+     * matching key of the squished typed name, so it has to have that key: another case, accent or plural
+     * of the same name is the same item, a different name is not.
+     */
+    private fun sameItemName(serverName: String, typed: String) =
+        TextNormalizer.key(serverName) == TextNormalizer.key(railsSquish(typed))
 
     private fun setItemState(
         wire: JSONObject,
