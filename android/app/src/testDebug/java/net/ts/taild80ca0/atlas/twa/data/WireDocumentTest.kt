@@ -96,4 +96,38 @@ class WireDocumentTest {
         val other = """{"id":"c-9","type":"remove_item","depends_on":null,"preconditions":{},"payload":{}}"""
         assertEquals("type remove_item has no wire form yet", problem(other, "c-9", "remove_item"))
     }
+
+    @Test
+    fun aReviveEntryMustBeANewClaimWithAValidVersion() {
+        fun doc(entry: String) =
+            """{"id":"c-1","type":"add_items","depends_on":null,"preconditions":{},"payload":{"items":[$entry]}}"""
+        assertNull(problem(doc("""{"public_id":"claim-1","name":"a","revives":{"public_id":"purchase-1"}}""")))
+        assertEquals(
+            "items[0].public_id must be a new claim, not the purchase it revives",
+            problem(doc("""{"public_id":"Purchase-1","name":"a","revives":{"public_id":"purchase-1","lock_version":2}}""")),
+        )
+        assertEquals(
+            "items[0].revives.lock_version must be an integer >= 0",
+            problem(doc("""{"public_id":"c","name":"a","revives":{"public_id":"p","lock_version":-1}}""")),
+        )
+        assertEquals(
+            "items[0].revives.lock_version must be an integer >= 0",
+            problem(doc("""{"public_id":"c","name":"a","revives":{"public_id":"p","lock_version":"3"}}""")),
+        )
+    }
+
+    @Test
+    fun setItemStatePreconditionsAreOnlyAVersion() {
+        fun doc(preconditions: String) =
+            """{"id":"c-2","type":"set_item_state","depends_on":"c-1","preconditions":$preconditions,"payload":{"public_id":"i","desired":"pending"}}"""
+        assertNull(problem(doc("""{"lock_version":0}"""), "c-2", "set_item_state", "c-1"))
+        assertEquals(
+            "set_item_state takes only lock_version as a precondition, not revision",
+            problem(doc("""{"revision":4}"""), "c-2", "set_item_state", "c-1"),
+        )
+        assertEquals(
+            "preconditions.lock_version must be an integer >= 0",
+            problem(doc("""{"lock_version":-2}"""), "c-2", "set_item_state", "c-1"),
+        )
+    }
 }
