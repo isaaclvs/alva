@@ -22,11 +22,12 @@ class MainActivity : ComponentActivity() {
         val access = AccessGraph.houseAccess(this)
         val store = AccessGraph.shoppingListStore(this)
         val sync = AccessGraph.syncController(this)
+        val invalidation = AccessGraph.foregroundInvalidation(this)
         AccessGraph.recoverBackgroundSync(this)
         setContent {
             AlvaTheme {
                 Surface {
-                    AccessScreen(access = access, connected = { actions -> ShoppingScreens(store, accessActions = actions, sync = sync) })
+                    AccessScreen(access = access, connected = { actions -> ShoppingScreens(store, accessActions = actions, sync = sync, invalidation = invalidation) })
                 }
             }
         }

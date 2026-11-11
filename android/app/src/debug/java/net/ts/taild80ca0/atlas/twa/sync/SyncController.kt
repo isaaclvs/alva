@@ -32,6 +32,7 @@ class SyncController(
     private val clock: () -> Long = { System.nanoTime() / 1_000_000 },
 ) {
     private val busy = AtomicBoolean(false)
+    private val invalidationPending = AtomicBoolean(false)
     private val _status = MutableStateFlow<SyncStatus>(SyncStatus.Idle(null))
     val status: StateFlow<SyncStatus> = _status.asStateFlow()
 
@@ -49,6 +50,20 @@ class SyncController(
         val previous = startReport()
         scope.launch { finishRun(previous) }
         return true
+    }
+
+    /** A remote signal bypasses resume throttling; a running cycle gets one successor. */
+    fun requestInvalidation() {
+        invalidationPending.set(true)
+        drainInvalidation()
+    }
+
+    private fun drainInvalidation() {
+        if (!busy.compareAndSet(false, true)) return
+        invalidationPending.set(false)
+        lastStart = clock()
+        val previous = startReport()
+        scope.launch { finishRun(previous) }
     }
 
     /** A WorkManager invocation must await completion, rather than launching an unowned coroutine. */
@@ -73,6 +88,7 @@ class SyncController(
         } finally {
             _status.value = SyncStatus.Idle(report)
             busy.set(false)
+            if (invalidationPending.get()) drainInvalidation()
         }
     }
 }

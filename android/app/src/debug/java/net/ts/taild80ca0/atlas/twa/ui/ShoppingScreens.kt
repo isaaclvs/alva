@@ -32,6 +32,7 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import net.ts.taild80ca0.atlas.twa.sync.SyncController
+import net.ts.taild80ca0.atlas.twa.sync.ForegroundInvalidation
 import net.ts.taild80ca0.atlas.twa.sync.SyncMessages
 import net.ts.taild80ca0.atlas.twa.sync.SyncStatus
 
@@ -57,6 +58,7 @@ fun ShoppingScreens(
     modifier: Modifier = Modifier,
     accessActions: (@Composable () -> Unit)? = null,
     sync: SyncController? = null,
+    invalidation: ForegroundInvalidation? = null,
 ) {
     var state by remember(store) { mutableStateOf<ListState?>(null) }
     var readFailed by remember(store) { mutableStateOf(false) }
@@ -82,12 +84,22 @@ fun ShoppingScreens(
     LaunchedEffect(screen) {
         if (screen == "list") keyboard?.hide()
     }
-    // Opening or coming back to the app asks for a sync cycle. Nothing else triggers one: no worker, no timer.
+    // The live subscription exists only while this screen is resumed. WorkManager owns background retries.
     val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(sync, lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) sync?.request(manual = false) }
+    DisposableEffect(sync, invalidation, lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> { invalidation?.start(); sync?.request(manual = false) }
+                Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_DESTROY -> invalidation?.stop()
+                else -> Unit
+            }
+        }
         lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) invalidation?.start()
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            invalidation?.stop()
+        }
     }
     val syncStatus = sync?.status?.collectAsState()?.value
 

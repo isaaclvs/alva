@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.work.WorkManager
 import kotlinx.coroutines.launch
 import net.ts.taild80ca0.atlas.twa.sync.BackgroundSync
+import net.ts.taild80ca0.atlas.twa.sync.ForegroundInvalidation
 import net.ts.taild80ca0.atlas.twa.sync.SyncingShoppingListStore
 import net.ts.taild80ca0.atlas.twa.data.list.RoomShoppingListStore
 import net.ts.taild80ca0.atlas.twa.data.list.ShoppingListStore
@@ -33,6 +34,7 @@ object AccessGraph {
     private var database: AlvaDatabase? = null
     private var listStore: ShoppingListStore? = null
     private var syncController: SyncController? = null
+    @Volatile private var foregroundInvalidation: ForegroundInvalidation? = null
 
     /** True while a test installed its own graph: then nothing is built lazily (a test must never reach the real server). */
     private var overridden = false
@@ -51,7 +53,7 @@ object AccessGraph {
     @Synchronized
     fun shoppingListStore(context: Context): ShoppingListStore =
         listStore ?: RoomShoppingListStore(database(context)).let { local ->
-            if (overridden) local else SyncingShoppingListStore(local, background(context))
+            if (overridden) local else SyncingShoppingListStore(local, background(context)) { foregroundInvalidation?.localChange() }
         }.also { listStore = it }
 
     fun houseAccess(context: Context): HouseAccess =
@@ -77,6 +79,14 @@ object AccessGraph {
             SyncController(cycle, scope).also { syncController = it }
         }
 
+    @Synchronized
+    fun foregroundInvalidation(context: Context): ForegroundInvalidation? {
+        if (overridden) return foregroundInvalidation
+        return foregroundInvalidation ?: ForegroundInvalidation(
+            houseAccess(context), ServerEndpoint.parse(BuildConfig.SERVER_URL), syncController(context)!!, scope,
+        ).also { foregroundInvalidation = it }
+    }
+
     /** Called by the app entry, never by a worker: worker startup must not schedule another worker. */
     @Synchronized
     fun recoverBackgroundSync(context: Context) {
@@ -87,8 +97,10 @@ object AccessGraph {
     }
 
     /** Test hook: replaces (or, with null, drops) the instance, like a new process would. */
-    fun install(access: HouseAccess?, store: ShoppingListStore? = null, sync: SyncController? = null) {
+    fun install(access: HouseAccess?, store: ShoppingListStore? = null, sync: SyncController? = null, foreground: ForegroundInvalidation? = null) {
         synchronized(this) {
+            foregroundInvalidation?.stop()
+            foregroundInvalidation = foreground
             instance = access
             listStore = store
             syncController = sync
