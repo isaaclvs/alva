@@ -59,5 +59,4 @@ class SyncCable::ChannelTest < ActionCable::Channel::TestCase
   ensure
     ENV["ALVA_PASSWORD_DIGEST"] = old_digest
   end
-
 end
