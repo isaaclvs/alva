@@ -1,13 +1,5 @@
 package net.ts.taild80ca0.atlas.twa.access
 
-import java.io.ByteArrayOutputStream
-import java.io.IOException
-import java.io.InputStream
-import java.net.HttpURLConnection
-import java.net.URL
-import javax.net.ssl.SSLException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import org.json.JSONException
 import org.json.JSONObject
 
@@ -95,59 +87,24 @@ class HttpHouseAccessApi(
 
     private class Response(val status: Int, val body: ByteArray, val retryAfterHeader: String?)
 
+    private val exchange = HttpExchange(endpoint, connectTimeoutMillis, readTimeoutMillis, MAX_BODY_BYTES)
+
     private suspend fun call(
         method: String,
         path: String,
         bearer: String?,
         jsonBody: String?,
-    ): ApiResult<Response> = withContext(Dispatchers.IO) {
-        var connection: HttpURLConnection? = null
-        try {
-            connection = (URL(endpoint.url(path)).openConnection() as HttpURLConnection).apply {
-                requestMethod = method
-                connectTimeout = connectTimeoutMillis
-                readTimeout = readTimeoutMillis
-                instanceFollowRedirects = false
-                useCaches = false
-                // One request per connection: a pooled connection that the server already
-                // closed could make the stack silently resend a pairing POST.
-                setRequestProperty("Connection", "close")
-                setRequestProperty("Accept", "application/json")
-                if (bearer != null) setRequestProperty("Authorization", "Bearer $bearer")
-                if (jsonBody != null) {
-                    doOutput = true
-                    setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                }
-            }
-            if (jsonBody != null) connection.outputStream.use { it.write(jsonBody.toByteArray(Charsets.UTF_8)) }
-            val status = connection.responseCode
-            val stream = if (status < 400) connection.inputStream else connection.errorStream
-            val body = stream?.use { readCapped(it) } ?: ByteArray(0)
-            ApiResult.Ok(Response(status, body, connection.getHeaderField("Retry-After")))
-        } catch (_: TooLarge) {
-            ApiResult.Failed(AccessError.UnexpectedResponse)
-        } catch (_: SSLException) {
-            ApiResult.Failed(AccessError.Tls)
-        } catch (_: IOException) {
-            ApiResult.Failed(AccessError.Network)
-        } finally {
-            connection?.disconnect()
+    ): ApiResult<Response> =
+        when (val result = exchange.execute(method, path, bearer, jsonBody?.toByteArray(Charsets.UTF_8))) {
+            is HttpResult.Received -> ApiResult.Ok(Response(result.status, result.body, result.retryAfterHeader))
+            is HttpResult.Failed -> ApiResult.Failed(
+                when (result.failure) {
+                    HttpFailure.TOO_LARGE -> AccessError.UnexpectedResponse
+                    HttpFailure.TLS -> AccessError.Tls
+                    HttpFailure.TIMEOUT, HttpFailure.NETWORK -> AccessError.Network
+                },
+            )
         }
-    }
-
-    private class TooLarge : Exception()
-
-    private fun readCapped(stream: InputStream): ByteArray {
-        val out = ByteArrayOutputStream()
-        val buffer = ByteArray(8192)
-        while (true) {
-            val read = stream.read(buffer)
-            if (read < 0) break
-            out.write(buffer, 0, read)
-            if (out.size() > MAX_BODY_BYTES) throw TooLarge()
-        }
-        return out.toByteArray()
-    }
 
     private fun parseObject(body: ByteArray): JSONObject? = try {
         JSONObject(String(body, Charsets.UTF_8))
@@ -159,7 +116,7 @@ class HttpHouseAccessApi(
 
     private fun retryAfter(response: Response): Int? {
         val fromBody = parseObject(response.body)?.opt("retry_after") as? Number
-        return fromBody?.toInt() ?: response.retryAfterHeader?.trim()?.toIntOrNull()
+        return fromBody?.toInt() ?: retryAfterSeconds(response.retryAfterHeader)
     }
 
     private fun failed(error: AccessError): ApiResult<Nothing> = ApiResult.Failed(error)
