@@ -111,14 +111,15 @@ class SyncCycle(
                     else -> stalled++
                 }
                 is SendAttempt.Sent -> when (val outcome = attempt.outcome) {
-                    is CommandOutcome.Receipt -> when (applier.apply(attempt)) {
+                    is CommandOutcome.Receipt, is CommandOutcome.Refused -> when (applier.apply(attempt)) {
                         is ApplyResult.Acknowledged, is ApplyResult.AlreadyAcknowledged -> acknowledged++
                         is ApplyResult.Refused -> stalled++
                         else -> Unit
                     }
                     is CommandOutcome.Transient -> return report(SyncOutcome.Offline(outcome.cause), acknowledged, stalled)
                     CommandOutcome.Unauthorized -> return report(SyncOutcome.NotConnected, acknowledged, stalled)
-                    is CommandOutcome.Refused, is CommandOutcome.Invalid -> stalled++
+                    // An answer that does not follow the contract proves nothing: the same bytes go again next cycle.
+                    is CommandOutcome.Invalid -> stalled++
                 }
             }
         }

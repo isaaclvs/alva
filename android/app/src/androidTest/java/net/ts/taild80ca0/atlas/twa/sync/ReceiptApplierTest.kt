@@ -562,7 +562,6 @@ class ReceiptApplierTest : DatabaseTest() {
         for (outcome in listOf(
             CommandOutcome.Transient(TransientCause.NETWORK),
             CommandOutcome.Unauthorized,
-            CommandOutcome.Refused(422, "malformed_command"),
             CommandOutcome.Invalid(InvalidResponse.WRONG_SHAPE),
         )) {
             assertEquals(ApplyResult.NoReceipt(outcome), applier(db).apply(SendAttempt.Sent(cmd("a1"), attempt, outcome)))
@@ -593,6 +592,44 @@ class ReceiptApplierTest : DatabaseTest() {
         assertEquals(2, db.listItems().all().count { it.name == "Café" })
         assertEquals("the queue is untouched", 2, db.commands().inOrder().size)
     }
+    @Test
+    fun aWholeRequestRefusalAnswersTheAttemptRejectsTheCommandAndBlocksItsDependents() = runBlocking {
+        val db = openDatabase()
+        val store = storeOn(db, ScriptedIds(local, cmd("a1"), cmd("a2"), other, cmd("a3")))
+        store.execute(ListIntent.AddText("Leite"))
+        store.execute(ListIntent.SetItemState(local, ItemStatus.PURCHASED))
+        store.execute(ListIntent.AddText("Pão")) // independent
+        val attempt = prepareAndBegin(db, cmd("a1"))
+        val independent = prepareAndBegin(db, cmd("a3"))
+
+        val result = applier(db).apply(SendAttempt.Sent(cmd("a1"), attempt, CommandOutcome.Refused(422, "malformed_command")))
+
+        assertEquals(ApplyResult.Recorded(cmd("a1"), CommandStatus.REJECTED, "malformed_command", listOf(cmd("a2")), false), result)
+        assertEquals(CommandStatus.BLOCKED.name, statusOf(db, cmd("a2")))
+        assertEquals("the refused request had no effect: only the independent one is still in doubt", listOf(cmd("a3")), applier(db).unresolvedAttempts())
+
+        // Without a contract code in the body the local one is recorded instead.
+        applier(db).apply(SendAttempt.Sent(cmd("a3"), independent, CommandOutcome.Refused(404, null)))
+        assertEquals(CommandStatus.REJECTED.name, statusOf(db, cmd("a3")))
+        assertEquals(ReceiptApplier.REQUEST_REFUSED, db.commands().find(cmd("a3"))!!.lastErrorCode)
+        assertTrue(applier(db).unresolvedAttempts().isEmpty())
+    }
+
+    @Test
+    fun aWholeRequestRefusalOfAnOlderAttemptChangesNothing() = runBlocking {
+        val db = openDatabase()
+        val store = storeOn(db, ScriptedIds(local, cmd("a1")))
+        store.execute(ListIntent.AddText("Leite"))
+        val first = prepareAndBegin(db, cmd("a1"))
+        assertTrue(WireOutbox(db).beginAttempt(cmd("a1")) is AttemptResult.Started)
+        val before = world(db)
+
+        val result = applier(db).apply(SendAttempt.Sent(cmd("a1"), first, CommandOutcome.Refused(422, "malformed_command")))
+
+        assertEquals(ApplyResult.Stale(cmd("a1"), StaleReason.ATTEMPT_SUPERSEDED), result)
+        assertEquals(before, world(db))
+    }
+
     @Test
     fun blockingAnInFlightDependentDoesNotResolveItsMissingAnswer() = runBlocking {
         val db = openDatabase()

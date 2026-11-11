@@ -118,11 +118,13 @@ e conferir; marcar em B; voltar a A.
   primeiro plano, [ActionCable](android-live-invalidation.md) e commits locais pedem ciclos agrupados; com app
   fechado, alterações somente no outro aparelho ainda dependem da próxima abertura/retomada ou do botão.
 - **Tentativa sem resposta que não pode ser repetida segura o snapshot, de forma visível e sem apagar nada.** É o
-  caso de `idempotency_conflict` (credencial antiga perdida: o Keystore apagado), de um dependente `BLOCKED` que já
-  tinha sido enviado, e de uma recusa da requisição inteira (`Refused`/`Invalid`) cujos bytes não adiantam repetir.
-  Para `idempotency_conflict`, a pessoa pode escolher **"Usar a lista do servidor"** no painel de revisão
-  ([resolução local](android-conflict-resolution.md)): o grupo sai da fila com auditoria e o snapshot volta a
-  ser instalado; a reemissão com UUIDs novos ainda é manual. Os outros dois casos ainda não têm fluxo.
+  caso de `idempotency_conflict` (credencial antiga perdida: o Keystore apagado) e de um dependente `BLOCKED` que já
+  tinha sido enviado. Para `idempotency_conflict`, a pessoa pode escolher **"Usar a lista do servidor"** no painel
+  de revisão ([resolução local](android-conflict-resolution.md)): o grupo sai da fila com auditoria e o snapshot
+  volta a ser instalado; a reemissão com UUIDs novos ainda é manual.
+- **Recusa da requisição inteira (`Refused`)** não segura mais o snapshot: prova que não houve efeito, então a
+  tentativa é respondida, o comando vira `REJECTED` (sem reenvio em laço) e pode ser descartado no painel.
+  `Invalid` (resposta fora do contrato) não prova nada e continua reenviando os mesmos bytes no ciclo seguinte.
 - **Conflitos:** recusas definitivas podem ser descartadas no painel "Revisar alterações"; reemitir com
   conteúdo corrigido ainda não existe.
 - Comandos recusados antes de enviar (`VERSION_UNKNOWN` etc., tabela de recusas do documento de persistência) ficam

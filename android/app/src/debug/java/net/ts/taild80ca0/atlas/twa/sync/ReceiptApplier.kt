@@ -123,7 +123,25 @@ class ReceiptApplier(
     suspend fun apply(sent: SendAttempt.Sent): ApplyResult =
         when (val outcome = sent.outcome) {
             is CommandOutcome.Receipt -> apply(sent.commandId, sent.attempt, outcome.receipt)
+            is CommandOutcome.Refused -> requestRefused(sent.commandId, sent.attempt, outcome)
             else -> ApplyResult.NoReceipt(outcome)
+        }
+
+    /**
+     * The request as a whole was refused (a 4xx other than 401/403/429, or the local `request_too_large` that never
+     * left the device). Rails answers it only before running any command (`malformed_command`), and other 4xx
+     * come from in front of Rails, so the attempt had **no effect**: it is answered, the command becomes `REJECTED`
+     * with the code ([REQUEST_REFUSED] when the body had none) and its dependents are blocked, exactly like a
+     * rejection inside a batch. Resending the same bytes would only get the same refusal and hold the snapshot
+     * forever; the intent stays queued for an explicit decision.
+     */
+    private suspend fun requestRefused(commandId: String, attempt: Int, outcome: CommandOutcome.Refused): ApplyResult =
+        db.withTransaction {
+            val command = db.commands().find(commandId) ?: return@withTransaction ApplyResult.Gone(commandId)
+            if (attempt < 1 || attempt > command.attempts) {
+                return@withTransaction ApplyResult.Refused(commandId, ReceiptRefusal.IMPOSSIBLE_ATTEMPT, "attempt $attempt of ${command.attempts}")
+            }
+            refused(command, attempt, ReceiptStatus.REJECTED, outcome.code ?: REQUEST_REFUSED, snapshotRequired = false)
         }
 
     suspend fun apply(commandId: String, attempt: Int, receipt: CommandReceipt): ApplyResult =
@@ -135,7 +153,12 @@ class ReceiptApplier(
             if (attempt < 1 || attempt > command.attempts) {
                 return@withTransaction ApplyResult.Refused(commandId, ReceiptRefusal.IMPOSSIBLE_ATTEMPT, "attempt $attempt of ${command.attempts}")
             }
-            if (receipt.status.recordedByServer) consumed(command, attempt, receipt) else refused(command, attempt, receipt)
+            if (receipt.status.recordedByServer) {
+                consumed(command, attempt, receipt)
+            } else {
+                val error = receipt.error ?: return@withTransaction ApplyResult.Refused(command.id, ReceiptRefusal.MALFORMED_DATA, "no error code")
+                refused(command, attempt, receipt.status, error, receipt.snapshotRequired)
+            }
         }
 
     /**
@@ -264,15 +287,20 @@ class ReceiptApplier(
 
     // ---- refused by the server ------------------------------------------------------------------
 
-    private suspend fun refused(command: CommandEntity, attempt: Int, receipt: CommandReceipt): ApplyResult {
+    private suspend fun refused(
+        command: CommandEntity,
+        attempt: Int,
+        answer: ReceiptStatus,
+        error: String,
+        snapshotRequired: Boolean,
+    ): ApplyResult {
         if (command.status == CommandStatus.ACKNOWLEDGED.name) return ApplyResult.Stale(command.id, StaleReason.ALREADY_ACKNOWLEDGED)
         if (attempt < command.attempts) return ApplyResult.Stale(command.id, StaleReason.ATTEMPT_SUPERSEDED)
-        val error = receipt.error ?: return ApplyResult.Refused(command.id, ReceiptRefusal.MALFORMED_DATA, "no error code")
         // The server spoke about this attempt: it had no effect, so the attempt is no longer in doubt. Except for an
         // idempotency_conflict, which says nothing about what an older lineage of this device already made it do.
         if (error != IDEMPOTENCY_CONFLICT) db.commands().recordAnswer(command.id, attempt)
 
-        if (receipt.status == ReceiptStatus.BLOCKED) {
+        if (answer == ReceiptStatus.BLOCKED) {
             val dependency = command.dependsOn?.let { db.commands().find(it) }
             val dependencyStatus = dependency?.let { CommandStatus.valueOf(it.status) }
             if (dependency != null && (dependencyStatus == CommandStatus.PENDING || dependencyStatus == CommandStatus.IN_FLIGHT)) {
@@ -280,7 +308,7 @@ class ReceiptApplier(
                 return ApplyResult.WaitingForDependency(command.id, dependency.id)
             }
         }
-        val status = when (receipt.status) {
+        val status = when (answer) {
             ReceiptStatus.CONFLICT -> CommandStatus.CONFLICT
             ReceiptStatus.REJECTED -> CommandStatus.REJECTED
             else -> CommandStatus.BLOCKED
@@ -288,7 +316,7 @@ class ReceiptApplier(
         db.commands().setStatus(command.id, status.name, error)
         val blocked = blockDependents(command.id)
         rebuilder.rebuild()
-        return ApplyResult.Recorded(command.id, status, error, blocked, receipt.snapshotRequired)
+        return ApplyResult.Recorded(command.id, status, error, blocked, snapshotRequired)
     }
 
     /** Every command that depends on [rootId], directly or through others, that could still be sent. Independent commands are left alone. */
@@ -316,6 +344,9 @@ class ReceiptApplier(
 
         /** Local code: a command about a purchase the server did not revive; only reconciliation moves it. */
         const val REVIVE_REDIRECTED = "revive_redirected"
+
+        /** Local code for a request refused as a whole whose body carried no contract code. */
+        const val REQUEST_REFUSED = "request_refused"
 
         /** The server's code for the same id with other content or from another lineage. */
         const val IDEMPOTENCY_CONFLICT = "idempotency_conflict"
