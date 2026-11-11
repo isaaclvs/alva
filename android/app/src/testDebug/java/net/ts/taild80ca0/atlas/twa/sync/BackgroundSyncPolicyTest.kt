@@ -48,10 +48,10 @@ class BackgroundSyncPolicyTest {
                     return result
                 }
             }
-            val store = SyncingShoppingListStore(local, SyncScheduler { events += "wake-up persisted" })
+            val store = SyncingShoppingListStore(local, SyncScheduler { events += "wake-up persisted" }) { events += "foreground notified" }
             assertSame(result, store.execute(ListIntent.AddText("Leite")))
             assertEquals(
-                if (result is IntentResult.Saved) listOf("commit finished", "wake-up persisted") else listOf("commit finished"),
+                if (result is IntentResult.Saved) listOf("commit finished", "wake-up persisted", "foreground notified") else listOf("commit finished"),
                 events,
             )
         }

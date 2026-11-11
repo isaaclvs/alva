@@ -59,12 +59,16 @@ class BackgroundSync(private val manager: WorkManager) : SyncScheduler {
 class SyncingShoppingListStore(
     private val local: ShoppingListStore,
     private val scheduler: SyncScheduler,
+    private val onSaved: () -> Unit = {},
 ) : ShoppingListStore {
     override fun observe() = local.observe()
 
     override suspend fun execute(intent: ListIntent): IntentResult {
         val result = local.execute(intent)
-        if (result is IntentResult.Saved) scheduler.request()
+        if (result is IntentResult.Saved) {
+            scheduler.request()
+            onSaved()
+        }
         return result
     }
 }

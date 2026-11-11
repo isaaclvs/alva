@@ -12,6 +12,11 @@ import net.ts.taild80ca0.atlas.twa.MainActivity
 import net.ts.taild80ca0.atlas.twa.access.*
 import net.ts.taild80ca0.atlas.twa.data.db.*
 import net.ts.taild80ca0.atlas.twa.data.list.*
+import net.ts.taild80ca0.atlas.twa.sync.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -39,12 +44,17 @@ class ShoppingScreensTest {
         }
     }
 
-    private fun launch(using: ShoppingListStore = store, sync: net.ts.taild80ca0.atlas.twa.sync.SyncController? = null) {
+    private fun launch(
+        using: ShoppingListStore = store,
+        sync: SyncController? = null,
+        foreground: ((HouseAccess) -> ForegroundInvalidation)? = null,
+    ) {
         val vault = object : CredentialVault {
             override fun read() = VaultRead.Found(StoredAccess(AccessCredential(1, "test-only")))
             override fun write(access: StoredAccess) = error("opening must not write credentials")
         }
-        AccessGraph.install(HouseAccess(vault, noNetwork, RoomHouseholdBinding(db)), using, sync)
+        val access = HouseAccess(vault, noNetwork, RoomHouseholdBinding(db))
+        AccessGraph.install(access, using, sync, foreground?.invoke(access))
         scenario = ActivityScenario.launch(MainActivity::class.java)
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
     }
@@ -219,13 +229,13 @@ class ShoppingScreensTest {
     @Test fun opensWithOneSyncAndTheButtonAsksAgainShowingWhatHappened() {
         val results = java.util.concurrent.LinkedBlockingQueue(
             listOf(
-                net.ts.taild80ca0.atlas.twa.sync.SyncReport(net.ts.taild80ca0.atlas.twa.sync.SyncOutcome.Offline(net.ts.taild80ca0.atlas.twa.sync.TransientCause.NETWORK), needsAttention = 1),
-                net.ts.taild80ca0.atlas.twa.sync.SyncReport(net.ts.taild80ca0.atlas.twa.sync.SyncOutcome.Synced(7)),
+                SyncReport(SyncOutcome.Offline(net.ts.taild80ca0.atlas.twa.sync.TransientCause.NETWORK), needsAttention = 1),
+                SyncReport(SyncOutcome.Synced(7)),
             ),
         )
         val runs = java.util.concurrent.atomic.AtomicInteger()
-        val sync = net.ts.taild80ca0.atlas.twa.sync.SyncController(
-            net.ts.taild80ca0.atlas.twa.sync.SyncRunner { runs.incrementAndGet(); results.take() },
+        val sync = SyncController(
+            SyncRunner { runs.incrementAndGet(); results.take() },
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Job() + kotlinx.coroutines.Dispatchers.Default),
         )
 
@@ -246,4 +256,35 @@ class ShoppingScreensTest {
         compose.onNodeWithTag("sync-now").assertTextEquals("Sincronizar agora")
         assertEquals(2, runs.get())
     }
+
+    @Test fun liveSubscriptionClosesWhenPausedAndReopensOnResume() {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val opened = java.util.concurrent.atomic.AtomicInteger()
+        val closed = java.util.concurrent.atomic.AtomicInteger()
+        try {
+            launch(foreground = { access ->
+                val controller = SyncController(
+                    SyncRunner {
+                        SyncReport(SyncOutcome.Synced(0))
+                    }, scope,
+                )
+                ForegroundInvalidation(
+                    access, ServerEndpoint.parse("http://127.0.0.1:3010"), controller, scope,
+                    CableConnector { _, _, _ ->
+                        opened.incrementAndGet()
+                        CableSocket { closed.incrementAndGet() }
+                    },
+                )
+            })
+            compose.waitUntil(10_000) { opened.get() == 1 }
+            scenario!!.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
+            compose.waitUntil(10_000) { closed.get() == 1 }
+            scenario!!.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
+            compose.waitUntil(10_000) { opened.get() == 2 }
+            assertEquals(1, closed.get())
+        } finally {
+            scope.cancel()
+        }
+    }
+
 }

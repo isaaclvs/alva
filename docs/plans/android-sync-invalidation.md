@@ -48,3 +48,7 @@ Testes focados de conexão/canal, publicação após commit/rollback, isolamento
 casa, dicionário global, compatibilidade do cookie web e regressões de revisão,
 adição e marcação. A integração WebSocket real com Android será verificada no
 corte do cliente, incluindo reconexão e mudanças originadas na PWA.
+
+A integração debug está descrita em
+[Atualização nativa em primeiro plano](android-live-invalidation.md), incluindo
+assinatura Android, agrupamento de sinais e cenário contra Rails real.

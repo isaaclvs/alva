@@ -9,10 +9,11 @@
 #      production data, never a real household.
 #   2. Issues sync / add_only / revoked credentials for the fixture household.
 #   3. Starts `bin/rails server` bound to 127.0.0.1 on a free port.
-#   4. Runs android's RailsCommandTransportTest and RailsSnapshotTransportTest (JVM) pointed at it
+#   4. Runs android's command, snapshot and Cable transport tests (JVM) pointed at it
 #      through the file named by ALVA_RAILS_HARNESS. The first also puts a proxy in front of Rails
 #      that drops answers the server already committed, to prove "response lost after commit, retry
 #      gets duplicate"; the second reads the real GET /api/v1/snapshot with the Kotlin client.
+#      Cable also verifies PWA -> invalidation -> snapshot and reconnecting after a missed change.
 #   5. Fails if those test classes did not actually run (a skipped test proves nothing).
 #
 # The steps 1-3 live in script/lib/android_rails_harness.sh, shared with
@@ -34,10 +35,11 @@ export ALVA_RAILS_HARNESS="$work/harness.json"
   # --rerun: the harness file is not a Gradle input, so a cached pass would prove nothing.
   ${GRADLE_CMD:-./gradlew --max-workers=2} --console=plain testDebugUnitTest \
     --tests 'net.ts.taild80ca0.atlas.twa.sync.RailsCommandTransportTest' \
-    --tests 'net.ts.taild80ca0.atlas.twa.sync.RailsSnapshotTransportTest' --rerun
+    --tests 'net.ts.taild80ca0.atlas.twa.sync.RailsSnapshotTransportTest' \
+    --tests 'net.ts.taild80ca0.atlas.twa.sync.RailsCableTransportTest' --rerun
 )
 
-for name in RailsCommandTransportTest RailsSnapshotTransportTest; do
+for name in RailsCommandTransportTest RailsSnapshotTransportTest RailsCableTransportTest; do
   harness_require_run "android/app/build/test-results/testDebugUnitTest/TEST-net.ts.taild80ca0.atlas.twa.sync.$name.xml" "$name"
 done
 echo "== OK: the Kotlin transport and snapshot client ran against real Rails"
