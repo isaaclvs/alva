@@ -23,7 +23,7 @@ import org.junit.Test
 /**
  * Migration policy: data (above all the queue) is never discarded.
  *
- * The 1 -> 2 (issue #42), 2 -> 3 and 3 -> 4 (issue #45) steps are tested with rows in every old table; the machinery tests
+ * The 1 -> 2 (issue #42), 2 -> 3, 3 -> 4 and 4 -> 5 (issue #45) steps are tested with rows in every old table; the machinery tests
  * prove the exported schemas, [MigrationTestHelper] and the factory's migration list work
  * and that a missing migration fails instead of erasing data. Each future version needs
  * its own test with data in the tables it changes.
@@ -388,6 +388,80 @@ class AlvaDatabaseMigrationTest {
             kotlinx.coroutines.runBlocking {
                 assertEquals(listOf("c-2", "c-3"), db.commands().inOrder().map { it.id })
                 assertEquals(listOf("a-1"), db.aliases().all().map { it.aliasPublicId })
+            }
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun version4To5KeepsEveryRowOfEveryTableAndAddsTheSnapshotStorageEmpty() {
+        val frozen = """{"id":"c-1","type":"add_items","depends_on":null,"preconditions":{},"payload":{"items":[{"public_id":"i-local","name":"Leite"}]}}"""
+        helper.createDatabase(name, 4).apply {
+            execSQL("INSERT INTO sync_state (id, household_public_id, confirmed_revision) VALUES (1, 'house-1', 840)")
+            execSQL("INSERT INTO categories (public_id, name, position) VALUES ('cat-1', 'Laticínios', 2)")
+            execSQL("INSERT INTO catalog_items (public_id, name, normalized_name, category_public_id, learned) VALUES ('e-1', 'Leite', 'leite', 'cat-1', 0)")
+            execSQL("INSERT INTO catalog_state (id, dictionary_revision) VALUES (1, 17)")
+            execSQL(
+                "INSERT INTO confirmed_items (public_id, name, category_public_id, status, position, purchased_at, created_at, lock_version, trip_public_id) " +
+                    "VALUES ('i-confirmed', 'Café', 'cat-1', 1, 4, 55, 9, 3, NULL)",
+            )
+            execSQL(
+                "INSERT INTO list_items (public_id, name, category_public_id, status, position, purchased_at, created_at, lock_version, trip_public_id) " +
+                    "VALUES ('i-local', 'Leite', 'cat-1', 0, NULL, NULL, 10, NULL, NULL)",
+            )
+            execSQL(
+                "INSERT INTO commands (id, type, payload, preconditions, depends_on, observed_revision, status, created_at, attempts, last_error_code, wire_document, answered_attempt) " +
+                    "VALUES ('c-1', 'add_items', '{\"names\":[\"Leite\"]}', '{}', NULL, 840, 'ACKNOWLEDGED', 10, 2, NULL, ?, 0)",
+                arrayOf<Any>(frozen),
+            )
+            execSQL(
+                "INSERT INTO commands (id, type, payload, preconditions, depends_on, observed_revision, status, created_at, attempts, last_error_code, wire_document, answered_attempt) " +
+                    "VALUES ('c-2', 'set_item_state', '{\"public_id\":\"i-local\",\"desired\":\"purchased\"}', '{}', 'c-1', 840, 'CONFLICT', 11, 1, 'precondition_failed', NULL, 1)",
+            )
+            execSQL("INSERT INTO command_subjects (command_id, subject_public_id, ordinal, role, category_public_id) VALUES ('c-1', 'i-local', 0, 'creates', 'cat-1')")
+            execSQL("INSERT INTO sync_aliases (alias_public_id, canonical_public_id, source_command_id, revision) VALUES ('a-1', 'i-confirmed', 'c-1', 841)")
+            execSQL("INSERT INTO command_receipts (command_id, outcome, via_duplicate, revision, house_revision, attempt, data_json, received_at) VALUES ('c-1', 'applied', 0, 841, 841, 2, '{}', 1)")
+            close()
+        }
+        val v4Tables = v2Tables + listOf("sync_aliases", "command_receipts")
+        // `normalized_name` is also an old column of catalog_items, so the skipped names are removed from both sides
+        // and that old column is asserted on its own below.
+        val newColumns = setOf("household_name", "normalized_name", "created_at_micros", "updated_at_micros", "purchased_at_micros", "server_order")
+        val before = helper.runMigrationsAndValidate(name, 4, false).use { dump(it, v4Tables, skip = newColumns) }
+        assertTrue("every v4 table is populated", before.values.all { it.isNotEmpty() })
+
+        helper.runMigrationsAndValidate(name, 5, true, AlvaMigrations.MIGRATION_4_5).apply {
+            assertEquals(
+                "no row of any table may change, move or disappear (only new columns are added)",
+                before,
+                dump(this, v4Tables, skip = newColumns),
+            )
+            fun scalar(sql: String): String = query(sql).use { c -> c.moveToFirst(); c.getString(0) }
+            assertEquals("leite", scalar("SELECT normalized_name FROM catalog_items WHERE public_id = 'e-1'"))
+            // Nothing is invented for rows that already existed.
+            assertEquals("1", scalar("SELECT COUNT(*) FROM confirmed_items WHERE normalized_name IS NULL AND created_at_micros IS NULL AND updated_at_micros IS NULL AND purchased_at_micros IS NULL AND server_order IS NULL"))
+            assertEquals("1", scalar("SELECT COUNT(*) FROM sync_state WHERE household_name IS NULL AND household_public_id = 'house-1' AND confirmed_revision = 840"))
+            assertEquals(frozen, scalar("SELECT wire_document FROM commands WHERE id = 'c-1'"))
+            // The new tables start empty and work.
+            listOf("archived_items", "shopping_trips", "habitual_items", "tombstones").forEach {
+                assertEquals("$it starts empty", "0", scalar("SELECT COUNT(*) FROM $it"))
+            }
+            execSQL("INSERT INTO shopping_trips (public_id, finished_at_micros, created_at_micros, server_order) VALUES ('t-1', 1, 1, 0)")
+            execSQL(
+                "INSERT INTO archived_items (public_id, name, normalized_name, category_public_id, status, position, purchased_at_micros, created_at_micros, updated_at_micros, lock_version, trip_public_id, server_order) " +
+                    "VALUES ('h-1', 'Arroz', 'arroz', NULL, 1, NULL, 5, 1, 1, 2, 't-1', 0)",
+            )
+            close()
+        }
+
+        val db = AlvaDatabaseFactory.create(InstrumentationRegistry.getInstrumentation().targetContext, name)
+        try {
+            kotlinx.coroutines.runBlocking {
+                assertEquals(listOf("c-1", "c-2"), db.commands().inOrder().map { it.id })
+                assertEquals(listOf("a-1"), db.aliases().all().map { it.aliasPublicId })
+                assertEquals(840L, db.syncState().get()?.confirmedRevision)
+                assertEquals(listOf("h-1"), db.history().archived().map { it.publicId })
             }
         } finally {
             db.close()

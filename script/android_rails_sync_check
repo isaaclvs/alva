@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Runs the Android sync cycle (Kotlin, real Room, the emulator's HTTP stack) against a REAL Rails server, in isolation.
+#
+#   script/android_rails_sync_check          # needs ONE running emulator or device (or ANDROID_SERIAL)
+#
+# What it does, and only this:
+#   1-3. Starts an isolated Rails exactly like script/android_rails_transport_check (RAILS_ENV=test, a throwaway
+#        SQLite file in a temp directory, fixtures only, two sync credentials, 127.0.0.1) — see
+#        script/lib/android_rails_harness.sh.
+#   4.   `adb reverse` puts that server on the emulator's own loopback (the debug build only allows cleartext to
+#        127.0.0.1), and removes the mapping when the script ends.
+#   5.   Runs the instrumented RailsSyncConvergenceTest: two devices with their own Room files, A adds offline ->
+#        syncs -> B receives -> B marks -> syncs -> A converges, an add+mark made together, the same name on both
+#        phones, and an answer lost after Rails committed (no second effect).
+#   6.   Fails if that class was skipped or did not run (a skipped test proves nothing).
+#
+# The credentials of the throwaway server are passed as instrumentation arguments (visible in the process list of
+# this machine); they are worthless once the script ends. Nothing here touches development or production data.
+#
+# Needs Ruby (the version in .ruby-version), JDK 21, the Android SDK (ANDROID_HOME) and a device on adb.
+# Override the gradle invocation with GRADLE_CMD (default: ./gradlew --max-workers=2).
+set -euo pipefail
+
+source "$(dirname "${BASH_SOURCE[0]}")/lib/android_rails_harness.sh"
+
+ADB="${ADB:-${ANDROID_HOME:+$ANDROID_HOME/platform-tools/}adb}"
+if [[ -z "${ANDROID_SERIAL:-}" ]]; then
+  devices="$("$ADB" devices | awk 'NR>1 && $2=="device" {print $1}')"
+  if [[ "$(wc -l <<<"$devices")" -ne 1 || -z "$devices" ]]; then
+    echo "needs exactly one running emulator/device (or ANDROID_SERIAL); found: ${devices:-none}" >&2
+    exit 1
+  fi
+  export ANDROID_SERIAL="$devices"
+fi
+
+harness_up
+reversed=""
+trap '[[ -n "$reversed" ]] && "$ADB" reverse --remove "tcp:$port" >/dev/null 2>&1 || true; harness_cleanup' EXIT
+"$ADB" reverse "tcp:$port" "tcp:$port" >/dev/null
+reversed=1
+
+read -r sync_a sync_b house < <(ruby -rjson -e 'h = JSON.parse(File.read(ARGV[0])); puts [h["sync_token"], h["sync_token_b"], h["household_public_id"]].join(" ")' "$work/harness.json")
+
+echo "== running the Kotlin sync cycle on $ANDROID_SERIAL against it"
+results="android/app/build/outputs/androidTest-results/connected"
+rm -rf "$results"
+(
+  cd android
+  unset RAILS_ENV DATABASE_URL ALVA_PASSWORD_DIGEST
+  ${GRADLE_CMD:-./gradlew --max-workers=2} --console=plain connectedDebugAndroidTest \
+    -Pandroid.testInstrumentationRunnerArguments.class=net.ts.taild80ca0.atlas.twa.sync.RailsSyncConvergenceTest \
+    -Pandroid.testInstrumentationRunnerArguments.railsUrl="http://127.0.0.1:$port" \
+    -Pandroid.testInstrumentationRunnerArguments.syncTokenA="$sync_a" \
+    -Pandroid.testInstrumentationRunnerArguments.syncTokenB="$sync_b" \
+    -Pandroid.testInstrumentationRunnerArguments.householdId="$house"
+)
+
+report="$(find "$results" -name 'TEST-*.xml' | head -n1)"
+harness_require_run "${report:-missing}" RailsSyncConvergenceTest
+echo "== OK: two Room devices converged through real Rails, and a lost answer had no second effect"

@@ -62,11 +62,12 @@ HTTP 200 não é sucesso de todos os comandos: o `status` do resultado é que de
 
 ## Ainda pendente na #45
 
-Aplicar recibos e aliases já existe (`ReceiptApplier`, ver
-[android-local-persistence.md](android-local-persistence.md#recibos-e-aliases-issue-45-quarto-corte)),
-mas **nada o chama sozinho**. Continuam pendentes: ordem da fila, lotes e dependências entre comandos
-(enviar um dependente antes da dependência só rende `blocked`); snapshot e reconciliação; sincronizar ao
-abrir/retomar; dois aparelhos convergindo. Nada disso está pronto e não deve ser afirmado.
+Aplicar recibos e aliases existe (`ReceiptApplier`, ver
+[android-local-persistence.md](android-local-persistence.md#recibos-e-aliases-issue-45-quarto-corte)) e agora **é chamado**
+pelo ciclo de sincronização, que ordena a fila, repete os mesmos bytes, instala o snapshot e dispara ao abrir/retomar
+(ver [android-sync-cycle.md](android-sync-cycle.md)). Este documento descreve só a tentativa única. Seguem pendentes
+(listados nos limites do ciclo): sincronização em segundo plano, resolução de tentativa sem resposta que não pode ser
+repetida, e decisão do usuário sobre conflitos.
 
 ## Como foi validado
 

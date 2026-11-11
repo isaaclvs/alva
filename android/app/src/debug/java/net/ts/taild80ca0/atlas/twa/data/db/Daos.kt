@@ -47,7 +47,7 @@ interface CatalogDao {
 
 @Dao
 interface ConfirmedItemDao {
-    @Query("SELECT * FROM confirmed_items ORDER BY created_at, rowid")
+    @Query("SELECT * FROM confirmed_items ORDER BY created_at, server_order, rowid")
     suspend fun all(): List<ConfirmedItemEntity>
 
     @Upsert
@@ -214,4 +214,50 @@ interface ReceiptDao {
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(receipt: CommandReceiptEntity)
+}
+
+/**
+ * The snapshot's history: archived items, trips, habituals and tombstones. Only an installed snapshot
+ * writes them, and always as a whole (clear, then insert in the snapshot's order).
+ */
+@Dao
+interface HistoryDao {
+    @Query("SELECT * FROM archived_items ORDER BY server_order")
+    suspend fun archived(): List<ArchivedItemEntity>
+
+    @Query("SELECT public_id FROM archived_items")
+    suspend fun archivedIds(): List<String>
+
+    @Query("SELECT * FROM shopping_trips ORDER BY server_order")
+    suspend fun trips(): List<ShoppingTripEntity>
+
+    @Query("SELECT * FROM habitual_items ORDER BY server_order")
+    suspend fun habituals(): List<HabitualItemEntity>
+
+    @Query("SELECT * FROM tombstones ORDER BY server_order")
+    suspend fun tombstones(): List<TombstoneEntity>
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertArchived(items: List<ArchivedItemEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertTrips(trips: List<ShoppingTripEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertHabituals(items: List<HabitualItemEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertTombstones(tombstones: List<TombstoneEntity>)
+
+    @Query("DELETE FROM archived_items")
+    suspend fun clearArchived()
+
+    @Query("DELETE FROM shopping_trips")
+    suspend fun clearTrips()
+
+    @Query("DELETE FROM habitual_items")
+    suspend fun clearHabituals()
+
+    @Query("DELETE FROM tombstones")
+    suspend fun clearTombstones()
 }

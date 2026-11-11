@@ -28,6 +28,12 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 import net.ts.taild80ca0.atlas.twa.data.list.*
 import net.ts.taild80ca0.atlas.twa.data.matching.DuplicateHint
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import net.ts.taild80ca0.atlas.twa.sync.SyncController
+import net.ts.taild80ca0.atlas.twa.sync.SyncMessages
+import net.ts.taild80ca0.atlas.twa.sync.SyncStatus
 
 /** The same dark canvas and teal accent as the current Alva. Preferences arrive in #55. */
 @Composable
@@ -46,7 +52,12 @@ fun AlvaTheme(content: @Composable () -> Unit) {
 
 /** Screens depend only on the store. No HTTP call or database query lives here. */
 @Composable
-fun ShoppingScreens(store: ShoppingListStore, modifier: Modifier = Modifier, accessActions: (@Composable () -> Unit)? = null) {
+fun ShoppingScreens(
+    store: ShoppingListStore,
+    modifier: Modifier = Modifier,
+    accessActions: (@Composable () -> Unit)? = null,
+    sync: SyncController? = null,
+) {
     var state by remember(store) { mutableStateOf<ListState?>(null) }
     var readFailed by remember(store) { mutableStateOf(false) }
     var retry by remember { mutableIntStateOf(0) }
@@ -71,6 +82,14 @@ fun ShoppingScreens(store: ShoppingListStore, modifier: Modifier = Modifier, acc
     LaunchedEffect(screen) {
         if (screen == "list") keyboard?.hide()
     }
+    // Opening or coming back to the app asks for a sync cycle. Nothing else triggers one: no worker, no timer.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(sync, lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) sync?.request(manual = false) }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    val syncStatus = sync?.status?.collectAsState()?.value
 
     fun add() {
         if (saving || state == null || readFailed) return
@@ -157,6 +176,7 @@ fun ShoppingScreens(store: ShoppingListStore, modifier: Modifier = Modifier, acc
                 current == null -> Text("Abrindo sua lista…")
                 screen == "add" -> {
                     LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(vertical = 16.dp)) {
+                        if (sync != null && syncStatus != null) item(key = "sync") { SyncPanel(sync, syncStatus) }
                         if (recent.isNotEmpty()) {
                             item { Text("Acabou de adicionar", style = MaterialTheme.typography.titleMedium) }
                             items(recent, key = { it.itemPublicId }) { addition ->
@@ -188,6 +208,7 @@ fun ShoppingScreens(store: ShoppingListStore, modifier: Modifier = Modifier, acc
                 else -> {
                     Text("Pendentes: $pending · Comprados: ${current.items.size - pending}", modifier = Modifier.testTag("list-summary"))
                     LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(vertical = 12.dp)) {
+                        if (sync != null && syncStatus != null) item(key = "sync") { SyncPanel(sync, syncStatus) }
                         if (current.items.isEmpty()) item { Text("Sua lista está vazia. Adicione o que acabou em casa.") }
                         val known = current.categories.sortedBy { it.position }
                         val unknown = current.items.filter { item -> known.none { it.publicId == item.categoryPublicId } }
@@ -220,6 +241,23 @@ fun ShoppingScreens(store: ShoppingListStore, modifier: Modifier = Modifier, acc
                     }
                 }
             }
+        }
+    }
+}
+
+/** Sync details can grow when offline; they scroll rather than displacing the add form above the IME. */
+@Composable
+private fun SyncPanel(sync: SyncController, status: SyncStatus) {
+    val running = status is SyncStatus.Running
+    val last = when (status) { is SyncStatus.Idle -> status.last; is SyncStatus.Running -> status.last }
+    Column {
+        Text(
+            if (running) "Sincronizando…" else last?.let { SyncMessages.describe(it) } ?: "Ainda não sincronizado.",
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.testTag("sync-status").semantics { liveRegion = LiveRegionMode.Polite },
+        )
+        TextButton(onClick = { sync.request(manual = true) }, enabled = !running, modifier = Modifier.testTag("sync-now")) {
+            Text(if (SyncMessages.isTrouble(last)) "Tentar novamente" else "Sincronizar agora")
         }
     }
 }

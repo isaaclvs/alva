@@ -21,10 +21,11 @@ class MainActivity : ComponentActivity() {
         )
         val access = AccessGraph.houseAccess(this)
         val store = AccessGraph.shoppingListStore(this)
+        val sync = AccessGraph.syncController(this)
         setContent {
             AlvaTheme {
                 Surface {
-                    AccessScreen(access = access, connected = { actions -> ShoppingScreens(store, accessActions = actions) })
+                    AccessScreen(access = access, connected = { actions -> ShoppingScreens(store, accessActions = actions, sync = sync) })
                 }
             }
         }

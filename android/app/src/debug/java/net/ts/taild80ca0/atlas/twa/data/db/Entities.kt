@@ -30,6 +30,8 @@ data class SyncStateEntity(
     @ColumnInfo(name = "household_public_id") val householdPublicId: String?,
     /** Last household `sync_revision` applied to the confirmed state. */
     @ColumnInfo(name = "confirmed_revision") val confirmedRevision: Long,
+    /** `household.name` of the last installed snapshot; null until one was installed. */
+    @ColumnInfo(name = "household_name") val householdName: String? = null,
 ) {
     companion object {
         const val SINGLETON_ID = 1
@@ -92,6 +94,68 @@ data class ConfirmedItemEntity(
     @ColumnInfo(name = "lock_version") val lockVersion: Int,
     /** Present = archived (history, not part of the live list). */
     @ColumnInfo(name = "trip_public_id") val tripPublicId: String?,
+    /**
+     * What the snapshot said, kept exactly: the server's own `normalized_name`, the three
+     * instants in epoch **microseconds** (the columns above are the same instants in
+     * milliseconds, for display) and the position in the snapshot's array, which is the
+     * server's id order. Null on a row that did not come from a snapshot.
+     */
+    @ColumnInfo(name = "normalized_name") val normalizedName: String? = null,
+    @ColumnInfo(name = "created_at_micros") val createdAtMicros: Long? = null,
+    @ColumnInfo(name = "updated_at_micros") val updatedAtMicros: Long? = null,
+    @ColumnInfo(name = "purchased_at_micros") val purchasedAtMicros: Long? = null,
+    @ColumnInfo(name = "server_order") val serverOrder: Int? = null,
+)
+
+/**
+ * An archived item (one that left the live list with a shopping trip), as the snapshot's
+ * `archived_items` says. Kept apart from `confirmed_items` so the projection, which replays the
+ * queue over every confirmed row on every action, never carries the (unbounded) history.
+ * Confirmed state like the rest: replaced as a whole by an installed snapshot. [serverOrder] is the
+ * position in the array (the server's id order), the tie-break "buy again" needs.
+ */
+@Entity(tableName = "archived_items", indices = [Index("trip_public_id"), Index("normalized_name")])
+data class ArchivedItemEntity(
+    @PrimaryKey @ColumnInfo(name = "public_id") val publicId: String,
+    val name: String,
+    @ColumnInfo(name = "normalized_name") val normalizedName: String,
+    @ColumnInfo(name = "category_public_id") val categoryPublicId: String?,
+    val status: Int,
+    val position: Int?,
+    @ColumnInfo(name = "purchased_at_micros") val purchasedAtMicros: Long?,
+    @ColumnInfo(name = "created_at_micros") val createdAtMicros: Long,
+    @ColumnInfo(name = "updated_at_micros") val updatedAtMicros: Long,
+    @ColumnInfo(name = "lock_version") val lockVersion: Int,
+    @ColumnInfo(name = "trip_public_id") val tripPublicId: String,
+    @ColumnInfo(name = "server_order") val serverOrder: Int,
+)
+
+/** A finished shopping trip (`shopping_trips`), instants in epoch microseconds. */
+@Entity(tableName = "shopping_trips")
+data class ShoppingTripEntity(
+    @PrimaryKey @ColumnInfo(name = "public_id") val publicId: String,
+    @ColumnInfo(name = "finished_at_micros") val finishedAtMicros: Long,
+    @ColumnInfo(name = "created_at_micros") val createdAtMicros: Long,
+    @ColumnInfo(name = "server_order") val serverOrder: Int,
+)
+
+/** A habitual name chosen by the household (`habitual_items`). */
+@Entity(tableName = "habitual_items")
+data class HabitualItemEntity(
+    @PrimaryKey @ColumnInfo(name = "public_id") val publicId: String,
+    val name: String,
+    @ColumnInfo(name = "normalized_name") val normalizedName: String,
+    @ColumnInfo(name = "created_at_micros") val createdAtMicros: Long,
+    @ColumnInfo(name = "server_order") val serverOrder: Int,
+)
+
+/** A removal the server recorded (`tombstones`): a command citing this id is `gone`, not unknown. */
+@Entity(tableName = "tombstones", primaryKeys = ["record_type", "public_id", "revision"])
+data class TombstoneEntity(
+    @ColumnInfo(name = "record_type") val recordType: String,
+    @ColumnInfo(name = "public_id") val publicId: String,
+    val revision: Long,
+    @ColumnInfo(name = "server_order") val serverOrder: Int,
 )
 
 @Entity(
