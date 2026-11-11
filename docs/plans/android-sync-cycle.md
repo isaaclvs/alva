@@ -74,6 +74,11 @@ conta o que aconteceu em português, sem códigos: "Sincronizado.", "Sem conexã
 acrescenta quantas alterações "precisam de atenção" (conflito/recusa/bloqueio: a intenção continua guardada e
 visível na lista) ou "ainda não puderam ser enviadas". Adicionar e marcar continuam sem esperar a rede. O painel pode crescer com os erros sem deslocar o campo e o botão de adicionar para fora da área disponível acima do teclado.
 
+Commits locais enquanto a tela está retomada, confirmação/reconexão da assinatura
+[ActionCable](android-live-invalidation.md) e invalidações novas também pedem ciclos,
+sem o intervalo de retomada. Sinais durante um ciclo (inclusive worker) ficam
+agrupados num sucessor; salvar continua sem aguardar a rede.
+
 ## Como executar o cenário e testar o APK
 
 Cenário de dois aparelhos contra **Rails real de teste** (banco SQLite temporário, só fixtures, `127.0.0.1`; nunca
@@ -109,8 +114,9 @@ e conferir; marcar em B; voltar a A.
 
 ## Limites conhecidos (nada disto deve ser dado como pronto)
 
-- **Segundo plano:** o [worker da #46](android-background-sync.md) envia alterações locais com rede; mudanças
-  apenas no outro aparelho ainda dependem de abrir/retomar ou do botão, até o corte ActionCable.
+- **Segundo plano:** o [worker da #46](android-background-sync.md) envia alterações locais com rede. Em
+  primeiro plano, [ActionCable](android-live-invalidation.md) e commits locais pedem ciclos agrupados; com app
+  fechado, alterações somente no outro aparelho ainda dependem da próxima abertura/retomada ou do botão.
 - **Tentativa sem resposta que não pode ser repetida segura o snapshot, de forma visível e sem apagar nada.** É o
   caso de `idempotency_conflict` (credencial antiga perdida: o Keystore apagado), de um dependente `BLOCKED` que já
   tinha sido enviado, e de uma recusa da requisição inteira (`Refused`/`Invalid`) cujos bytes não adiantam repetir.

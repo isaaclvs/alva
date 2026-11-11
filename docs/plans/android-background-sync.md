@@ -44,10 +44,10 @@ nova, reconexão, próxima abertura ou tentativa manual pode pedir outro ciclo.
 
 O Android decide quando executar: Doze, bateria e restrições do fabricante
 podem adiar o envio; não há promessa de instantaneidade com app fechado. Uma
-parada forçada pelo usuário só permite retomada depois de abrir o app. Sem
-trabalho pendente, mudanças feitas só no outro aparelho chegam na próxima
-abertura/retomada ou sincronização manual; ActionCable é o próximo corte da #46.
-Não há polling periódico.
+parada forçada pelo usuário só permite retomada depois de abrir o app. Com app fechado, mudanças feitas só no outro aparelho chegam na próxima
+abertura/retomada ou sincronização manual. Em primeiro plano, o
+[cliente ActionCable](android-live-invalidation.md) pede um ciclo quando chega
+invalidação ou a assinatura é retomada. Não há polling periódico.
 
 Room e WorkManager têm bancos separados. Se o processo morrer exatamente após
 o commit e antes de persistir o agendamento, a lista e a fila ficam salvas,
@@ -82,5 +82,5 @@ Referências: [trabalho único](https://developer.android.com/develop/background
 [versão utilizada](https://developer.android.com/jetpack/androidx/releases/work#2.10.1).
 
 O corte Rails do [canal de invalidação](android-sync-invalidation.md) define o
-endpoint nativo e publica revisões após commit. A assinatura Android ainda é
-uma entrega seguinte; a existência do endpoint não muda os gatilhos do cliente.
+endpoint nativo e publica revisões após commit. A assinatura Android em primeiro plano e seus gatilhos são descritos em
+[Atualização nativa em primeiro plano](android-live-invalidation.md).

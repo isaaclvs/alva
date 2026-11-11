@@ -31,7 +31,7 @@ Dicionário global notifica todas as casas. Rollback e inclusão duplicada não
 notificam. Eventos podem se repetir ou ser agrupados; não são log de mudanças.
 O adaptador é compartilhado com Cable web, inclusive `async` em desenvolvimento.
 
-## Próximo corte Android
+## Cliente Android
 
 Assinar só enquanto o app estiver em primeiro plano, agrupar sinais durante
 um ciclo e verificar snapshot após confirmação de inscrição/reconexão, mesmo
@@ -40,7 +40,8 @@ Uma revisão recebida durante o ciclo pede verificação seguinte; eventos
 repetidos não devem gerar laço. Ao perder acesso, preservar fila e solicitar
 reconexão pela interface existente. WorkManager continua responsável pelo envio
 persistente; app fechado não promete receber atualizações instantaneamente.
-A integração Android ainda não está entregue por este corte; #46 segue aberta.
+O [cliente debug](android-live-invalidation.md) implementa esses gatilhos. A
+#46 segue aberta enquanto faltar sua validação nos aparelhos reais.
 
 ## Validação local
 
