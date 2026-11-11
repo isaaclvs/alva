@@ -17,6 +17,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ListItemEntity::class,
         CommandEntity::class,
         CommandSubjectEntity::class,
+        SyncAliasEntity::class,
+        CommandReceiptEntity::class,
     ],
     version = AlvaMigrations.CURRENT_VERSION,
     exportSchema = true,
@@ -28,6 +30,8 @@ abstract class AlvaDatabase : RoomDatabase() {
     abstract fun confirmedItems(): ConfirmedItemDao
     abstract fun listItems(): ListItemDao
     abstract fun commands(): CommandDao
+    abstract fun aliases(): AliasDao
+    abstract fun receipts(): ReceiptDao
 }
 
 /**
@@ -45,7 +49,7 @@ abstract class AlvaDatabase : RoomDatabase() {
  *   changes copy data into the new shape inside the migration.
  */
 object AlvaMigrations {
-    const val CURRENT_VERSION = 3
+    const val CURRENT_VERSION = 4
 
     /**
      * 1 -> 2 (issue #42, local matching): additive only. The synced dictionary gets
@@ -83,8 +87,34 @@ object AlvaMigrations {
         }
     }
 
+    /**
+     * 3 -> 4 (issue #45, receipts and aliases): additive only. Two new, empty tables: the
+     * aliases the server revealed and the receipts it gave for commands it consumed. No
+     * existing table or column is touched, so the list, the queue, the frozen documents and
+     * their UUIDs are exactly as they were.
+     */
+    val MIGRATION_3_4: Migration = object : Migration(3, 4) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `sync_aliases` (`alias_public_id` TEXT NOT NULL, " +
+                    "`canonical_public_id` TEXT NOT NULL, `source_command_id` TEXT NOT NULL, " +
+                    "`revision` INTEGER NOT NULL, PRIMARY KEY(`alias_public_id`))",
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_sync_aliases_canonical_public_id` ON `sync_aliases` (`canonical_public_id`)",
+            )
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `command_receipts` (`command_id` TEXT NOT NULL, `outcome` TEXT NOT NULL, " +
+                    "`via_duplicate` INTEGER NOT NULL, `revision` INTEGER NOT NULL, `house_revision` INTEGER NOT NULL, " +
+                    "`attempt` INTEGER NOT NULL, `data_json` TEXT NOT NULL, `received_at` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`command_id`), FOREIGN KEY(`command_id`) REFERENCES `commands`(`id`) " +
+                    "ON UPDATE NO ACTION ON DELETE CASCADE )",
+            )
+        }
+    }
+
     /** Contiguous chain from version 1 to [CURRENT_VERSION]. */
-    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
+    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
 }
 
 object AlvaDatabaseFactory {

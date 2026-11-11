@@ -185,6 +185,64 @@ data class CommandSubjectEntity(
     @ColumnInfo(name = "category_public_id") val categoryPublicId: String? = null,
 )
 
+/**
+ * An id the server turned into another one: `alias_public_id` is a UUID this device cited
+ * (a name added twice on two phones, or the claim UUID of a revive) and
+ * `canonical_public_id` the item the server kept. Written when the server's answer to
+ * `add_items` is applied, and then **never removed**: commands still in the queue keep citing
+ * the alias, and the wire document of a command that was already prepared is never rewritten,
+ * so the alias is how everything else finds the real item. It outlives the command that created
+ * it, which is why `source_command_id` is a plain column and not a foreign key.
+ *
+ * `canonical_public_id` is never itself an alias (no chains): an answer that would make one is
+ * refused rather than recorded.
+ */
+@Entity(tableName = "sync_aliases", indices = [Index("canonical_public_id")])
+data class SyncAliasEntity(
+    @PrimaryKey @ColumnInfo(name = "alias_public_id") val aliasPublicId: String,
+    @ColumnInfo(name = "canonical_public_id") val canonicalPublicId: String,
+    /** The command whose answer revealed the alias (audit only). */
+    @ColumnInfo(name = "source_command_id") val sourceCommandId: String,
+    /** House revision of that answer. */
+    val revision: Long,
+)
+
+/**
+ * What the server answered for a command it consumed (`applied`, `noop` or a `duplicate` of
+ * those), kept for as long as the command row is. The row is not the confirmed state: the
+ * `data` of a receipt names, status, `purchased_at` and `lock_version` of an item but not its
+ * category, creation time or normalized name, so the device cannot build a confirmed item from
+ * it. The command stays in the queue as `ACKNOWLEDGED` with this receipt, the projection shows
+ * the receipt's effect, and a snapshot at or after [revision] is what replaces both.
+ */
+@Entity(
+    tableName = "command_receipts",
+    foreignKeys = [
+        ForeignKey(
+            entity = CommandEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["command_id"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+)
+data class CommandReceiptEntity(
+    @PrimaryKey @ColumnInfo(name = "command_id") val commandId: String,
+    /** `applied` or `noop`: for a `duplicate` answer, the status the first run had. */
+    val outcome: String,
+    /** True when the answer that was applied was a `duplicate` (the first one was lost). */
+    @ColumnInfo(name = "via_duplicate") val viaDuplicate: Boolean,
+    /** House revision right after the command's effect. */
+    val revision: Long,
+    /** House revision at the end of the batch that answered. */
+    @ColumnInfo(name = "house_revision") val houseRevision: Long,
+    /** Attempt number ([CommandEntity.attempts] at the time) whose answer this is. */
+    val attempt: Int,
+    /** The result's `data` object, untouched. */
+    @ColumnInfo(name = "data_json") val dataJson: String,
+    @ColumnInfo(name = "received_at") val receivedAt: Long,
+)
+
 object ItemStatusCodes {
     const val PENDING = 0
     const val PURCHASED = 1

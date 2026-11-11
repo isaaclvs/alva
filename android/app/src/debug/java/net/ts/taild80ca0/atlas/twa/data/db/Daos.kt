@@ -145,3 +145,32 @@ interface CommandDao {
     @Query("DELETE FROM commands WHERE id = :id")
     suspend fun delete(id: String)
 }
+
+@Dao
+interface AliasDao {
+    @Query("SELECT * FROM sync_aliases WHERE alias_public_id = :aliasPublicId")
+    suspend fun find(aliasPublicId: String): SyncAliasEntity?
+
+    @Query("SELECT * FROM sync_aliases ORDER BY alias_public_id")
+    suspend fun all(): List<SyncAliasEntity>
+
+    /** Aliases that point at any of [canonicalIds]. */
+    @Query("SELECT * FROM sync_aliases WHERE canonical_public_id IN (:canonicalIds)")
+    suspend fun pointingAt(canonicalIds: List<String>): List<SyncAliasEntity>
+
+    /** Plain INSERT: a second, different answer for the same alias is a constraint failure, not an overwrite. */
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insert(alias: SyncAliasEntity)
+}
+
+@Dao
+interface ReceiptDao {
+    @Query("SELECT * FROM command_receipts WHERE command_id = :commandId")
+    suspend fun find(commandId: String): CommandReceiptEntity?
+
+    @Query("SELECT * FROM command_receipts")
+    suspend fun all(): List<CommandReceiptEntity>
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insert(receipt: CommandReceiptEntity)
+}
