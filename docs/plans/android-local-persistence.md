@@ -138,13 +138,118 @@ Código: `data/list/WireOutbox.kt` e `WireDocument.kt`; coluna
   `beginAttempt` recusam com `LEGACY_ALREADY_ATTEMPTED`, preservando fila,
   intenção, projeção e contadores; nada é inventado. Com `attempts = 0` e sem
   documento a linha fica intacta (`NOT_FROZEN` ao tentar), disponível para a
-  conversão futura. Nenhum código constrói documentos ainda: `payload.names`
-  continua sendo só intenção local e **nenhum comando legado pode ser enviado**.
-- **Não faz** (próximos cortes da #45): HTTP/transporte, conversão
-  `payload.names` → `payload.items` com UUIDs de `command_subjects`, aliases e
-  `depends_on`/`lock_version` herdados, snapshot e reconciliação, ciclo de vida
-  (abrir/retomar, WorkManager), tratamento de resultados (`duplicate`, `conflict`,
-  `blocked`), decisão para a fila legada tentada e validação em dois aparelhos.
+  conversão (feita no corte seguinte, ver "Preparação do envio"). `payload.names`
+  continua sendo só intenção local: `freeze` recusa o formato legado, e só um
+  documento do `WirePreparer` (ou equivalente validado) é enviável.
+- **Não faz** (próximos cortes da #45): HTTP/transporte, snapshot e
+  reconciliação, ciclo de vida (abrir/retomar, WorkManager), tratamento de
+  resultados (`duplicate`, `conflict`, `blocked`), aliases devolvidos, decisão para
+  a fila legada tentada e validação em dois aparelhos. A conversão da intenção em
+  documento é a seção seguinte.
+
+## Preparação do envio (issue #45, segundo corte)
+
+Código: `data/list/WirePreparer.kt` (Room, transação), `WireEnvelopeBuilder.kt`
+(puro: intenção → documento), `ReviveObservation.kt` (o que o usuário viu) e
+`WireItemLinks.kt` (documento congelado ↔ subjects). **Continua sem rede, sem
+envio automático e sem ciclo de vida**: nada aqui chama o servidor.
+
+`WirePreparer.prepare(commandId)` é uma única transação Room (junta-se à do
+chamador, se houver):
+
+1. comando inexistente → `UNKNOWN_COMMAND`;
+2. **já tem `wire_document` → devolve exatamente esses bytes** (`created = false`),
+   seja qual for o status ou o número de tentativas. Nada é reconstruído, nenhum
+   UUID é gerado, nem se uma preparação nova seria recusada;
+3. `attempts > 0` sem documento → `LEGACY_ALREADY_ATTEMPTED`; status
+   `BLOCKED`/`CONFLICT`/`REJECTED` → `NOT_SENDABLE`;
+4. senão `WireEnvelopeBuilder` monta o documento **só da intenção guardada**
+   (`payload`, `preconditions`, `command_subjects`, `depends_on`,
+   `observed_revision`) e `WireOutbox.freeze` o grava. Nunca lê a projeção
+   (`list_items`) nem um snapshot. Duas preparações simultâneas são serializadas
+   pela transação e pela guarda SQL: as duas recebem o mesmo documento e só
+   existe a reivindicação do vencedor. Erro de SQL propaga e desfaz tudo.
+
+**`add_items`.** `payload.names` + `command_subjects` viram `payload.items`; o item
+`i` do documento é o subject com `ordinal = i`.
+
+- Nome que **cria**: vai com o UUID que o aparelho já tinha dado (`creates`), o
+  mesmo em qualquer retentativa.
+- Nome que **revive** uma compra (`targets`): o `public_id` da entrada é um **UUID
+  novo de reivindicação**, gerado uma vez e gravado no documento congelado, e
+  `revives.public_id` é o item comprado observado. Nunca se reutiliza o UUID da
+  compra como `public_id` da entrada: o Rails trata UUID conhecido como duplicado
+  e não reviveria nada (teste Rails em `android_wire_documents_test.rb`). O servidor
+  transforma a reivindicação em alias da compra; `WireItemLinks.of(documento,
+  subjects)` devolve, por ordinal, o UUID enviado, o subject local e o revivido,
+  para quem aplicar o resultado (e recusa — `null` — se não se alinharem).
+  `WireDocument` também recusa, ao congelar, um revive cuja entrada repete o UUID
+  da compra ou com `lock_version` inválido.
+- O nome enviado é o digitado; o servidor normaliza e categoriza (a categoria
+  local não vai no fio).
+- `observed_revision` do comando entra só se > 0 (0 é "nada observado"); o
+  servidor não o usa como precondição para estes comandos.
+
+**`set_item_state`.** `desired` (nunca toggle), `preconditions.lock_version` se a
+intenção o guardou, e o `depends_on` do próprio comando.
+
+### O que o usuário viu, na hora da intenção
+
+Para um revive novo, `RoomShoppingListStore` grava em `commands.preconditions`
+(JSON de intenção, **sem mudar o schema**; o `ProjectionReducer` o ignora, então o
+replay e `rebuildProjection` são os mesmos):
+
+```json
+{"revives":[{"ordinal":1,"public_id":"<compra>","lock_version":3,"covered":false}]}
+```
+
+- `lock_version` é o da projeção no instante da ação (nulo se o aparelho nunca viu
+  o item no servidor). Um snapshot aplicado depois **não o altera**: o servidor
+  compara exatamente essa versão para decidir `purchase_changed`. Testado: intenção
+  com versão 3, snapshot 8 aplicado antes de preparar, documento com 3.
+- `covered` registra que o `depends_on` do comando é o último comando da fila que
+  tocou aquele item, ou seja, o servidor pode herdar a versão que ele deixou
+  (adicionar offline → marcar → digitar de novo não precisa de versão).
+- Nenhuma versão é inventada ou incrementada no aparelho, e nenhuma é lida da
+  projeção atual na preparação.
+
+Decisão de armazenamento: o JSON de intenção atende (por ordinal, junto do
+comando, sem coluna nova), então o banco **segue na versão 3**; `schemas/1-3.json`
+não mudam e não há migração 3→4. Se uma coluna for necessária mais tarde (p.ex.
+ao ingerir o snapshot), segue a política de migração acima.
+
+### Recusas (saídas que a reconciliação futura deve resolver)
+
+Toda recusa é um valor (`PreparationResult.Refused`), não grava nada, não gasta
+UUID e preserva fila, intenção, subjects, projeção e contadores. O comando não é
+descartado nem reinterpretado, e nenhum pedido incompleto é enviado.
+
+| Motivo | Quando | Saída futura |
+| --- | --- | --- |
+| `LEGACY_ALREADY_ATTEMPTED` | `attempts > 0` sem documento (anterior ao 2→3): os bytes enviados não foram guardados | snapshot, ver o que foi aplicado e reemitir com UUIDs novos (contrato) |
+| `REVIVE_OBSERVATION_LOST` | revive anterior a este corte (sem registro do que foi visto) e o `depends_on` não toca o item | snapshot mostra a compra atual; a intenção é reavaliada com UUID novo |
+| `VERSION_UNKNOWN` | a versão vista é nula (item só criado neste aparelho) e não há comando anterior para herdar; vale para `set_item_state` | snapshot que traga o item (reconciliação) |
+| `DEPENDENCY_INSUFFICIENT` | há `depends_on`, mas ele não toca o item sem versão (p.ex. revive de dois itens com cadeias diferentes) | snapshot com o item |
+| `ENVELOPE_TOO_LARGE` | `add_items` com mais de 30 nomes (só nasce de `AddItems`, p.ex. habituais, #53; `AddText` já limita a 30 e sai normalmente) | uma tarefa que divida em comandos de forma explícita, nunca em silêncio; nenhum nome é descartado |
+| `NOT_SENDABLE` | `BLOCKED`/`CONFLICT`/`REJECTED` | resolução do conflito/bloqueio |
+| `UNSUPPORTED_TYPE` | tipo sem forma de fio ainda | a tarefa que o introduz |
+| `INCONSISTENT_INTENT` | payload, precondições e subjects não se correspondem | reparo; linha danificada |
+| `INVALID_DOCUMENT` | o documento montado não passou na validação de congelamento | defeito do código, não do dado |
+
+Limite conhecido: a evidência `covered` e as linhas de dependência vêm da fila.
+Um comando legado cuja dependência já foi confirmada e removida não pode provar
+que ela tocava o item; é recusado (`REVIVE_OBSERVATION_LOST`) em vez de supor.
+
+### Fixtures compartilhadas com o Rails
+
+`test/fixtures/files/android_wire_documents.json` guarda os documentos que o
+cliente congela para cada intenção. O Kotlin (JVM e instrumentado) monta os mesmos
+a partir de intenções guardadas, e `test/controllers/api/v1/android_wire_documents_test.rb`
+os envia ao `POST /api/v1/commands` real e confere o que o Rails responde
+(`applied`, `revived`, alias). Isso mostra que o Rails aceita essas formas; **não é
+o cliente Android falando com o servidor** (não há transporte) e não prova
+convergência. O servidor segue como autoridade: a validação estrutural do cliente
+não substitui as regras do Rails.
 
 ## Durabilidade e migrações
 
@@ -172,7 +277,7 @@ Código: `data/list/WireOutbox.kt` e `WireDocument.kt`; coluna
 ## Testes
 
 - JVM (`testDebugUnitTest`): `ProjectionReducerTest`, `AlvaMigrationsTest`,
-  `WireDocumentTest`,
+  `WireDocumentTest`, `WireEnvelopeBuilderTest`,
   `MatchingCorpusTest`, `ItemCategorizerTest`, `AddPlannerTest`,
   `DuplicateHintTest`.
 - Instrumentados (`connectedDebugAndroidTest`, job `android-instrumented` do
@@ -183,7 +288,10 @@ Código: `data/list/WireOutbox.kt` e `WireDocument.kt`; coluna
   (`LocalMatchingStoreTest`), o corpus compartilhado pelo store real
   (`MatchingCorpusStoreTest`) e o documento congelado (`WireOutboxTest`:
   reabrir e repetir byte a byte, candidato/projeção alterados, legado recusado,
-  falha de SQL revertendo, dois consumidores). Rodar localmente exige emulador/aparelho:
+  falha de SQL revertendo, dois consumidores) e a preparação (`WirePreparerTest`:
+  fixtures do Rails a partir de intenções reais, reabrir e repetir, revive com a
+  versão da intenção, recusas que preservam a fila, legados, corrida de duas
+  preparações, falha de SQL e transação externa). Rodar localmente exige emulador/aparelho:
   `./gradlew connectedDebugAndroidTest` em `android/`.
 - Não coberto: matar o processo de verdade e reiniciar o aparelho (simulado
   lendo o arquivo por outra conexão sem fechar o escritor); fica para a
@@ -233,12 +341,12 @@ qualquer das saídas. Situação após a #39 (detalhes em
    devolvidos por `add_items` (`public_id` → `canonical_public_id`), para que
    comandos ainda na fila e telas encontrem o item canônico.
 
-7. **Fechada no servidor (#39), adaptação local em #45.** Reativar leva
-   `revives.public_id` e a versão observada ou herdada do comando anterior. O
-   `payload.names` atual do Room deve ser convertido em `payload.items` antes
-   do primeiro envio, preservando intenções e UUIDs da fila existente. O primeiro corte da #45 só
-   guarda o documento congelado (ver "Documento de envio congelado"); a
-   conversão é o próximo.
+7. **Fechada no servidor (#39); adaptação local no segundo corte da #45.** Reativar
+   leva `revives.public_id` e a versão observada (guardada na intenção) ou herdada
+   do comando anterior; a entrada leva um UUID novo de reivindicação. A conversão
+   de `payload.names` em `payload.items` é feita por `WirePreparer` (ver
+   "Preparação do envio"); os casos que não podem ser enviados fielmente são
+   recusados com motivo.
 8. **Decisão mantida.** A categoria local não vai no fio; o servidor categoriza
    de novo e continua sendo a autoridade.
 9. **Aberta (#45).** Guardar `normalized_name` confirmado e a precisão/ordem
@@ -247,15 +355,15 @@ qualquer das saídas. Situação após a #39 (detalhes em
 
 ## Roteiro restante da #45
 
-Este corte (PR com `Refs #45`) entrega só a fundação durável acima. A issue
+Os cortes já feitos (PRs com `Refs #45`) entregam só a fundação durável e a preparação acima. A issue
 continua aberta; próximos PRs pequenos, cada um sobre a `main` já integrada:
 
-1. Conversão da intenção em documento: `payload.names` → `payload.items` com os
-   UUIDs de `command_subjects` (`creates`; `revives` para `targets` de
-   reativação), `depends_on`, `lock_version` e `observed_revision`, congelando
-   pelo `WireOutbox` antes da primeira tentativa. Decisão para a fila legada já
-   tentada (`attempts > 0`, sem bytes guardados): consultar snapshot e reemitir
-   com UUIDs novos, como prevê o contrato.
+1. ~~Conversão da intenção em documento~~ — feita no segundo corte (ver
+   "Preparação do envio"). Resta, para os cortes seguintes, resolver as recusas
+   da tabela acima: a fila legada já tentada (`attempts > 0`, sem bytes
+   guardados) e os revives/marcações sem versão recuperável pedem snapshot e
+   reemissão com UUIDs novos, como prevê o contrato; `ENVELOPE_TOO_LARGE` pede a
+   divisão explícita (#53).
 2. Transporte: `POST /api/v1/commands` em lotes ordenados, `Authorization` do
    cofre, falhas de transporte e de HTTP, `duplicate` tratado como sucesso,
    reenvio do mesmo documento.
