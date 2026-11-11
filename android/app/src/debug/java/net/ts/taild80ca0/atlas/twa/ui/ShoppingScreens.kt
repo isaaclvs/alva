@@ -28,6 +28,12 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 import net.ts.taild80ca0.atlas.twa.data.list.*
 import net.ts.taild80ca0.atlas.twa.data.matching.DuplicateHint
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import net.ts.taild80ca0.atlas.twa.sync.SyncController
+import net.ts.taild80ca0.atlas.twa.sync.SyncMessages
+import net.ts.taild80ca0.atlas.twa.sync.SyncStatus
 
 /** The same dark canvas and teal accent as the current Alva. Preferences arrive in #55. */
 @Composable
@@ -46,7 +52,12 @@ fun AlvaTheme(content: @Composable () -> Unit) {
 
 /** Screens depend only on the store. No HTTP call or database query lives here. */
 @Composable
-fun ShoppingScreens(store: ShoppingListStore, modifier: Modifier = Modifier, accessActions: (@Composable () -> Unit)? = null) {
+fun ShoppingScreens(
+    store: ShoppingListStore,
+    modifier: Modifier = Modifier,
+    accessActions: (@Composable () -> Unit)? = null,
+    sync: SyncController? = null,
+) {
     var state by remember(store) { mutableStateOf<ListState?>(null) }
     var readFailed by remember(store) { mutableStateOf(false) }
     var retry by remember { mutableIntStateOf(0) }
@@ -71,6 +82,14 @@ fun ShoppingScreens(store: ShoppingListStore, modifier: Modifier = Modifier, acc
     LaunchedEffect(screen) {
         if (screen == "list") keyboard?.hide()
     }
+    // Opening or coming back to the app asks for a sync cycle. Nothing else triggers one: no worker, no timer.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(sync, lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) sync?.request(manual = false) }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    val syncStatus = sync?.status?.collectAsState()?.value
 
     fun add() {
         if (saving || state == null || readFailed) return
@@ -145,6 +164,18 @@ fun ShoppingScreens(store: ShoppingListStore, modifier: Modifier = Modifier, acc
                     },
                     style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 8.dp),
                 )
+            }
+            if (sync != null && syncStatus != null) {
+                val running = syncStatus is SyncStatus.Running
+                val last = when (syncStatus) { is SyncStatus.Idle -> syncStatus.last; is SyncStatus.Running -> syncStatus.last }
+                Text(
+                    if (running) "Sincronizando…" else last?.let { SyncMessages.describe(it) } ?: "Ainda não sincronizado.",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.testTag("sync-status").semantics { liveRegion = LiveRegionMode.Polite },
+                )
+                TextButton(onClick = { sync.request(manual = true) }, enabled = !running, modifier = Modifier.testTag("sync-now")) {
+                    Text(if (SyncMessages.isTrouble(last)) "Tentar novamente" else "Sincronizar agora")
+                }
             }
             feedback?.let {
                 Text(it, maxLines = 3, modifier = Modifier.testTag("feedback").semantics { liveRegion = LiveRegionMode.Polite })

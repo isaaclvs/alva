@@ -39,12 +39,12 @@ class ShoppingScreensTest {
         }
     }
 
-    private fun launch(using: ShoppingListStore = store) {
+    private fun launch(using: ShoppingListStore = store, sync: net.ts.taild80ca0.atlas.twa.sync.SyncController? = null) {
         val vault = object : CredentialVault {
             override fun read() = VaultRead.Found(StoredAccess(AccessCredential(1, "test-only")))
             override fun write(access: StoredAccess) = error("opening must not write credentials")
         }
-        AccessGraph.install(HouseAccess(vault, noNetwork, RoomHouseholdBinding(db)), using)
+        AccessGraph.install(HouseAccess(vault, noNetwork, RoomHouseholdBinding(db)), using, sync)
         scenario = ActivityScenario.launch(MainActivity::class.java)
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
     }
@@ -214,5 +214,34 @@ class ShoppingScreensTest {
         waitForText("list-summary", "Pendentes: 2 · Comprados: 0")
         compose.onNodeWithText("Outros").assertIsDisplayed()
         compose.onNodeWithText("Café").assertIsDisplayed()
+    }
+
+    @Test fun opensWithOneSyncAndTheButtonAsksAgainShowingWhatHappened() {
+        val results = java.util.concurrent.LinkedBlockingQueue(
+            listOf(
+                net.ts.taild80ca0.atlas.twa.sync.SyncReport(net.ts.taild80ca0.atlas.twa.sync.SyncOutcome.Offline(net.ts.taild80ca0.atlas.twa.sync.TransientCause.NETWORK), needsAttention = 1),
+                net.ts.taild80ca0.atlas.twa.sync.SyncReport(net.ts.taild80ca0.atlas.twa.sync.SyncOutcome.Synced(7)),
+            ),
+        )
+        val runs = java.util.concurrent.atomic.AtomicInteger()
+        val sync = net.ts.taild80ca0.atlas.twa.sync.SyncController(
+            net.ts.taild80ca0.atlas.twa.sync.SyncRunner { runs.incrementAndGet(); results.take() },
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Job() + kotlinx.coroutines.Dispatchers.Default),
+        )
+
+        launch(sync = sync)
+
+        // Opening asked for a cycle by itself; it did not get through, and the screen says so in plain words.
+        waitForText("sync-status", "Sem conexão com o servidor")
+        compose.onNodeWithTag("sync-status").assertTextContains("1 alteração precisa de atenção", substring = true)
+        compose.onNodeWithTag("sync-now").assertTextEquals("Tentar novamente")
+        assertEquals(1, runs.get())
+        // Adding still works and never waits for the network.
+        add("Leite")
+
+        compose.onNodeWithTag("sync-now").performClick()
+        waitForText("sync-status", "Sincronizado.")
+        compose.onNodeWithTag("sync-now").assertTextEquals("Sincronizar agora")
+        assertEquals(2, runs.get())
     }
 }
