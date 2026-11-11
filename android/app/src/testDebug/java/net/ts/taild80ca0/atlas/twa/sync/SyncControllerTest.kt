@@ -93,6 +93,57 @@ class SyncControllerTest {
     }
 
     @Test
+    fun committedChangesBypassResumeThrottle() {
+        val runner = Runner()
+        val c = controller(runner)
+        c.request(manual = false)
+        settle(c)
+        assertTrue(c.changed())
+        settle(c)
+        assertEquals(2, runner.runs.get())
+    }
+
+    @Test
+    fun editsDuringACycleCoalesceIntoOneFollowUpWithoutOverlap() = runBlocking {
+        val first = CompletableDeferred<Unit>()
+        val entered = CompletableDeferred<Unit>()
+        val runs = AtomicInteger()
+        val c = controller(SyncRunner {
+            if (runs.incrementAndGet() == 1) { entered.complete(Unit); first.await() }
+            SyncReport(SyncOutcome.Synced(runs.get().toLong()))
+        })
+        c.request(manual = false)
+        withTimeout(5_000) { entered.await() }
+        repeat(20) { c.changed() }
+        assertEquals(1, runs.get())
+        first.complete(Unit)
+        settle(c)
+        assertEquals(2, runs.get())
+        assertEquals(SyncStatus.Idle(SyncReport(SyncOutcome.Synced(2))), c.status.value)
+    }
+
+    @Test
+    fun failedCycleDoesNotRetryItselfButConnectivityRestorationRetriesImmediately() {
+        val runs = AtomicInteger()
+        val c = controller(SyncRunner {
+            runs.incrementAndGet()
+            SyncReport(SyncOutcome.Offline(TransientCause.NETWORK))
+        })
+        val network = NetworkSyncTrigger(c)
+        c.request(manual = false)
+        settle(c)
+        network.connected(true) // initial callback is throttled along with resume
+        settle(c)
+        assertEquals(1, runs.get())
+        network.connected(false)
+        network.connected(true)
+        settle(c)
+        repeat(5) { network.connected(true) }
+        settle(c)
+        assertEquals(2, runs.get())
+    }
+
+    @Test
     fun messagesAreInPortugueseAndNeverCarryCodesOrIds() {
         val reports = listOf(
             SyncReport(SyncOutcome.Synced(5)),

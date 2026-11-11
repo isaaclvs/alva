@@ -82,12 +82,20 @@ fun ShoppingScreens(
     LaunchedEffect(screen) {
         if (screen == "list") keyboard?.hide()
     }
-    // Opening or coming back to the app asks for a sync cycle. Nothing else triggers one: no worker, no timer.
+    // Network observation follows the visible, connected screen; no background worker or polling.
+    val context = androidx.compose.ui.platform.LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(sync, lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) sync?.request(manual = false) }
+    DisposableEffect(sync, lifecycleOwner, context) {
+        val network = sync?.let { net.ts.taild80ca0.atlas.twa.sync.ForegroundNetworkSync(context, it) }
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> { sync?.request(manual = false); network?.start() }
+                Lifecycle.Event.ON_PAUSE -> network?.stop()
+                else -> Unit
+            }
+        }
         lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        onDispose { network?.stop(); lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     val syncStatus = sync?.status?.collectAsState()?.value
 
@@ -99,6 +107,7 @@ fun ShoppingScreens(
             try {
                 when (val result = store.execute(ListIntent.AddText(submitted))) {
                     is IntentResult.Saved -> {
+                        sync?.changed()
                         // Do not erase text typed while this transaction was in flight.
                         if (draft == submitted) draft = ""
                         recent = result.additions.filter { it.outcome != AddOutcome.DUPLICATE }
@@ -121,6 +130,7 @@ fun ShoppingScreens(
             try {
                 val desired = if (item.status == ItemStatus.PURCHASED) ItemStatus.PENDING else ItemStatus.PURCHASED
                 when (store.execute(ListIntent.SetItemState(item.publicId, desired))) {
+                    is IntentResult.Saved -> sync?.changed()
                     is IntentResult.Failed -> feedback = "Não foi possível salvar a marcação. Tente de novo."
                     is IntentResult.Invalid -> feedback = "Este item não está mais na lista."
                     else -> Unit
