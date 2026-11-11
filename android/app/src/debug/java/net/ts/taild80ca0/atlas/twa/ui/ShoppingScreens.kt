@@ -165,18 +165,6 @@ fun ShoppingScreens(
                     style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 8.dp),
                 )
             }
-            if (sync != null && syncStatus != null) {
-                val running = syncStatus is SyncStatus.Running
-                val last = when (syncStatus) { is SyncStatus.Idle -> syncStatus.last; is SyncStatus.Running -> syncStatus.last }
-                Text(
-                    if (running) "Sincronizando…" else last?.let { SyncMessages.describe(it) } ?: "Ainda não sincronizado.",
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.testTag("sync-status").semantics { liveRegion = LiveRegionMode.Polite },
-                )
-                TextButton(onClick = { sync.request(manual = true) }, enabled = !running, modifier = Modifier.testTag("sync-now")) {
-                    Text(if (SyncMessages.isTrouble(last)) "Tentar novamente" else "Sincronizar agora")
-                }
-            }
             feedback?.let {
                 Text(it, maxLines = 3, modifier = Modifier.testTag("feedback").semantics { liveRegion = LiveRegionMode.Polite })
             }
@@ -188,6 +176,7 @@ fun ShoppingScreens(
                 current == null -> Text("Abrindo sua lista…")
                 screen == "add" -> {
                     LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(vertical = 16.dp)) {
+                        if (sync != null && syncStatus != null) item(key = "sync") { SyncPanel(sync, syncStatus) }
                         if (recent.isNotEmpty()) {
                             item { Text("Acabou de adicionar", style = MaterialTheme.typography.titleMedium) }
                             items(recent, key = { it.itemPublicId }) { addition ->
@@ -219,6 +208,7 @@ fun ShoppingScreens(
                 else -> {
                     Text("Pendentes: $pending · Comprados: ${current.items.size - pending}", modifier = Modifier.testTag("list-summary"))
                     LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(vertical = 12.dp)) {
+                        if (sync != null && syncStatus != null) item(key = "sync") { SyncPanel(sync, syncStatus) }
                         if (current.items.isEmpty()) item { Text("Sua lista está vazia. Adicione o que acabou em casa.") }
                         val known = current.categories.sortedBy { it.position }
                         val unknown = current.items.filter { item -> known.none { it.publicId == item.categoryPublicId } }
@@ -251,6 +241,23 @@ fun ShoppingScreens(
                     }
                 }
             }
+        }
+    }
+}
+
+/** Sync details can grow when offline; they scroll rather than displacing the add form above the IME. */
+@Composable
+private fun SyncPanel(sync: SyncController, status: SyncStatus) {
+    val running = status is SyncStatus.Running
+    val last = when (status) { is SyncStatus.Idle -> status.last; is SyncStatus.Running -> status.last }
+    Column {
+        Text(
+            if (running) "Sincronizando…" else last?.let { SyncMessages.describe(it) } ?: "Ainda não sincronizado.",
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.testTag("sync-status").semantics { liveRegion = LiveRegionMode.Polite },
+        )
+        TextButton(onClick = { sync.request(manual = true) }, enabled = !running, modifier = Modifier.testTag("sync-now")) {
+            Text(if (SyncMessages.isTrouble(last)) "Tentar novamente" else "Sincronizar agora")
         }
     }
 }

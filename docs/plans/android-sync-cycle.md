@@ -67,11 +67,11 @@ ou de habituais foi feita**: os dados são guardados, não interpretados.
 
 Sem worker nem temporizador. `SyncController` pede um ciclo quando o app **abre ou retoma** (`ON_RESUME`; ignorado
 se o ciclo anterior começou há menos de 15 s) e quando o usuário toca em **"Sincronizar agora"** (vira
-**"Tentar novamente"** se o último ciclo não terminou sincronizado; nunca limitado). A linha de estado logo acima
-do feedback conta o que aconteceu em português, sem códigos: "Sincronizado.", "Sem conexão com o servidor…",
+**"Tentar novamente"** se o último ciclo não terminou sincronizado; nunca limitado). O painel de estado na área rolável das telas
+conta o que aconteceu em português, sem códigos: "Sincronizado.", "Sem conexão com o servidor…",
 "Aguardando o servidor confirmar N alterações enviadas. A lista não foi atualizada para não perder nada…", e
 acrescenta quantas alterações "precisam de atenção" (conflito/recusa/bloqueio: a intenção continua guardada e
-visível na lista) ou "ainda não puderam ser enviadas". Adicionar e marcar continuam sem esperar a rede.
+visível na lista) ou "ainda não puderam ser enviadas". Adicionar e marcar continuam sem esperar a rede. O painel pode crescer com os erros sem deslocar o campo e o botão de adicionar para fora da área disponível acima do teclado.
 
 ## Como executar o cenário e testar o APK
 
