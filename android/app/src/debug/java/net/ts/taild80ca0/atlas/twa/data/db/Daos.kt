@@ -216,6 +216,15 @@ interface ReceiptDao {
     suspend fun insert(receipt: CommandReceiptEntity)
 }
 
+@Dao
+interface CommandResolutionDao {
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insert(resolution: CommandResolutionEntity)
+
+    @Query("SELECT * FROM command_resolutions ORDER BY decided_at")
+    suspend fun all(): List<CommandResolutionEntity>
+}
+
 /**
  * The snapshot's history: archived items, trips, habituals and tombstones. Only an installed snapshot
  * writes them, and always as a whole (clear, then insert in the snapshot's order).

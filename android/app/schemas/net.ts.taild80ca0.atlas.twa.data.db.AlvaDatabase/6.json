@@ -1,0 +1,881 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 6,
+    "identityHash": "ca31af1adc02bd7f946271724840cb00",
+    "entities": [
+      {
+        "tableName": "sync_state",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `household_public_id` TEXT, `confirmed_revision` INTEGER NOT NULL, `household_name` TEXT, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "householdPublicId",
+            "columnName": "household_public_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "confirmedRevision",
+            "columnName": "confirmed_revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "householdName",
+            "columnName": "household_name",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "categories",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`public_id` TEXT NOT NULL, `name` TEXT NOT NULL, `position` INTEGER NOT NULL, PRIMARY KEY(`public_id`))",
+        "fields": [
+          {
+            "fieldPath": "publicId",
+            "columnName": "public_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "position",
+            "columnName": "position",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "public_id"
+          ]
+        }
+      },
+      {
+        "tableName": "catalog_items",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`public_id` TEXT NOT NULL, `name` TEXT NOT NULL, `normalized_name` TEXT NOT NULL, `category_public_id` TEXT NOT NULL, `learned` INTEGER NOT NULL, PRIMARY KEY(`public_id`))",
+        "fields": [
+          {
+            "fieldPath": "publicId",
+            "columnName": "public_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "normalizedName",
+            "columnName": "normalized_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "categoryPublicId",
+            "columnName": "category_public_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "learned",
+            "columnName": "learned",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "public_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_catalog_items_normalized_name",
+            "unique": true,
+            "columnNames": [
+              "normalized_name"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_catalog_items_normalized_name` ON `${TABLE_NAME}` (`normalized_name`)"
+          }
+        ]
+      },
+      {
+        "tableName": "catalog_state",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `dictionary_revision` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dictionaryRevision",
+            "columnName": "dictionary_revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "confirmed_items",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`public_id` TEXT NOT NULL, `name` TEXT NOT NULL, `category_public_id` TEXT, `status` INTEGER NOT NULL, `position` INTEGER, `purchased_at` INTEGER, `created_at` INTEGER NOT NULL, `lock_version` INTEGER NOT NULL, `trip_public_id` TEXT, `normalized_name` TEXT, `created_at_micros` INTEGER, `updated_at_micros` INTEGER, `purchased_at_micros` INTEGER, `server_order` INTEGER, PRIMARY KEY(`public_id`))",
+        "fields": [
+          {
+            "fieldPath": "publicId",
+            "columnName": "public_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "categoryPublicId",
+            "columnName": "category_public_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "position",
+            "columnName": "position",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "purchasedAt",
+            "columnName": "purchased_at",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lockVersion",
+            "columnName": "lock_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tripPublicId",
+            "columnName": "trip_public_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "normalizedName",
+            "columnName": "normalized_name",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAtMicros",
+            "columnName": "created_at_micros",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "updatedAtMicros",
+            "columnName": "updated_at_micros",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "purchasedAtMicros",
+            "columnName": "purchased_at_micros",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "serverOrder",
+            "columnName": "server_order",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "public_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_confirmed_items_trip_public_id",
+            "unique": false,
+            "columnNames": [
+              "trip_public_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_confirmed_items_trip_public_id` ON `${TABLE_NAME}` (`trip_public_id`)"
+          }
+        ]
+      },
+      {
+        "tableName": "list_items",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`public_id` TEXT NOT NULL, `name` TEXT NOT NULL, `category_public_id` TEXT, `status` INTEGER NOT NULL, `position` INTEGER, `purchased_at` INTEGER, `created_at` INTEGER NOT NULL, `lock_version` INTEGER, `trip_public_id` TEXT, PRIMARY KEY(`public_id`))",
+        "fields": [
+          {
+            "fieldPath": "publicId",
+            "columnName": "public_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "categoryPublicId",
+            "columnName": "category_public_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "position",
+            "columnName": "position",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "purchasedAt",
+            "columnName": "purchased_at",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lockVersion",
+            "columnName": "lock_version",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "tripPublicId",
+            "columnName": "trip_public_id",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "public_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_list_items_trip_public_id",
+            "unique": false,
+            "columnNames": [
+              "trip_public_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_list_items_trip_public_id` ON `${TABLE_NAME}` (`trip_public_id`)"
+          },
+          {
+            "name": "index_list_items_category_public_id",
+            "unique": false,
+            "columnNames": [
+              "category_public_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_list_items_category_public_id` ON `${TABLE_NAME}` (`category_public_id`)"
+          }
+        ]
+      },
+      {
+        "tableName": "commands",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`sequence` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `id` TEXT NOT NULL, `type` TEXT NOT NULL, `payload` TEXT NOT NULL, `preconditions` TEXT NOT NULL, `depends_on` TEXT, `observed_revision` INTEGER NOT NULL, `status` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `attempts` INTEGER NOT NULL, `last_error_code` TEXT, `wire_document` TEXT, `answered_attempt` INTEGER NOT NULL DEFAULT 0)",
+        "fields": [
+          {
+            "fieldPath": "sequence",
+            "columnName": "sequence",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payload",
+            "columnName": "payload",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "preconditions",
+            "columnName": "preconditions",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dependsOn",
+            "columnName": "depends_on",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "observedRevision",
+            "columnName": "observed_revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "attempts",
+            "columnName": "attempts",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastErrorCode",
+            "columnName": "last_error_code",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "wireDocument",
+            "columnName": "wire_document",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "answeredAttempt",
+            "columnName": "answered_attempt",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "sequence"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_commands_id",
+            "unique": true,
+            "columnNames": [
+              "id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_commands_id` ON `${TABLE_NAME}` (`id`)"
+          },
+          {
+            "name": "index_commands_status",
+            "unique": false,
+            "columnNames": [
+              "status"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_commands_status` ON `${TABLE_NAME}` (`status`)"
+          }
+        ]
+      },
+      {
+        "tableName": "command_subjects",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`command_id` TEXT NOT NULL, `subject_public_id` TEXT NOT NULL, `ordinal` INTEGER NOT NULL, `role` TEXT NOT NULL, `category_public_id` TEXT, PRIMARY KEY(`command_id`, `subject_public_id`, `ordinal`), FOREIGN KEY(`command_id`) REFERENCES `commands`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "commandId",
+            "columnName": "command_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "subjectPublicId",
+            "columnName": "subject_public_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ordinal",
+            "columnName": "ordinal",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "role",
+            "columnName": "role",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "categoryPublicId",
+            "columnName": "category_public_id",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "command_id",
+            "subject_public_id",
+            "ordinal"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_command_subjects_subject_public_id",
+            "unique": false,
+            "columnNames": [
+              "subject_public_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_command_subjects_subject_public_id` ON `${TABLE_NAME}` (`subject_public_id`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "commands",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "command_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "sync_aliases",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`alias_public_id` TEXT NOT NULL, `canonical_public_id` TEXT NOT NULL, `source_command_id` TEXT NOT NULL, `revision` INTEGER NOT NULL, PRIMARY KEY(`alias_public_id`))",
+        "fields": [
+          {
+            "fieldPath": "aliasPublicId",
+            "columnName": "alias_public_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "canonicalPublicId",
+            "columnName": "canonical_public_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceCommandId",
+            "columnName": "source_command_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "revision",
+            "columnName": "revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "alias_public_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_sync_aliases_canonical_public_id",
+            "unique": false,
+            "columnNames": [
+              "canonical_public_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_sync_aliases_canonical_public_id` ON `${TABLE_NAME}` (`canonical_public_id`)"
+          }
+        ]
+      },
+      {
+        "tableName": "command_receipts",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`command_id` TEXT NOT NULL, `outcome` TEXT NOT NULL, `via_duplicate` INTEGER NOT NULL, `revision` INTEGER NOT NULL, `house_revision` INTEGER NOT NULL, `attempt` INTEGER NOT NULL, `data_json` TEXT NOT NULL, `received_at` INTEGER NOT NULL, PRIMARY KEY(`command_id`), FOREIGN KEY(`command_id`) REFERENCES `commands`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "commandId",
+            "columnName": "command_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "outcome",
+            "columnName": "outcome",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "viaDuplicate",
+            "columnName": "via_duplicate",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "revision",
+            "columnName": "revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "houseRevision",
+            "columnName": "house_revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "attempt",
+            "columnName": "attempt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dataJson",
+            "columnName": "data_json",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "receivedAt",
+            "columnName": "received_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "command_id"
+          ]
+        },
+        "foreignKeys": [
+          {
+            "table": "commands",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "command_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "archived_items",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`public_id` TEXT NOT NULL, `name` TEXT NOT NULL, `normalized_name` TEXT NOT NULL, `category_public_id` TEXT, `status` INTEGER NOT NULL, `position` INTEGER, `purchased_at_micros` INTEGER, `created_at_micros` INTEGER NOT NULL, `updated_at_micros` INTEGER NOT NULL, `lock_version` INTEGER NOT NULL, `trip_public_id` TEXT NOT NULL, `server_order` INTEGER NOT NULL, PRIMARY KEY(`public_id`))",
+        "fields": [
+          {
+            "fieldPath": "publicId",
+            "columnName": "public_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "normalizedName",
+            "columnName": "normalized_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "categoryPublicId",
+            "columnName": "category_public_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "position",
+            "columnName": "position",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "purchasedAtMicros",
+            "columnName": "purchased_at_micros",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "createdAtMicros",
+            "columnName": "created_at_micros",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtMicros",
+            "columnName": "updated_at_micros",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lockVersion",
+            "columnName": "lock_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tripPublicId",
+            "columnName": "trip_public_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "serverOrder",
+            "columnName": "server_order",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "public_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_archived_items_trip_public_id",
+            "unique": false,
+            "columnNames": [
+              "trip_public_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_archived_items_trip_public_id` ON `${TABLE_NAME}` (`trip_public_id`)"
+          },
+          {
+            "name": "index_archived_items_normalized_name",
+            "unique": false,
+            "columnNames": [
+              "normalized_name"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_archived_items_normalized_name` ON `${TABLE_NAME}` (`normalized_name`)"
+          }
+        ]
+      },
+      {
+        "tableName": "shopping_trips",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`public_id` TEXT NOT NULL, `finished_at_micros` INTEGER NOT NULL, `created_at_micros` INTEGER NOT NULL, `server_order` INTEGER NOT NULL, PRIMARY KEY(`public_id`))",
+        "fields": [
+          {
+            "fieldPath": "publicId",
+            "columnName": "public_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "finishedAtMicros",
+            "columnName": "finished_at_micros",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtMicros",
+            "columnName": "created_at_micros",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "serverOrder",
+            "columnName": "server_order",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "public_id"
+          ]
+        }
+      },
+      {
+        "tableName": "habitual_items",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`public_id` TEXT NOT NULL, `name` TEXT NOT NULL, `normalized_name` TEXT NOT NULL, `created_at_micros` INTEGER NOT NULL, `server_order` INTEGER NOT NULL, PRIMARY KEY(`public_id`))",
+        "fields": [
+          {
+            "fieldPath": "publicId",
+            "columnName": "public_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "normalizedName",
+            "columnName": "normalized_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtMicros",
+            "columnName": "created_at_micros",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "serverOrder",
+            "columnName": "server_order",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "public_id"
+          ]
+        }
+      },
+      {
+        "tableName": "tombstones",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`record_type` TEXT NOT NULL, `public_id` TEXT NOT NULL, `revision` INTEGER NOT NULL, `server_order` INTEGER NOT NULL, PRIMARY KEY(`record_type`, `public_id`, `revision`))",
+        "fields": [
+          {
+            "fieldPath": "recordType",
+            "columnName": "record_type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "publicId",
+            "columnName": "public_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "revision",
+            "columnName": "revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "serverOrder",
+            "columnName": "server_order",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "record_type",
+            "public_id",
+            "revision"
+          ]
+        }
+      },
+      {
+        "tableName": "command_resolutions",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `decided_at` INTEGER NOT NULL, `commands_json` TEXT NOT NULL, `subject_ids_json` TEXT NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "decidedAt",
+            "columnName": "decided_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "commandsJson",
+            "columnName": "commands_json",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "subjectIdsJson",
+            "columnName": "subject_ids_json",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'ca31af1adc02bd7f946271724840cb00')"
+    ]
+  }
+}
