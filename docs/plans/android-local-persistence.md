@@ -285,10 +285,13 @@ direto. **O cliente de snapshot é o próximo corte**, e é ele quem remove o qu
 validador confere o `data` contra o **documento congelado** e os `command_subjects`:
 
 - `add_items`: um resultado por entrada, na ordem do documento, citando o UUID enviado; `created`
-  mantém o UUID, o nome digitado (comparado pela chave de matching, então o `squish` do servidor não
-  importa), pendente, versão 0; `revived` é a compra que o documento dizia reviver, só para entrada
-  de revive, pendente e com versão acima da que o usuário viu; `duplicate` pode apontar para
-  qualquer item. `applied` exige ao menos um `created`/`revived`; `noop`, nenhum.
+  mantém o UUID, o nome digitado depois do `squish` do Rails (que junta qualquer espaço Unicode, NBSP e
+  espaço ideográfico inclusos, e não só os ASCII; comparado sem caixa nem acento), pendente, versão 0;
+  `revived` é a compra que o documento dizia reviver, só para entrada de revive, pendente e com versão acima
+  da que o usuário viu; `duplicate` pode apontar para qualquer item. `duplicate` e `revived` são itens que o
+  servidor **achou pela chave de matching** do nome pedido, então precisam ter essa mesma chave: outra caixa,
+  outro acento ou o plural do nome servem, outro nome não (`Detergente` não responde a `Leite`).
+  `applied` exige ao menos um `created`/`revived`; `noop`, nenhum.
 - `set_item_state`: `data.item` com o UUID citado, no estado desejado, `purchased_at` coerente, e, se
   `applied`, versão ≥ 1. O canônico tem de ser o que o UUID citado resolve pelos aliases **já conhecidos**.
   Se o servidor devolve outro e o aparelho ainda não sabe o alias, é `ALIAS_UNKNOWN`: falta aplicar o
@@ -312,6 +315,16 @@ mesmo recibo não duplica nada. O que isso dá aos comandos que continuam na fil
   (`latestTouching`), para o `depends_on` continuar apontando o último comando que tocou o item.
 - "aguardando sincronização" usa o id da linha, não o UUID do alias.
 
+**Fusão provisória da projeção (`ItemIdentities`).** Enquanto a resposta não vem, a reprojeção já mostra
+uma linha só quando um `creates` tem o nome de um item **pendente** do confirmado (item de outro aparelho).
+Isso é uma suposição de exibição, não um alias: o servidor nunca disse nada, ela não é gravada em
+`sync_aliases` nem entra em documento congelado, e some quando a resposta real a substitui por um alias
+durável. Mas a fila e a tela a respeitam, porque as duas perguntas "qual comando veio antes deste item?" e
+"esta linha ainda espera o servidor?" usam as mesmas identidades que a reprojeção calculou: o próximo
+comando sobre a linha dependente `depends_on` o último comando de qualquer id que a linha representa
+(inclusive o UUID do `creates` absorvido), e a linha mostra "aguardando" enquanto algum deles estiver na fila.
+`ProjectionRebuilder.identities()` repete a reprojeção sem gravar.
+
 **Recusas do servidor (`conflict`, `rejected`, `blocked`).** Intenção, payload e documento ficam; só o
 status e `last_error_code` mudam. Os dependentes por `depends_on`, **inclusive os transitivos**, viram
 `BLOCKED` (`dependency_not_applied`); comandos que não dependem dele seguem `PENDING`. `blocked` cuja
@@ -324,17 +337,43 @@ confirmação nova. Um recibo consumido que chega depois de um conflito registra
 dependentes que só estavam bloqueados por ele. Resolver um conflito de verdade (revisão do usuário,
 reemissão) não existe ainda.
 
-**Tentativas sem resposta.** `ReceiptApplier.unresolvedAttempts()` lista os comandos `IN_FLIGHT` com
-tentativa já contada: o servidor pode ou não tê-los aplicado. **Um snapshot não pode ser instalado, e a
+**Revive que o servidor respondeu com outro item.** Digitar de novo o nome de uma compra S envia um
+`add_items` que a reativa. O servidor procura primeiro um item **pendente** com o nome: se apareceu um (T)
+nesse meio tempo, a resposta é um `duplicate` de T, S continua comprado e a reivindicação vira alias de T.
+Um comando posterior sobre S (por exemplo a marcação que o usuário fez na linha "reativada") foi congelado
+mirando S e agora agiria na compra antiga enquanto a tela mostra T: a intenção se perderia sem aviso. O
+aplicador então põe esses comandos (todos os da fila, depois do revive, com S ou um alias dele como
+sujeito) e seus dependentes em `BLOCKED` com `revive_redirected`, sem mexer em payload, precondições nem
+documento congelado, e o resultado traz a lista em `Acknowledged.held`. Só a reconciliação os move (o
+`reopenDependents` ignora esse código). Não existe alias S→T: S e T são dois itens canônicos distintos; os
+comandos independentes seguem `PENDING`. Um revive de fato reativado (`revived`), ou um `duplicate` que
+aponta para o próprio S, não bloqueia nada.
+
+**Respostas e tentativas.** O fato "o servidor respondeu esta tentativa" é guardado à parte do status da
+fila: `commands.answered_attempt` é a última tentativa a que o **servidor** respondeu com uma recusa que
+prova que o comando não teve efeito (`conflict`, `rejected`, `blocked`, inclusive o `blocked` que só manda
+esperar). O status muda por decisão local (um dependente vira `BLOCKED` porque a dependência falhou; volta
+a `PENDING` quando ela é consumida) e isso não é resposta. Um `rejected` com `idempotency_conflict` também
+**não** fecha a tentativa: o servidor o devolve para conteúdo diferente e para o mesmo conteúdo vindo de
+outra linhagem (segredo antigo perdido), e então um efeito da linhagem antiga pode ter acontecido, o que a
+resposta não revela. Uma recusa de tentativa antiga (`Stale`) não fecha a atual. Um comando `ACKNOWLEDGED` já
+tem seu recibo.
+
+**Tentativas sem resposta.** `ReceiptApplier.unresolvedAttempts()` lista os comandos, em qualquer status
+que não seja `ACKNOWLEDGED`, com tentativa já contada que o servidor não respondeu (`attempts >
+answered_attempt`): o servidor pode ou não tê-los aplicado. Um dependente que estava em voo quando a
+dependência falhou continua na lista mesmo `BLOCKED`, e também depois de reaberto. **Um snapshot não pode ser instalado, e a
 fila não pode ser reaplicada sobre ele, enquanto essa lista não estiver vazia**: um snapshot lido depois
 de outro aparelho remover/arquivar o item não o mostra, e reaplicar o comando antigo o traria de volta.
 A saída é reenviar os mesmos bytes (o servidor responde `duplicate` ou a recusa real) e aplicar a
-resposta; nada é adivinhado pelo nome nem removido por ambiguidade. O instalador de snapshot (próximo
+resposta; nada é adivinhado pelo nome nem removido por ambiguidade. Um comando com `idempotency_conflict`
+só sai da lista pelo caminho do contrato (snapshot, ver o que foi aplicado, reemitir com UUIDs novos),
+que é decisão do corte de reconciliação. O instalador de snapshot (próximo
 corte) deve recusar com um resultado tipado quando a lista não for vazia.
 
 **Reprojeção (`ProjectionRebuilder`).** Além dos recibos e aliases, um `creates` cujo nome o confirmado
 já tem **pendente** (outro aparelho adicionou o mesmo nome) não vira uma segunda linha: fica de fora e
-os comandos seguintes agem no item que existe, como o servidor fará com o alias. Nunca funde com um
+os comandos seguintes agem no item que existe, como o servidor fará com o alias (a fusão provisória acima). Nunca funde com um
 comprado ou arquivado, e nunca revive um comprado por conta própria (isso exige `revives`).
 
 **Limites desta entrega.** Não há `confirmed_items` novos, nem precisão de microssegundos,
@@ -354,7 +393,8 @@ seguem abertas), nem instalação de snapshot, nem orquestrador, nem decisão do
   (instrumentado) cobrem a cadeia e a existência dos schemas. Preferir passos
   aditivos.
 - A versão atual é **4** (`MIGRATION_3_4`, issue #45: duas tabelas novas e vazias,
-  `sync_aliases` e `command_receipts`; nenhuma tabela ou coluna existente muda, e
+  `sync_aliases` e `command_receipts`, e a coluna `commands.answered_attempt` com `DEFAULT 0` ("nenhuma
+  tentativa foi respondida"); nenhum dado existente muda, e
   `schemas/1-3.json` ficam intactos; `AlvaDatabaseMigrationTest` migra um v3 com linhas nas
   oito tabelas, inclusive documento congelado, e compara cada uma). `MIGRATION_2_3` (issue #45:
   acrescenta `commands.wire_document` nulo; veja a seção anterior). `MIGRATION_1_2` (issue #42) é aditiva: cria
@@ -371,8 +411,8 @@ seguem abertas), nem instalação de snapshot, nem orquestrador, nem decisão do
 ## Testes
 
 - JVM (`testDebugUnitTest`): `ProjectionReducerTest`, `AlvaMigrationsTest`,
-  `WireDocumentTest`, `WireEnvelopeBuilderTest`,
-  `MatchingCorpusTest`, `ItemCategorizerTest`, `AddPlannerTest`,
+  `WireDocumentTest`, `WireEnvelopeBuilderTest`, `ReceiptValidatorTest`, `ItemIdentitiesTest`,
+  `RubyTextTest`, `MatchingCorpusTest`, `ItemCategorizerTest`, `AddPlannerTest`,
   `DuplicateHintTest`.
 - Instrumentados (`connectedDebugAndroidTest`, job `android-instrumented` do
   CI): atomicidade (incluindo falha no enqueue revertendo a projeção, por UUID
@@ -385,7 +425,9 @@ seguem abertas), nem instalação de snapshot, nem orquestrador, nem decisão do
   falha de SQL revertendo, dois consumidores) e a preparação (`WirePreparerTest`:
   fixtures do Rails a partir de intenções reais, reabrir e repetir, revive com a
   versão da intenção, recusas que preservam a fila, legados, corrida de duas
-  preparações, falha de SQL e transação externa). Rodar localmente exige emulador/aparelho:
+  preparações, falha de SQL e transação externa) e a aplicação de recibos
+  (`ReceiptApplierTest`: aliases, retenção, recusas, tentativas sem resposta que um bloqueio local não
+  resolve, revive redirecionado, fusão provisória). Rodar localmente exige emulador/aparelho:
   `./gradlew connectedDebugAndroidTest` em `android/`.
 - Não coberto: matar o processo de verdade e reiniciar o aparelho (simulado
   lendo o arquivo por outra conexão sem fechar o escritor); fica para a

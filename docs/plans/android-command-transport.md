@@ -83,7 +83,9 @@ abrir/retomar; dois aparelhos convergindo. Nada disso está pronto e não deve s
   transporte: aplicar e reenviar (`duplicate`), **resposta perdida depois do commit**
   (um proxy de teste, `ResponseDroppingProxy`, lê a resposta completa do Rails e fecha a
   conexão sem repassá-la; não existe endpoint de falha em produção), dependente
-  `blocked`, conflito, rejeição, `idempotency_conflict`, credenciais recusadas. O script
+  `blocked`, conflito, rejeição, `idempotency_conflict`, credenciais recusadas e, com os recibos
+  reais passando pelo `ReceiptValidator`, nomes com espaço Unicode (NBSP, ideográfico) que o Rails
+  junta com `squish` e o mesmo nome em outra caixa/plural, que volta como `duplicate`. O script
   falha se o teste foi pulado. No CI é o job `android-rails-transport`.
 
 Limites: a parte Rails roda na **JVM**, não no Android; prova o contrato e o código HTTP/
