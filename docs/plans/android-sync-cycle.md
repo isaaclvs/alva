@@ -120,10 +120,11 @@ e conferir; marcar em B; voltar a A.
 - **Tentativa sem resposta que não pode ser repetida segura o snapshot, de forma visível e sem apagar nada.** É o
   caso de `idempotency_conflict` (credencial antiga perdida: o Keystore apagado), de um dependente `BLOCKED` que já
   tinha sido enviado, e de uma recusa da requisição inteira (`Refused`/`Invalid`) cujos bytes não adiantam repetir.
-  Não há tela nem fluxo que resolva (sincronizar, ver o que foi aplicado e reemitir com UUIDs novos é do contrato e
-  não foi feito); a **reconciliação segura de credencial perdida não está resolvida**.
-- **Conflitos aparecem, mas não há tela para resolvê-los.** `CONFLICT`/`REJECTED`/`BLOCKED` ficam na fila com a
-  intenção intacta e aparecem como contagem e na projeção; nenhuma ação (descartar, reemitir) existe.
+  Para `idempotency_conflict`, a pessoa pode escolher **"Usar a lista do servidor"** no painel de revisão
+  ([resolução local](android-conflict-resolution.md)): o grupo sai da fila com auditoria e o snapshot volta a
+  ser instalado; a reemissão com UUIDs novos ainda é manual. Os outros dois casos ainda não têm fluxo.
+- **Conflitos:** recusas definitivas podem ser descartadas no painel "Revisar alterações"; reemitir com
+  conteúdo corrigido ainda não existe.
 - Comandos recusados antes de enviar (`VERSION_UNKNOWN` etc., tabela de recusas do documento de persistência) ficam
   parados e são contados em "ainda não puderam ser enviadas".
 - O snapshot é sempre completo (sem incremental), com teto de 32 MB; um ciclo grande consome dados móveis.
