@@ -6,7 +6,11 @@ module DictionaryChange
   module_function
 
   def bump_revision!
-    SyncScope.bump!(SyncScope::DICTIONARY)
+    revision = SyncScope.bump!(SyncScope::DICTIONARY)
+    ActiveRecord.after_all_transactions_commit do
+      Household.find_each { |household| SyncInvalidation.broadcast_household(household) }
+    end
+    revision
   end
 
   # For changes made outside a household operation (db:seed on every deploy):

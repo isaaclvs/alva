@@ -18,6 +18,7 @@ class SyncCommandProcessor
   EXECUTORS = {
     "add_items" => SyncCommands::AddItems,
     "set_item_state" => SyncCommands::SetItemState,
+    "correct_item" => SyncCommands::CorrectItem,
     "remove_item" => SyncCommands::RemoveItem
   }.freeze
 

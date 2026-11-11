@@ -23,6 +23,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ShoppingTripEntity::class,
         HabitualItemEntity::class,
         TombstoneEntity::class,
+        CommandResolutionEntity::class,
     ],
     version = AlvaMigrations.CURRENT_VERSION,
     exportSchema = true,
@@ -37,6 +38,7 @@ abstract class AlvaDatabase : RoomDatabase() {
     abstract fun aliases(): AliasDao
     abstract fun receipts(): ReceiptDao
     abstract fun history(): HistoryDao
+    abstract fun resolutions(): CommandResolutionDao
 }
 
 /**
@@ -54,7 +56,7 @@ abstract class AlvaDatabase : RoomDatabase() {
  *   changes copy data into the new shape inside the migration.
  */
 object AlvaMigrations {
-    const val CURRENT_VERSION = 5
+    const val CURRENT_VERSION = 6
 
     /**
      * 1 -> 2 (issue #42, local matching): additive only. The synced dictionary gets
@@ -164,8 +166,18 @@ object AlvaMigrations {
         }
     }
 
+    /** 5 -> 6 adds an independent immutable audit ledger; existing queue data is untouched. */
+    val MIGRATION_5_6: Migration = object : Migration(5, 6) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `command_resolutions` (`id` TEXT NOT NULL, `decided_at` INTEGER NOT NULL, " +
+                    "`commands_json` TEXT NOT NULL, `subject_ids_json` TEXT NOT NULL, PRIMARY KEY(`id`))",
+            )
+        }
+    }
+
     /** Contiguous chain from version 1 to [CURRENT_VERSION]. */
-    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
 }
 
 object AlvaDatabaseFactory {

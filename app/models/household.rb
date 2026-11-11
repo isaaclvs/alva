@@ -43,6 +43,8 @@ class Household < ApplicationRecord
     self.class.uncached do
       self.class.where(id: id).update_all("sync_revision = sync_revision + 1")
       self.sync_revision = self.class.where(id: id).pick(:sync_revision)
+      ActiveRecord.after_all_transactions_commit { SyncInvalidation.broadcast_household(self) }
+      sync_revision
     end
   end
 

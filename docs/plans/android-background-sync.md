@@ -80,3 +80,7 @@ corte controlam sua execução pelo TestDriver, sem reiniciar o sistema.
 Referências: [trabalho único](https://developer.android.com/develop/background-work/background-tasks/persistent/how-to/manage-work),
 [restrições e backoff](https://developer.android.com/develop/background-work/background-tasks/persistent/getting-started/define-work),
 [versão utilizada](https://developer.android.com/jetpack/androidx/releases/work#2.10.1).
+
+O corte Rails do [canal de invalidação](android-sync-invalidation.md) define o
+endpoint nativo e publica revisões após commit. A assinatura Android ainda é
+uma entrega seguinte; a existência do endpoint não muda os gatilhos do cliente.

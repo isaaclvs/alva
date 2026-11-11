@@ -158,6 +158,15 @@ data class TombstoneEntity(
     @ColumnInfo(name = "server_order") val serverOrder: Int,
 )
 
+/** Immutable record of an explicitly discarded, definitively refused command group. */
+@Entity(tableName = "command_resolutions")
+data class CommandResolutionEntity(
+    @PrimaryKey val id: String,
+    @ColumnInfo(name = "decided_at") val decidedAt: Long,
+    @ColumnInfo(name = "commands_json") val commandsJson: String,
+    @ColumnInfo(name = "subject_ids_json") val subjectIdsJson: String,
+)
+
 @Entity(
     tableName = "list_items",
     indices = [Index("trip_public_id"), Index("category_public_id")],
