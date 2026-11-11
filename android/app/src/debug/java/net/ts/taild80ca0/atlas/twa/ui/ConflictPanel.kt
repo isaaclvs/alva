@@ -68,7 +68,7 @@ fun ConflictPanel(resolver: ConflictResolver, onResolved: () -> Unit = {}) {
                 review.intentions.forEach { intention -> Text(intention.description, modifier = Modifier.padding(vertical = 4.dp)) }
                 Text(
                     if (uncertain) {
-                        "Não dá para saber se estas alterações chegaram ao servidor: o acesso deste aparelho foi refeito. " +
+                        "Não dá para saber se estas alterações chegaram ao servidor. " +
                             "Usar a lista do servidor retira estas alterações deste aparelho e traz a lista da casa. " +
                             "Depois, confira a lista e adicione de novo o que faltar."
                     } else {
