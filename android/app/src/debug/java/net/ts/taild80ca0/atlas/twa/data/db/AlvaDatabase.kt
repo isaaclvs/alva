@@ -19,6 +19,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         CommandSubjectEntity::class,
         SyncAliasEntity::class,
         CommandReceiptEntity::class,
+        ArchivedItemEntity::class,
+        ShoppingTripEntity::class,
+        HabitualItemEntity::class,
+        TombstoneEntity::class,
     ],
     version = AlvaMigrations.CURRENT_VERSION,
     exportSchema = true,
@@ -32,6 +36,7 @@ abstract class AlvaDatabase : RoomDatabase() {
     abstract fun commands(): CommandDao
     abstract fun aliases(): AliasDao
     abstract fun receipts(): ReceiptDao
+    abstract fun history(): HistoryDao
 }
 
 /**
@@ -49,7 +54,7 @@ abstract class AlvaDatabase : RoomDatabase() {
  *   changes copy data into the new shape inside the migration.
  */
 object AlvaMigrations {
-    const val CURRENT_VERSION = 4
+    const val CURRENT_VERSION = 5
 
     /**
      * 1 -> 2 (issue #42, local matching): additive only. The synced dictionary gets
@@ -116,8 +121,51 @@ object AlvaMigrations {
         }
     }
 
+    /**
+     * 4 -> 5 (issue #45, snapshot): additive only. A confirmed item can remember what the snapshot said
+     * beyond what the screens need (the server's `normalized_name`, the instants in microseconds, the
+     * position in the snapshot); the household name is kept in `sync_state`; and the archive, the trips,
+     * the habituals and the tombstones get their own empty tables. Every existing row gets NULL in the
+     * new columns: the queue, the aliases, the receipts, the projection and the confirmed rows are
+     * exactly as they were, and `schemas/1-4.json` are untouched.
+     */
+    val MIGRATION_4_5: Migration = object : Migration(4, 5) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `sync_state` ADD COLUMN `household_name` TEXT")
+            db.execSQL("ALTER TABLE `confirmed_items` ADD COLUMN `normalized_name` TEXT")
+            db.execSQL("ALTER TABLE `confirmed_items` ADD COLUMN `created_at_micros` INTEGER")
+            db.execSQL("ALTER TABLE `confirmed_items` ADD COLUMN `updated_at_micros` INTEGER")
+            db.execSQL("ALTER TABLE `confirmed_items` ADD COLUMN `purchased_at_micros` INTEGER")
+            db.execSQL("ALTER TABLE `confirmed_items` ADD COLUMN `server_order` INTEGER")
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `archived_items` (`public_id` TEXT NOT NULL, `name` TEXT NOT NULL, " +
+                    "`normalized_name` TEXT NOT NULL, `category_public_id` TEXT, `status` INTEGER NOT NULL, " +
+                    "`position` INTEGER, `purchased_at_micros` INTEGER, `created_at_micros` INTEGER NOT NULL, " +
+                    "`updated_at_micros` INTEGER NOT NULL, `lock_version` INTEGER NOT NULL, " +
+                    "`trip_public_id` TEXT NOT NULL, `server_order` INTEGER NOT NULL, PRIMARY KEY(`public_id`))",
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_archived_items_trip_public_id` ON `archived_items` (`trip_public_id`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_archived_items_normalized_name` ON `archived_items` (`normalized_name`)")
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `shopping_trips` (`public_id` TEXT NOT NULL, " +
+                    "`finished_at_micros` INTEGER NOT NULL, `created_at_micros` INTEGER NOT NULL, " +
+                    "`server_order` INTEGER NOT NULL, PRIMARY KEY(`public_id`))",
+            )
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `habitual_items` (`public_id` TEXT NOT NULL, `name` TEXT NOT NULL, " +
+                    "`normalized_name` TEXT NOT NULL, `created_at_micros` INTEGER NOT NULL, " +
+                    "`server_order` INTEGER NOT NULL, PRIMARY KEY(`public_id`))",
+            )
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `tombstones` (`record_type` TEXT NOT NULL, `public_id` TEXT NOT NULL, " +
+                    "`revision` INTEGER NOT NULL, `server_order` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`record_type`, `public_id`, `revision`))",
+            )
+        }
+    }
+
     /** Contiguous chain from version 1 to [CURRENT_VERSION]. */
-    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
 }
 
 object AlvaDatabaseFactory {
