@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
@@ -53,7 +54,7 @@ class EntryScreenTest {
         compose.onNodeWithText("Entre na lista de casa").assertIsDisplayed()
         compose.onNodeWithText("Use a senha da casa. Este aparelho ficará conectado por 30 dias.").assertIsDisplayed()
         compose.onNodeWithText("Senha da casa").assertIsDisplayed()
-        compose.onNodeWithTag("password").assertIsDisplayed()
+        compose.onNodeWithTag("password").assertIsDisplayed().assertContentDescriptionEquals("Senha da casa")
         compose.onNodeWithText("Entrar").performScrollTo().assertIsDisplayed().assertIsEnabled()
         compose.onAllNodesWithTagCount("message", 0)
     }

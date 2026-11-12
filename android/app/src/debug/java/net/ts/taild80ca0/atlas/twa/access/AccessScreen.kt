@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentType
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -182,7 +183,10 @@ fun EntryScreen(working: Boolean, message: String?, onSubmit: (String) -> Unit, 
                         .border(if (focused) 2.dp else 1.dp, if (focused) colors.accent else colors.line, AlvaShapes.Control)
                         .focusRequester(focus)
                         .onFocusChanged { focused = it.isFocused }
-                        .semantics { contentType = ContentType.Password }
+                        .semantics {
+                            contentType = ContentType.Password
+                            contentDescription = AccessMessages.PASSWORD_LABEL
+                        }
                         .testTag("password"),
                     decorationBox = { field ->
                         Box(Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) { field() }
