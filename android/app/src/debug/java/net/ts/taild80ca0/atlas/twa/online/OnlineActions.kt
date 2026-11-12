@@ -85,6 +85,8 @@ class CorrectItem(
     private val publicId: String,
     private val name: String,
     private val categoryPublicId: String?,
+    private val observedLockVersion: Int? = null,
+    private val observedDictionaryRevision: Long? = null,
 ) : OnlineAction {
     override fun plan(context: PlanContext): ActionPlan {
         val item = context.snapshot.listItems.firstOrNull { it.publicId.equals(publicId, ignoreCase = true) }
@@ -97,7 +99,7 @@ class CorrectItem(
         return ActionPlan.Send(context.document(
             "correct_item",
             """{"public_id":${JSONObject.quote(item.publicId)},"name":${JSONObject.quote(name)},"category_id":$category}""",
-            """{"lock_version":${item.lockVersion},"dictionary_revision":${context.snapshot.dictionaryRevision}}""",
+            """{"lock_version":${observedLockVersion ?: item.lockVersion},"dictionary_revision":${observedDictionaryRevision ?: context.snapshot.dictionaryRevision}}""",
         ))
     }
 }

@@ -340,6 +340,61 @@ class ShoppingScreensTest {
 
     private fun commandTypes() = house.sent.map { JSONObject(it.second).getString("type") }
 
+    @Test fun editingRenamesInPlaceAndCancelKeepsTheOriginal() {
+        val item = house.seed("Leite")
+        openList()
+        compose.onNodeWithTag("edit-${item.id}").performClick()
+        compose.onNodeWithTag("edit-name").performTextReplacement("Café")
+        compose.onNodeWithTag("edit-cancel").performScrollTo().performClick()
+        compose.onNodeWithText("Leite").assertIsDisplayed()
+        assertTrue(house.sent.isEmpty())
+        compose.onNodeWithTag("edit-${item.id}").performClick()
+        compose.onNodeWithTag("edit-name").performTextReplacement("Café")
+        compose.onNodeWithTag("edit-category").performClick()
+        compose.onNodeWithTag("edit-category-Mercearia").performClick()
+        compose.onNodeWithTag("edit-save").performScrollTo().performClick()
+        compose.waitUntil(10_000) { house.rows.single().name == "Café" }
+        assertEquals(FakeHouse.PANTRY, house.learned["café"])
+        compose.onNodeWithTag("edit-name").assertDoesNotExist()
+        assertEquals(listOf("correct_item"), commandTypes())
+    }
+
+    @Test fun aConflictKeepsTheDraftAndTheNextSaveUsesTheReviewedVersion() {
+        val item = house.seed("Leite")
+        val repository = launch()
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
+        compose.onNodeWithTag("edit-${item.id}").performClick()
+        compose.onNodeWithTag("edit-name").performTextReplacement("Café")
+        item.lock++
+        kotlinx.coroutines.runBlocking { repository.refresh() }
+        compose.onNodeWithTag("edit-save").performScrollTo().performClick()
+        waitForText("edit-error", "A lista mudou")
+        compose.onNodeWithTag("edit-name").assertTextContains("Café")
+        assertEquals("Leite", item.name)
+        scenario!!.recreate()
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("edit-name").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("edit-name").assertTextContains("Café")
+        compose.onNodeWithTag("edit-save").performScrollTo().performClick()
+        compose.waitUntil(10_000) { item.name == "Café" }
+    }
+
+    @Test fun blankEditAndNetworkFailureKeepWhatWasTyped() {
+        val item = house.seed("Leite")
+        openList()
+        compose.onNodeWithTag("edit-${item.id}").performClick()
+        compose.onNodeWithTag("edit-name").performTextReplacement("")
+        compose.onNodeWithTag("edit-save").performScrollTo().performClick()
+        waitForText("edit-error", "Digite um nome")
+        assertTrue(house.sent.isEmpty())
+        compose.onNodeWithTag("edit-name").performTextReplacement("Café")
+        house.commandSteps += Step.ServerError
+        compose.onNodeWithTag("edit-save").performScrollTo().performClick()
+        waitForText("edit-error", "Seu texto foi mantido")
+        compose.onNodeWithTag("edit-name").assertTextContains("Café")
+        assertEquals("Leite", item.name)
+    }
+
     @Test fun theListShowsSectionsInCategoryOrderWithXOfYCountsAndThePendingCounter() {
         seedCategories()
         val queijo = house.seed("Queijo")

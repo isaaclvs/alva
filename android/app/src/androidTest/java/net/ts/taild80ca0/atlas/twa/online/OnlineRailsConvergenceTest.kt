@@ -88,6 +88,29 @@ class OnlineRailsConvergenceTest {
 
     private suspend fun Phone.mark(name: String, desired: ItemStatus) = repository.execute(SetItemState(item(name)!!.publicId, desired))
 
+    @Test fun editingUsesTheObservedVersionAndTheChosenCategoryTeachesRails() = runBlocking<Unit> {
+        val a = phone(tokenA)
+        val b = phone(tokenB)
+        val originalName = newName()
+        val otherName = newName()
+        val draft = newName()
+        a.repository.refresh()
+        assertTrue(a.add(originalName) is ActionResult.Success)
+        val original = a.item(originalName)!!
+        b.repository.refresh()
+        assertTrue(b.repository.execute(CorrectItem(original.publicId, name = otherName, categoryPublicId = null)) is ActionResult.Success)
+        a.repository.refresh()
+        val refused = a.repository.execute(CorrectItem(original.publicId, name = draft, categoryPublicId = null,
+            observedLockVersion = original.lockVersion))
+        assertEquals(ActionResult.Refused("precondition_failed"), refused)
+        assertEquals(otherName, a.items.single { it.publicId == original.publicId }.name)
+        val category = a.ready.snapshot.categories.first { it.publicId != original.categoryPublicId }
+        assertTrue(a.repository.execute(CorrectItem(original.publicId, name = draft, categoryPublicId = category.publicId)) is ActionResult.Success)
+        b.repository.refresh()
+        assertEquals(category.publicId, b.item(draft)!!.categoryPublicId)
+        assertTrue(b.ready.snapshot.catalogItems.any { it.name == draft && it.learned && it.categoryPublicId == category.publicId })
+    }
+
     @Test fun aAddsAndMarksAndBSeesEachStepAndMarksBack() = runBlocking<Unit> {
         val a = phone(tokenA)
         val b = phone(tokenB)
