@@ -353,24 +353,34 @@ class ShoppingScreensTest {
     @Test fun anUnansweredIdempotencyConflictOffersTheServerListAndAsksForASync() {
         val root = refusedAddition("Leite", uncertain = true)
         val runs = java.util.concurrent.atomic.AtomicInteger()
+        val hold = CompletableDeferred<Unit>()
         val sync = SyncController(
-            SyncRunner { runs.incrementAndGet(); SyncReport(SyncOutcome.SnapshotHeld(emptyList())) },
+            SyncRunner {
+                // The second cycle stays running while the person decides.
+                if (runs.incrementAndGet() == 2) hold.await()
+                SyncReport(SyncOutcome.SnapshotHeld(emptyList()))
+            },
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Job() + kotlinx.coroutines.Dispatchers.Default),
         )
         launch(sync = sync, conflicts = resolver())
-        compose.waitUntil(10_000) { runs.get() == 1 }
+        compose.waitUntil(10_000) { runs.get() == 1 && sync.status.value is SyncStatus.Idle }
         compose.onNodeWithTag("nav-list").performClick()
         openReview(root.commandId)
         compose.onNodeWithTag("conflict-details").assertExists()
         compose.onNodeWithTag("conflict-discard").assertTextEquals("Usar a lista do servidor")
         assertEquals(listOf(root.commandId), runBlocking { db.commands().unresolvedAttemptIds() })
+        assertTrue(sync.request(manual = true))
+        compose.waitUntil(10_000) { runs.get() == 2 }
+
         compose.onNodeWithTag("conflict-discard").performClick()
         waitForText("conflict-feedback", "Confira a lista e adicione de novo o que faltar.")
         assertEquals(0, runBlocking { db.commands().count() })
         assertTrue(runBlocking { db.commands().unresolvedAttemptIds().isEmpty() })
         assertEquals(1, runBlocking { db.resolutions().all().size })
-        // The uncertain change held the server's list back: leaving the queue asks for a cycle at once.
-        compose.waitUntil(10_000) { runs.get() == 2 }
+        // The uncertain change held the server's list back: leaving the queue asks for a cycle, and one already
+        // running does not swallow that request — it gets a successor.
+        hold.complete(Unit)
+        compose.waitUntil(10_000) { runs.get() == 3 }
     }
 
 
