@@ -22,6 +22,7 @@ object OnlineMessages {
                 InvalidAction.INVALID_NAME -> "Digite um nome para o item."
                 InvalidAction.CATEGORY_NOT_FOUND -> "Escolha uma categoria válida."
                 InvalidAction.NO_HABITUALS -> "Selecione hábitos válidos desta casa"
+                InvalidAction.NO_PURCHASED_ITEMS -> "Marque itens comprados para finalizar a compra."
             }
             is ActionResult.Success -> ""
         }

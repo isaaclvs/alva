@@ -38,6 +38,7 @@ class FakeHouse : SnapshotTransport, CommandTransport {
     }
 
     val rows = ArrayList<Row>()
+    val trips = LinkedHashMap<String, List<Row>>()
     val habituals = ArrayList<JSONObject>()
     var buyAgain: List<JSONObject> = emptyList()
     var categories: List<JSONObject> = CATEGORIES.mapIndexed { index, (id, name) -> SnapshotFixtures.category(id, name, if (name == "Outros") 99 else index + 1) }
@@ -89,7 +90,9 @@ class FakeHouse : SnapshotTransport, CommandTransport {
             )
         }
         val recommendations = JSONArray(buyAgain.filter { entry -> rows.none { it.name.equals(entry.getString("name"), true) } })
-        val parsed = SnapshotParser.parse(SnapshotFixtures.bytes(SnapshotFixtures.snapshot(revision = revision, dictionaryRevision = dictionaryRevision, items = items, categories = categories, habituals = habituals)
+        val parsed = SnapshotParser.parse(SnapshotFixtures.bytes(SnapshotFixtures.snapshot(revision = revision, dictionaryRevision = dictionaryRevision, items = items, categories = categories, habituals = habituals,
+            trips = trips.keys.map { SnapshotFixtures.trip(it) },
+            archived = trips.flatMap { (trip, rows) -> rows.map { row -> SnapshotFixtures.item(row.id, row.name, status = row.status, category = row.category, lockVersion = row.lock, purchasedAt = row.purchasedAt, trip = trip) } })
             .put("buy_again", recommendations)))
         check(parsed is SnapshotParse.Valid) { "Fake snapshot invalid: $parsed" }
         return SnapshotOutcome.Received(parsed.snapshot)
@@ -133,6 +136,8 @@ class FakeHouse : SnapshotTransport, CommandTransport {
                     }
                 }))
             }
+            "finish_shopping" -> finishShopping(id, command)
+            "undo_shopping" -> undoShopping(id, command)
             "add_items" -> addItems(id, command.getJSONObject("payload").getJSONArray("items"))
             "set_item_state" -> setItemState(id, command)
             "correct_item" -> correctItem(id, command)
@@ -143,6 +148,32 @@ class FakeHouse : SnapshotTransport, CommandTransport {
         }
         if (receipt.status.recordedByServer) ledger[id] = receipt
         return receipt
+    }
+
+    private fun finishShopping(id: String, command: JSONObject): CommandReceipt {
+        val entries = command.getJSONObject("payload").getJSONArray("items")
+        val observed = (0 until entries.length()).map { entries.getJSONObject(it) }
+        val bought = observed.map { entry -> rows.firstOrNull { it.id == entry.getString("public_id") } }
+        if (bought.any { it == null }) return receipt(id, ReceiptStatus.REJECTED, error = "gone")
+        if (bought.zip(observed).any { (row, entry) -> row!!.status != "purchased" || row.lock != entry.getInt("lock_version") })
+            return receipt(id, ReceiptStatus.CONFLICT, error = "precondition_failed")
+        val trip = java.util.UUID.randomUUID().toString()
+        val archived = bought.filterNotNull()
+        rows.removeAll(archived.toSet())
+        archived.forEach { it.lock++ }
+        trips[trip] = archived
+        revision++
+        return receipt(id, ReceiptStatus.APPLIED, data = JSONObject().put("trip", JSONObject().put("public_id", trip)))
+    }
+
+    private fun undoShopping(id: String, command: JSONObject): CommandReceipt {
+        val trip = command.getJSONObject("payload").getString("trip_public_id")
+        val archived = trips[trip] ?: return receipt(id, ReceiptStatus.REJECTED, error = "gone")
+        if (trips.keys.last() != trip) return receipt(id, ReceiptStatus.CONFLICT, error = "precondition_failed")
+        archived.filter { archivedRow -> rows.none { it.name.equals(archivedRow.name, true) } }.forEach { it.lock++; rows.add(it) }
+        trips.remove(trip)
+        revision++
+        return receipt(id, ReceiptStatus.APPLIED)
     }
 
     private fun createHabitual(id: String, name: String): CommandReceipt {

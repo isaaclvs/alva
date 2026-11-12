@@ -138,6 +138,87 @@ class ShoppingScreensTest {
         assertEquals(1, ticks.get())
     }
 
+    private fun finishPurchase() {
+        compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasTestTag("finish-shopping"))
+        press("finish-shopping")
+    }
+
+    @Test fun finishingArchivesPurchasedLeavesPendingAndOffersLocalUndo() {
+        val bought = house.seed("Leite", status = "purchased")
+        val pending = house.seed("Pão")
+        openList()
+        finishPurchase()
+        waitForText("toast-message", "Compra registrada")
+        assertEquals(listOf(pending.id), house.rows.map { it.id })
+        assertEquals(bought.id, house.trips.values.single().single().id)
+        compose.onNodeWithTag("finish-shopping").assertDoesNotExist()
+        press("toast-undo")
+        compose.waitUntil(10_000) { house.trips.isEmpty() }
+        compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasTestTag("item-${bought.id}"))
+        compose.onNodeWithTag("item-${bought.id}").assertIsOn()
+        assertEquals("pending", pending.status)
+        assertEquals(listOf("finish_shopping", "undo_shopping"), commandTypes())
+    }
+
+    @Test fun finishingAndUndoKeepShoppingModeAndTheButtonAppearsOnlyOnce() {
+        house.seed("Leite", status = "purchased")
+        openList()
+        press("start-shopping")
+        compose.onAllNodesWithTag("finish-shopping").assertCountEquals(1)
+        press("finish-shopping")
+        waitForText("toast-message", "Compra registrada")
+        compose.onNodeWithTag("exit-shopping").assertExists()
+        compose.onNodeWithTag("finish-shopping").assertDoesNotExist()
+        press("toast-undo")
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("finish-shopping").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("exit-shopping").assertExists()
+        compose.onNodeWithTag("nav-add").assertDoesNotExist()
+    }
+
+    @Test fun aRefusedFinishShowsTheConflictWithoutPartialArchiving() {
+        house.seed("Leite", status = "purchased")
+        house.seed("Pão", status = "purchased")
+        openList()
+        house.commandSteps += Step.Refuse(409, "precondition_failed")
+        finishPurchase()
+        waitForText("feedback", "A lista mudou em outro aparelho")
+        assertEquals(2, house.rows.size)
+        assertTrue(house.trips.isEmpty())
+        compose.onNodeWithTag("toast-undo").assertDoesNotExist()
+    }
+
+    @Test fun noPurchasedItemsHideTheFinishButton() {
+        house.seed("Leite")
+        openList()
+        compose.onNodeWithTag("finish-shopping").assertDoesNotExist()
+        press("start-shopping")
+        compose.onNodeWithTag("finish-shopping").assertDoesNotExist()
+    }
+
+    @Test fun aFinishInFlightDisablesAnotherSubmission() {
+        house.seed("Leite", status = "purchased")
+        val release = CompletableDeferred<Unit>()
+        val calls = java.util.concurrent.atomic.AtomicInteger()
+        val transport = object : CommandTransport {
+            override suspend fun send(credential: AccessCredential, commandId: String, document: String): CommandOutcome {
+                calls.incrementAndGet()
+                release.await()
+                return house.send(credential, commandId, document)
+            }
+        }
+        launch(commands = transport)
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("nav-list").fetchSemanticsNodes().isNotEmpty() }
+        press("nav-list")
+        finishPurchase()
+        compose.waitUntil(10_000) { calls.get() == 1 }
+        compose.onNodeWithTag("finish-shopping").assertIsNotEnabled()
+        press("finish-shopping")
+        assertEquals(1, calls.get())
+        release.complete(Unit)
+        waitForText("toast-message", "Compra registrada")
+        assertEquals(1, house.trips.size)
+    }
+
     private fun launch(
         commands: CommandTransport = house,
         foreground: ((HouseAccess, OnlineRepository) -> ForegroundInvalidation)? = null,
