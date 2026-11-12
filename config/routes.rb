@@ -25,6 +25,8 @@ Rails.application.routes.draw do
       post "commands", to: "commands#create", format: false, defaults: { format: :json }
       # JSON only; a format suffix is not a way to ask for anything else.
       get "snapshot", to: "snapshots#show", format: false, defaults: { format: :json }
+      # The PWA's /lista.pdf for a device credential: same PDF, bearer instead of cookie.
+      get "list.pdf", to: "list_exports#show", format: false
     end
   end
 
