@@ -111,7 +111,7 @@ class MainActivityAccessTest {
 
         waitForText("Senha incorreta. Tente novamente.")
         compose.onNodeWithText("Senha incorreta. Tente novamente.").assertIsDisplayed()
-        compose.onNodeWithTag("connect").assertIsDisplayed()
+        compose.onNodeWithTag("connect").performScrollTo().assertIsDisplayed()
     }
 
     @Test
