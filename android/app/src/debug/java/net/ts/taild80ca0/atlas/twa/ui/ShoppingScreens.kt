@@ -23,18 +23,24 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
-import net.ts.taild80ca0.atlas.twa.data.list.*
+import net.ts.taild80ca0.atlas.twa.data.list.AddOutcome
+import net.ts.taild80ca0.atlas.twa.data.list.ItemStatus
+import net.ts.taild80ca0.atlas.twa.data.list.ListItem
 import net.ts.taild80ca0.atlas.twa.data.matching.DuplicateHint
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import net.ts.taild80ca0.atlas.twa.sync.SyncController
+import net.ts.taild80ca0.atlas.twa.online.ActionResult
+import net.ts.taild80ca0.atlas.twa.online.AddItems
+import net.ts.taild80ca0.atlas.twa.online.AddedItem
+import net.ts.taild80ca0.atlas.twa.online.OnlineMessages
+import net.ts.taild80ca0.atlas.twa.online.OnlineRepository
+import net.ts.taild80ca0.atlas.twa.online.OnlineState
+import net.ts.taild80ca0.atlas.twa.online.SetItemState
+import net.ts.taild80ca0.atlas.twa.online.addedItems
+import net.ts.taild80ca0.atlas.twa.online.liveItems
 import net.ts.taild80ca0.atlas.twa.sync.ForegroundInvalidation
-import net.ts.taild80ca0.atlas.twa.sync.SyncMessages
-import net.ts.taild80ca0.atlas.twa.sync.SyncStatus
 
 /** The same dark canvas and teal accent as the current Alva. Preferences arrive in #55. */
 @Composable
@@ -51,99 +57,87 @@ fun AlvaTheme(content: @Composable () -> Unit) {
     )
 }
 
-/** Screens depend only on the store. No HTTP call or database query lives here. */
+/**
+ * Screens depend only on the [OnlineRepository]: the server's list, and actions that wait for its answer.
+ * No HTTP call or database query lives here, and nothing typed is thrown away unless the server took it.
+ */
 @Composable
 fun ShoppingScreens(
-    store: ShoppingListStore,
+    repository: OnlineRepository,
     modifier: Modifier = Modifier,
     accessActions: (@Composable () -> Unit)? = null,
-    sync: SyncController? = null,
     invalidation: ForegroundInvalidation? = null,
-    conflicts: ConflictResolver? = null,
 ) {
-    var state by remember(store) { mutableStateOf<ListState?>(null) }
-    var readFailed by remember(store) { mutableStateOf(false) }
-    var retry by remember { mutableIntStateOf(0) }
+    val state by repository.state.collectAsState()
     var screen by rememberSaveable { mutableStateOf("add") }
     var draft by rememberSaveable { mutableStateOf("") }
     var feedback by remember { mutableStateOf<String?>(null) }
     var saving by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
-    var recent by remember { mutableStateOf<List<ItemAddition>>(emptyList()) }
+    var recent by remember { mutableStateOf<List<AddedItem>>(emptyList()) }
     val busyItems = remember { mutableStateListOf<String>() }
     val scope = rememberCoroutineScope()
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
 
-    LaunchedEffect(store, retry) {
-        readFailed = false
-        store.observe().catch { error ->
-            if (error is CancellationException) throw error
-            readFailed = true
-        }.collect { state = it }
-    }
     LaunchedEffect(screen) {
         if (screen == "list") keyboard?.hide()
     }
-    // The live subscription exists only while this screen is resumed. WorkManager owns background retries.
+    // Opening or resuming the app reads the list again; the live signal exists only while this screen is resumed.
     val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(sync, invalidation, lifecycleOwner) {
+    DisposableEffect(repository, invalidation, lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_RESUME -> { invalidation?.start(); sync?.request(manual = false) }
+                Lifecycle.Event.ON_RESUME -> { invalidation?.start(); scope.launch { repository.refresh() } }
                 Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_DESTROY -> invalidation?.stop()
                 else -> Unit
             }
         }
+        // Adding an observer replays the events up to the current state: entering an already resumed screen
+        // (right after connecting) gets its ON_RESUME too.
         lifecycleOwner.lifecycle.addObserver(observer)
-        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) invalidation?.start()
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
             invalidation?.stop()
         }
     }
-    val syncStatus = sync?.status?.collectAsState()?.value
+
+    val ready = state as? OnlineState.Ready
+    val items = remember(ready?.snapshot) { ready?.snapshot?.liveItems().orEmpty() }
 
     fun add() {
-        if (saving || state == null || readFailed) return
+        if (saving || ready == null) return
         val submitted = draft
         saving = true
         scope.launch {
             try {
-                when (val result = store.execute(ListIntent.AddText(submitted))) {
-                    is IntentResult.Saved -> {
-                        // Do not erase text typed while this transaction was in flight.
+                when (val result = repository.execute(AddItems.fromText(submitted))) {
+                    is ActionResult.Success -> {
+                        // Do not erase text typed while the request was in flight.
                         if (draft == submitted) draft = ""
-                        recent = result.additions.filter { it.outcome != AddOutcome.DUPLICATE }
-                        val duplicates = result.additions.count { it.outcome == AddOutcome.DUPLICATE }
-                        feedback = "Salvo neste aparelho." + if (duplicates > 0) " $duplicates já estavam na lista." else ""
+                        val added = result.receipt.addedItems()
+                        recent = added.filter { it.outcome != AddOutcome.DUPLICATE }
+                        feedback = OnlineMessages.added(added)
                     }
-                    is IntentResult.AlreadyOnList -> feedback = "Já está na lista: " + result.additions.joinToString { it.name }
-                    is IntentResult.Invalid -> feedback = "Digite pelo menos um item."
-                    is IntentResult.Failed -> feedback = "Não foi possível salvar. Seu texto foi mantido; tente de novo."
-                    IntentResult.Unchanged -> Unit
+                    else -> feedback = OnlineMessages.failure(result, keepsText = true)
                 }
             } finally { saving = false }
         }
     }
 
     fun mark(item: ListItem) {
-        if (item.publicId in busyItems || readFailed) return
+        if (item.publicId in busyItems || ready == null) return
         busyItems += item.publicId
         scope.launch {
             try {
                 val desired = if (item.status == ItemStatus.PURCHASED) ItemStatus.PENDING else ItemStatus.PURCHASED
-                when (store.execute(ListIntent.SetItemState(item.publicId, desired))) {
-                    is IntentResult.Failed -> feedback = "Não foi possível salvar a marcação. Tente de novo."
-                    is IntentResult.Invalid -> feedback = "Este item não está mais na lista."
-                    else -> Unit
-                }
+                val result = repository.execute(SetItemState(item.publicId, desired))
+                if (result !is ActionResult.Success) feedback = OnlineMessages.failure(result)
             } finally { busyItems -= item.publicId }
         }
     }
 
-    val current = state
-    val pending = current?.items?.count { it.status == ItemStatus.PENDING } ?: 0
+    val pending = items.count { it.status == ItemStatus.PENDING }
     Scaffold(
         modifier = modifier.imePadding(),
         bottomBar = {
@@ -168,38 +162,37 @@ fun ShoppingScreens(
                 }
             }
             Text("Nossa casa", style = MaterialTheme.typography.labelLarge)
-            if (current != null) {
-                Text(
-                    when {
-                        current.needsAttention > 0 -> "Salvo neste aparelho · há alterações que precisam de atenção."
-                        current.queuedCommands > 0 -> "Salvo neste aparelho · aguardando sincronização."
-                        else -> "Pronto para adicionar, mesmo sem internet."
-                    },
-                    style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 8.dp),
-                )
+            // The latest reload failed but a list is on screen: say it may be out of date, and offer to read again.
+            ready?.problem?.let { problem ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    Text(problem.message, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f)
+                        .testTag("connection-notice").semantics { liveRegion = LiveRegionMode.Polite })
+                    TextButton(onClick = { scope.launch { repository.refresh() } }, modifier = Modifier.testTag("reload")) { Text("Atualizar") }
+                }
             }
             feedback?.let {
                 Text(it, maxLines = 3, modifier = Modifier.testTag("feedback").semantics { liveRegion = LiveRegionMode.Polite })
             }
             when {
-                readFailed -> {
-                    Text("Não foi possível ler a lista. Seus dados foram mantidos.")
-                    Button(onClick = { retry++ }) { Text("Tentar de novo") }
+                state is OnlineState.Failed -> {
+                    Text((state as OnlineState.Failed).problem.message, modifier = Modifier.testTag("load-failed")
+                        .padding(vertical = 8.dp))
+                    Button(onClick = { scope.launch { repository.refresh() } }, modifier = Modifier.testTag("reload")) { Text("Tentar de novo") }
                 }
-                current == null -> Text("Abrindo sua lista…")
+                ready == null -> Text("Abrindo sua lista…", modifier = Modifier.testTag("loading"))
                 screen == "add" -> {
+                    val categories = ready.snapshot.categories
                     LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(vertical = 16.dp)) {
-                        if (sync != null && syncStatus != null) item(key = "sync") { SyncPanel(sync, syncStatus) }
                         if (recent.isNotEmpty()) {
                             item { Text("Acabou de adicionar", style = MaterialTheme.typography.titleMedium) }
                             items(recent, key = { it.itemPublicId }) { addition ->
-                                val item = current.items.firstOrNull { it.publicId == addition.itemPublicId }
-                                val category = current.categories.firstOrNull { it.publicId == item?.categoryPublicId }?.name ?: "Outros"
+                                val item = items.firstOrNull { it.publicId == addition.itemPublicId }
+                                val category = categories.firstOrNull { it.publicId == item?.categoryPublicId }?.name ?: "Outros"
                                 Text("${addition.name} · $category", modifier = Modifier.padding(vertical = 8.dp))
                             }
                         } else item { Text("Acabou em casa? Adicione aqui.") }
                     }
-                    val duplicates = DuplicateHint.alreadyPending(draft, current.items)
+                    val duplicates = DuplicateHint.alreadyPending(draft, items)
                     if (duplicates.isNotEmpty()) Text("Já na lista: ${duplicates.joinToString()}", maxLines = 2, modifier = Modifier.testTag("duplicate-hint"))
                     OutlinedTextField(
                         value = draft, onValueChange = { draft = it }, label = { Text("O que acabou?") },
@@ -215,19 +208,17 @@ fun ShoppingScreens(
                     }
                     Text("Separe por vírgula, ponto e vírgula ou quebra de linha.", style = MaterialTheme.typography.bodySmall)
                     Button(onClick = { add() }, enabled = !saving, modifier = Modifier.fillMaxWidth().testTag("save-add")) {
-                        Text(if (saving) "Salvando…" else "Adicionar à lista")
+                        Text(if (saving) "Adicionando…" else "Adicionar à lista")
                     }
                 }
                 else -> {
-                    Text("Pendentes: $pending · Comprados: ${current.items.size - pending}", modifier = Modifier.testTag("list-summary"))
+                    Text("Pendentes: $pending · Comprados: ${items.size - pending}", modifier = Modifier.testTag("list-summary"))
                     LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(vertical = 12.dp)) {
-                        if (sync != null && syncStatus != null) item(key = "sync") { SyncPanel(sync, syncStatus) }
-                        if (conflicts != null) item(key = "conflicts") { ConflictPanel(conflicts, onResolved = { sync?.requestInvalidation() }) }
-                        if (current.items.isEmpty()) item { Text("Sua lista está vazia. Adicione o que acabou em casa.") }
-                        val known = current.categories.sortedBy { it.position }
-                        val unknown = current.items.filter { item -> known.none { it.publicId == item.categoryPublicId } }
+                        if (items.isEmpty()) item { Text("Sua lista está vazia. Adicione o que acabou em casa.") }
+                        val known = ready.snapshot.categories.sortedBy { it.position }
+                        val unknown = items.filter { item -> known.none { it.publicId == item.categoryPublicId } }
                         val groups = known.map { category ->
-                            category.name to (current.items.filter { it.categoryPublicId == category.publicId } +
+                            category.name to (items.filter { it.categoryPublicId == category.publicId } +
                                 if (category.name == "Outros") unknown else emptyList())
                         } + if (known.none { it.name == "Outros" }) listOf("Outros" to unknown) else emptyList()
                         groups.filter { it.second.isNotEmpty() }.forEach { (category, rows) ->
@@ -247,7 +238,6 @@ fun ShoppingScreens(
                                     Checkbox(checked = item.status == ItemStatus.PURCHASED, onCheckedChange = null)
                                     Column(Modifier.padding(start = 12.dp).weight(1f)) {
                                         Text(item.name, textDecoration = if (item.status == ItemStatus.PURCHASED) TextDecoration.LineThrough else null)
-                                        if (item.awaitingSync) Text("Aguardando sincronização", style = MaterialTheme.typography.labelSmall)
                                     }
                                 }
                             }
@@ -255,23 +245,6 @@ fun ShoppingScreens(
                     }
                 }
             }
-        }
-    }
-}
-
-/** Sync details can grow when offline; they scroll rather than displacing the add form above the IME. */
-@Composable
-private fun SyncPanel(sync: SyncController, status: SyncStatus) {
-    val running = status is SyncStatus.Running
-    val last = when (status) { is SyncStatus.Idle -> status.last; is SyncStatus.Running -> status.last }
-    Column {
-        Text(
-            if (running) "Sincronizando…" else last?.let { SyncMessages.describe(it) } ?: "Ainda não sincronizado.",
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.testTag("sync-status").semantics { liveRegion = LiveRegionMode.Polite },
-        )
-        TextButton(onClick = { sync.request(manual = true) }, enabled = !running, modifier = Modifier.testTag("sync-now")) {
-            Text(if (SyncMessages.isTrouble(last)) "Tentar novamente" else "Sincronizar agora")
         }
     }
 }

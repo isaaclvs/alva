@@ -37,6 +37,7 @@ interface, e não deve ser ampliado sem o usuário retomar o offline. Os
 documentos abaixo continuam válidos para quando ele voltar.
 
 - Plano da paridade online: `docs/plans/android-online-parity.md`
+- Cliente online no Android (`OnlineRepository`, ações, como estender): `docs/plans/android-online-client.md`
 
 - Decisão e consequências: `docs/adr/0001-android-offline-com-rails.md`
 - Plano e regras propostas: `docs/plans/android-offline.md`

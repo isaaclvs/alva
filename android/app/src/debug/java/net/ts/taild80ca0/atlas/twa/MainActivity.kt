@@ -11,7 +11,7 @@ import net.ts.taild80ca0.atlas.twa.access.AccessScreen
 import net.ts.taild80ca0.atlas.twa.ui.AlvaTheme
 import net.ts.taild80ca0.atlas.twa.ui.ShoppingScreens
 
-/** Debug-only offline client; the production launcher remains the TWA. */
+/** Debug-only native client, online like the PWA; the production launcher remains the TWA. */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -20,15 +20,12 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
         )
         val access = AccessGraph.houseAccess(this)
-        val store = AccessGraph.shoppingListStore(this)
-        val sync = AccessGraph.syncController(this)
+        val repository = AccessGraph.onlineRepository(this)
         val invalidation = AccessGraph.foregroundInvalidation(this)
-        val conflicts = AccessGraph.conflictResolver(this)
-        AccessGraph.recoverBackgroundSync(this)
         setContent {
             AlvaTheme {
                 Surface {
-                    AccessScreen(access = access, connected = { actions -> ShoppingScreens(store, accessActions = actions, sync = sync, invalidation = invalidation, conflicts = conflicts) })
+                    AccessScreen(access = access, connected = { actions -> if (repository != null) ShoppingScreens(repository, accessActions = actions, invalidation = invalidation) })
                 }
             }
         }

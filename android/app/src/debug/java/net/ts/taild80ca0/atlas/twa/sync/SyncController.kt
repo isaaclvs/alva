@@ -30,7 +30,7 @@ class SyncController(
     private val scope: CoroutineScope,
     private val autoIntervalMillis: Long = 15_000,
     private val clock: () -> Long = { System.nanoTime() / 1_000_000 },
-) {
+) : InvalidationSink {
     private val busy = AtomicBoolean(false)
     private val invalidationPending = AtomicBoolean(false)
     private val _status = MutableStateFlow<SyncStatus>(SyncStatus.Idle(null))
@@ -53,7 +53,7 @@ class SyncController(
     }
 
     /** A remote signal bypasses resume throttling; a running cycle gets one successor. */
-    fun requestInvalidation() {
+    override fun requestInvalidation() {
         invalidationPending.set(true)
         drainInvalidation()
     }
