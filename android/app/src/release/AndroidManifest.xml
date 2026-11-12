@@ -1,15 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Production launcher. The release build keeps the Trusted Web Activity as the
-    single entry point; only the debug overlay replaces it with the native
-    development screen.
--->
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    Development-only manifest overlay.
 
-    <application>
+    The debug build is the native Compose entry point used to build the offline
+    client. The Trusted Web Activity stays in the production (release) build; in
+    debug its launcher is disabled so there is a single launcher icon.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application
+        tools:remove="android:manageSpaceActivity"
+        android:dataExtractionRules="@xml/alva_data_extraction_rules"
+        android:fullBackupContent="@xml/alva_backup_rules"
+        android:networkSecurityConfig="@xml/alva_network_security_config">
         <activity
             android:name="LauncherActivity"
-            android:enabled="true">
+            android:enabled="false"
+            tools:replace="android:enabled" />
+
+        <activity
+            android:name="MainActivity"
+            android:windowSoftInputMode="adjustResize"
+            android:exported="true"
+            android:label="@string/launcherName"
+            android:theme="@style/Theme.AlvaDev">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

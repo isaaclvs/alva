@@ -112,7 +112,8 @@ class HouseAccess(
             return@withLock failed(AccessError.Unauthorized)
         }
         when (val identity = api.identifyHousehold(credential)) {
-            is ApiResult.Ok -> when (binding.bind(identity.value.publicId)) {
+            is ApiResult.Ok -> when (bindHousehold(identity.value.publicId)) {
+                null -> ConnectResult.Failed(ConnectError.StorageFailed)
                 BindResult.Bound -> ConnectResult.Connected(identity.value.publicId)
                 BindResult.OtherHousehold -> ConnectResult.Failed(ConnectError.OtherHousehold)
             }
@@ -214,7 +215,8 @@ class HouseAccess(
         identity: HouseholdIdentity,
         stored: StoredAccess,
     ): ConnectResult {
-        return when (binding.bind(identity.publicId)) {
+        return when (bindHousehold(identity.publicId)) {
+            null -> ConnectResult.Failed(ConnectError.StorageFailed)
             BindResult.OtherHousehold -> {
                 // Never keep another household's credential: drop it, keep what the device had.
                 try {
@@ -231,6 +233,10 @@ class HouseAccess(
             }
         }
     }
+
+    private suspend fun bindHousehold(publicId: String): BindResult? = try {
+        binding.bind(publicId)
+    } catch (_: java.io.IOException) { null }
 
     /** Advisory: if it cannot be written, the next refused call reports it again. */
     private fun flagReconnect(access: StoredAccess) {

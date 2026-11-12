@@ -331,11 +331,6 @@ data class CommandReceiptEntity(
     }
 }
 
-object ItemStatusCodes {
-    const val PENDING = 0
-    const val PURCHASED = 1
-}
-
 object SubjectRole {
     const val CREATES = "creates"
     const val TARGETS = "targets"

@@ -10,7 +10,7 @@ import org.junit.Test
 
 class AlvaTypographyTest {
     private fun font(name: String): ByteBuffer {
-        val file = listOf("src/debug/res/font/$name.ttf", "app/src/debug/res/font/$name.ttf").map(::File).firstOrNull { it.isFile }
+        val file = listOf("src/online/res/font/$name.ttf", "app/src/online/res/font/$name.ttf").map(::File).firstOrNull { it.isFile }
             ?: error("$name.ttf not found from ${File(".").absoluteFile}")
         return ByteBuffer.wrap(file.readBytes())
     }

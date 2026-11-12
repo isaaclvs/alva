@@ -18,7 +18,7 @@ import net.ts.taild80ca0.atlas.twa.preferences.DevicePreferencesStore
 import net.ts.taild80ca0.atlas.twa.ui.*
 import net.ts.taild80ca0.atlas.twa.ui.theme.*
 
-/** Debug-only native client; the production launcher remains the TWA. */
+/** Native online entry point, shared by the development and production variants. */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
