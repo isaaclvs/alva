@@ -268,7 +268,7 @@ class SyncCommandProcessorTest < ActiveSupport::TestCase
   end
 
   test "the production registry has only the commands that were implemented" do
-    assert_equal %w[add_items correct_item remove_item set_item_state undo_remove], SyncCommandProcessor::EXECUTORS.keys.sort
+    assert_equal %w[add_items correct_item remove_item set_item_state undo_item_state undo_remove], SyncCommandProcessor::EXECUTORS.keys.sort
     not_yet = command(SecureRandom.uuid, type: "finish_shopping")
     assert_equal "unsupported_command", SyncCommandProcessor.new(device: @device).call([ not_yet ]).first[:error]
   end

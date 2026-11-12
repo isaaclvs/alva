@@ -16,6 +16,13 @@ module SyncCommandBuilders
     command
   end
 
+  def undo_item_state_command(public_id, status, purchased_at: nil, lock_version: nil, id: uuid, depends_on: nil)
+    command = { "id" => id, "type" => "undo_item_state", "depends_on" => depends_on,
+      "payload" => { "public_id" => public_id, "status" => status, "purchased_at" => purchased_at } }
+    command["preconditions"] = { "lock_version" => lock_version } if lock_version
+    command
+  end
+
   def correct_item_command(public_id, name, lock_version: nil, category_id: nil, dictionary_revision: nil, id: uuid, depends_on: nil)
     command = { "id" => id, "type" => "correct_item", "depends_on" => depends_on,
       "payload" => { "public_id" => public_id, "name" => name } }
