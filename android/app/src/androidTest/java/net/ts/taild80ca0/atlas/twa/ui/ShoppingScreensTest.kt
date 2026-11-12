@@ -215,7 +215,8 @@ class ShoppingScreensTest {
 
     @Test fun resumingTheAppReadsTheListAgain() {
         launch()
-        compose.onNodeWithTag("nav-list").performClick()
+        // The keyboard is still moving the navigation bar after the Add field takes focus.
+        compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         waitForText("list-summary", "Nada na lista")
         scenario!!.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
         house.seed("Leite") // another phone added it while this app was in the background
