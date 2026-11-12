@@ -852,6 +852,24 @@ dos habituais, do dicionário e dos tombstones que vêm junto. Coberto por
 depois de cada tabela enquanto outra conexão confirma mudanças em todas elas, e o
 documento tem de sair idêntico ao anterior.
 
+### PDF da lista (`GET /api/v1/list.pdf`, issue #108)
+
+Endpoint aditivo para o app nativo online (#92): o mesmo PDF de `/lista.pdf` da
+PWA (`ListPdf`: itens pendentes por categoria, em A4), autenticado pela
+credencial `sync` em vez do cookie.
+
+- `GET /api/v1/list.pdf` com `Authorization: Bearer <segredo>`. A casa vem só
+  da credencial. Sem parâmetros, só `GET` e sem sufixo de formato
+  (`/list.pdf.json` e `POST` são 404).
+- Resposta `200`, `application/pdf`, `Content-Disposition: attachment` com o
+  nome `lista-AAAA-MM-DD.pdf` (data do relógio da casa), `Cache-Control: no-store`.
+  O conteúdo e o nome saem do mesmo código da PWA (`ListPdfDownload`).
+- Erros iguais aos de `GET /api/v1/snapshot`, em JSON: `401 {"error":"unauthorized"}`
+  (ausente, malformada, desconhecida, revogada, anterior à rotação ou sem senha
+  configurada) e `403 {"error":"forbidden_scope"}` (credencial `add_only` do
+  widget). O cookie da PWA não autoriza este endpoint, e a rota `/lista.pdf` da
+  PWA não muda.
+
 ### Histórico: sem corte na v1
 
 "Comprar de novo" (`BuyAgainSuggestions`) não é um filtro sobre as últimas

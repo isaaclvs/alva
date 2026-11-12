@@ -1,8 +1,7 @@
 class ListExportsController < ApplicationController
+  include ListPdfDownload
+
   def show
-    send_data ListPdf.call(current_household, now: Time.current),
-      type: "application/pdf",
-      disposition: "attachment",
-      filename: "lista-#{Date.current.iso8601}.pdf"
+    send_list_pdf(current_household)
   end
 end
