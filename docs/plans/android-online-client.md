@@ -61,6 +61,14 @@ anterior: repetir a ação é o único reenvio.
 - `SetItemState` (`set_item_state`): estado desejado (nunca toggle) com o
   `lock_version` que o snapshot mostrou.
 
+- `UndoItemState` (`undo_item_state`, #98): o "Desfazer" do toast depois de marcar
+  ou desmarcar. Leva o **estado a restaurar** (o que o aparelho viu antes: status e
+  instante original da compra) e, como precondição, o `lock_version` que a marcação
+  deixou, lido de `data.item` do recibo do `set_item_state` (`CommandReceipt.markedItem()`).
+  Só vale enquanto nada mexeu no item depois; senão o servidor recusa
+  (`precondition_failed`) e a tela avisa que a lista mudou. O prazo de ~5 s é do
+  toast, não do servidor.
+
 ## Como estender (#97–#109)
 
 1. Crie uma classe que implemente `OnlineAction` (em `OnlineActions.kt` ou num
@@ -87,13 +95,27 @@ e a credencial do `HouseAccess`. `MainActivity` passa o repositório e o
 sincronização nem o de revisão de conflitos. Ao conectar a casa não se agenda
 mais o `SyncWorker`; o `AccessGraph` ainda o monta para os testes do offline.
 
+## Telas (#98)
+
+`ShoppingScreens` é só a casca: estado do repositório, ciclo de vida (reler ao
+retomar, sinal ao vivo), cabeçalho da marca, a navegação inferior (`BottomNavigation`:
+pílulas Adicionar/Lista, contador de pendentes) e o host do toast (`ToastMessage`,
+~5 s, só no aparelho que agiu porque nasce do resultado da própria ação, nunca do
+snapshot). A tela Lista vive em `ui/ListScreen.kt` (agrupamento e ordem da PWA em
+`ListGroups`); ela já deixa os pontos de extensão das próximas issues: `headerActions`
+(busca #101, menu ⋯ #109), `afterSummary` ("Iniciar compras" #102, painel de busca) e o
+`trailing` de `ListRow` (lápis #100, remover/swipe #99). Novos toasts (remover, compra
+feita) reutilizam `ToastMessage`.
+
 ## Validação
 
 - JVM: `OnlineRepositoryTest` (servidor falso: leitura, rede caindo, resposta
   perdida que não duplica, recusa, 5xx, sem acesso, revive).
 - Instrumentado: `ShoppingScreensTest` (tela sobre o repositório: texto mantido
-  sem rede, retomar e sinal ao vivo recarregam) e `MainActivityAccessTest`.
+  sem rede, retomar e sinal ao vivo recarregam; a Lista: seções, "x/y", contador,
+  marcar, toast e desfazer) e `MainActivityAccessTest`.
 - Rails real: `script/android_rails_online_check` — dois "aparelhos"; A adiciona
-  e marca, B vê; mesmo nome nos dois; marcação velha recusada; resposta perdida
+  e marca, B vê; mesmo nome nos dois; marcação velha recusada; desfazer marcação
+  (e desfazer recusado quando o outro aparelho mexeu); resposta perdida
   depois do commit retentada sem segundo efeito. Roda no CI junto do
   `android_rails_sync_check`.

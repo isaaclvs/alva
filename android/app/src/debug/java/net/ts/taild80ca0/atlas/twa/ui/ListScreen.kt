@@ -1,6 +1,7 @@
 package net.ts.taild80ca0.atlas.twa.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -90,7 +91,7 @@ fun ListScreen(
     Column(modifier.fillMaxSize().testTag("list-screen")) {
         Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 16.dp)) {
             BrandHeader(Modifier.padding(bottom = 4.dp))
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(18.9.dp))
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Lista de compras", style = AlvaTheme.type.pageTitle.copy(lineHeight = 33.6.sp), color = AlvaTheme.colors.ink,
                     modifier = Modifier.weight(1f).testTag("list-title"))
@@ -98,7 +99,7 @@ fun ListScreen(
             }
             Text(
                 ListGroups.summary(pending, items.size - pending), style = AlvaTheme.type.summary.copy(lineHeight = 18.sp),
-                color = AlvaTheme.colors.inkSoft, modifier = Modifier.padding(top = 10.4.dp).testTag("list-summary"),
+                color = AlvaTheme.colors.inkSoft, modifier = Modifier.padding(top = 7.7.dp).testTag("list-summary"),
             )
             afterSummary()
         }
@@ -126,7 +127,8 @@ private fun CategoryHeading(group: ListGroup) {
         Text(group.label, style = AlvaTheme.type.sectionLabel, color = AlvaTheme.colors.inkSoft, modifier = Modifier.weight(1f))
         if (group.purchased > 0) Text(
             "${group.purchased}/${group.items.size}",
-            style = AlvaTheme.type.sectionLabel.copy(fontWeight = FontWeight.Medium, letterSpacing = 0.sp),
+            // `h2 > span:last-child` is the (hidden) shopping span, so the count keeps text-xs; it inherits the 0.04em tracking.
+            style = AlvaTheme.type.caption.copy(fontWeight = FontWeight.Medium, letterSpacing = 0.416.sp, fontFeatureSettings = "tnum"),
             color = AlvaTheme.colors.inkFaint,
             modifier = Modifier.testTag("category-count-${group.label}")
                 .semantics { contentDescription = "${group.purchased} de ${group.items.size} comprados" },
@@ -145,21 +147,26 @@ internal fun ListRow(
     trailing: @Composable RowScope.() -> Unit = {},
 ) {
     val bought = item.status == ItemStatus.PURCHASED
+    val source = remember { MutableInteractionSource() }
+    // `divide-y`: a 1dp line on top of every row but the first, which takes room of its own.
     Row(
-        modifier.fillMaxWidth().heightIn(min = 48.dp)
-            .then(if (first) Modifier else Modifier.rowDivider(AlvaTheme.colors.line)),
+        modifier.fillMaxWidth()
+            .then(if (first) Modifier else Modifier.rowDivider(AlvaTheme.colors.line).padding(top = 1.dp)),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(
-            Modifier.weight(1f).heightIn(min = 48.dp).testTag("item-${item.publicId}")
-                .toggleable(value = bought, enabled = enabled, role = Role.Checkbox, onValueChange = { onToggle() })
+            Modifier.weight(1f).testTag("item-${item.publicId}")
+                .pressedSurface(source, AlvaTheme.colors.surface2)
+                .toggleable(value = bought, enabled = enabled, role = Role.Checkbox, interactionSource = source, indication = null,
+                    onValueChange = { onToggle() })
                 .padding(start = 5.6.dp, top = 12.dp, bottom = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             AlvaCheck(checked = bought)
+            // `text-base` keeps a 1.5 line height, so at the 0.95rem the row is 22.8dp tall, not 24.
             Text(
-                item.name, style = AlvaTheme.type.row,
+                item.name, style = AlvaTheme.type.row.copy(lineHeight = 22.8.sp),
                 color = if (bought) AlvaTheme.colors.inkFaint else AlvaTheme.colors.ink,
                 textDecoration = if (bought) TextDecoration.LineThrough else null,
                 modifier = Modifier.weight(1f),

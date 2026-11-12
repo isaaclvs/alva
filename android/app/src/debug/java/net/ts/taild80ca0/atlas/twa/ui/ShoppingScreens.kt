@@ -160,7 +160,7 @@ fun ShoppingScreens(
                         headerActions = { menu() },
                     )
                     else -> Column(Modifier.fillMaxSize().padding(horizontal = 20.dp).padding(top = 20.dp)) {
-                        BrandHeader(markSize = 28.dp, gap = 9.6.dp, trailing = menu)
+                        BrandHeader(markSize = 28.dp, gap = 9.6.dp, markBox = 36.dp, trailing = menu)
                         notices(0.dp)
                     val categories = ready.snapshot.categories
                     LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(vertical = 16.dp)) {

@@ -4,11 +4,14 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -16,6 +19,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -38,6 +43,16 @@ import androidx.compose.ui.unit.sp
 import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaColor
 import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaShapes
 import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaTheme
+
+/**
+ * The PWA's `active:bg-surface-2`: the color shows only while the element is pressed. Elements built with this use
+ * `indication = null`, so there is no Material ripple or focus overlay that the PWA does not have.
+ */
+@Composable
+fun Modifier.pressedSurface(source: MutableInteractionSource, color: Color, shape: Shape = RectangleShape): Modifier {
+    val pressed by source.collectIsPressedAsState()
+    return if (pressed) background(color, shape) else this
+}
 
 /** Strokes [paths] (in a [viewBox]×[viewBox] space) scaled to the canvas, like an inline `<svg>` of the PWA. */
 private fun DrawScope.strokePaths(paths: List<androidx.compose.ui.graphics.Path>, viewBox: Float, color: Color, width: Float) {
@@ -65,13 +80,16 @@ fun BrandMark(modifier: Modifier = Modifier, size: Dp = 32.dp) {
 
 /**
  * The brand row: mark, "Alva" and the house name, with [trailing] at the end (the ⋯ menu on the Add screen).
- * `leading-tight` is a 1.25 line height: 14/17.5 and 12/15.
+ * `leading-tight` is a 1.25 line height: 14/17.5 and 12/15. The Add screen centers the mark in a 36dp box ([markBox]).
  */
 @Composable
-fun BrandHeader(modifier: Modifier = Modifier, markSize: Dp = 32.dp, gap: Dp = 10.dp, trailing: @Composable () -> Unit = {}) {
+fun BrandHeader(
+    modifier: Modifier = Modifier, markSize: Dp = 32.dp, gap: Dp = 10.dp, markBox: Dp = markSize,
+    trailing: @Composable () -> Unit = {},
+) {
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(gap)) {
-            Box(Modifier.size(maxOf(markSize, 36.dp)), contentAlignment = Alignment.Center) { BrandMark(size = markSize) }
+            Box(Modifier.size(markBox), contentAlignment = Alignment.Center) { BrandMark(size = markSize) }
             Column {
                 Text("Alva", style = AlvaTheme.type.brand.copy(lineHeight = 17.5.sp), color = AlvaTheme.colors.ink,
                     modifier = Modifier.testTag("brand-name"))
@@ -87,8 +105,10 @@ fun BrandHeader(modifier: Modifier = Modifier, markSize: Dp = 32.dp, gap: Dp = 1
 @Composable
 fun MoreButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
     val color = AlvaTheme.colors.inkSoft
+    val source = remember { MutableInteractionSource() }
     Box(
-        modifier.size(40.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onClick)
+        modifier.size(40.dp).clip(CircleShape).pressedSurface(source, AlvaTheme.colors.surface2)
+            .clickable(interactionSource = source, indication = null, role = Role.Button, onClick = onClick)
             .semantics { contentDescription = "Mais opções" },
         contentAlignment = Alignment.Center,
     ) {
@@ -109,7 +129,7 @@ fun ListCounter(pending: Int, modifier: Modifier = Modifier) {
             .semantics { contentDescription = "$pending ${if (pending == 1) "pendente" else "pendentes"}" },
         contentAlignment = Alignment.Center,
     ) {
-        Text("$pending", style = AlvaTheme.type.caption.copy(fontWeight = FontWeight.SemiBold),
+        Text("$pending", style = AlvaTheme.type.caption.copy(fontWeight = FontWeight.SemiBold, fontFeatureSettings = "tnum"),
             color = if (pending > 0) c.accentInk else c.inkFaint)
     }
 }
@@ -144,7 +164,7 @@ fun BottomNavigation(current: AppScreen, pending: Int, onSelect: (AppScreen) -> 
                 Row(
                     Modifier.weight(1f).heightIn(min = 44.8.dp).clip(RoundedCornerShape(13.6.dp))
                         .background(if (selected) c.accentSoft else Color.Transparent)
-                        .clickable(role = Role.Tab) { onSelect(screen) }
+                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, role = Role.Tab) { onSelect(screen) }
                         .semantics { this.selected = selected }
                         .testTag("nav-${screen.tag}")
                         .padding(vertical = 10.dp),
@@ -198,7 +218,8 @@ fun UndoToast(message: String, actionLabel: String, onAction: () -> Unit, modifi
         Text("·", style = AlvaTheme.type.bodySmall, color = c.inkFaint)
         Text(
             actionLabel, style = AlvaTheme.type.bodySmall.copy(fontWeight = FontWeight.SemiBold), color = c.accentStrong,
-            modifier = Modifier.clip(RoundedCornerShape(12.dp)).clickable(role = Role.Button, onClick = onAction)
+            modifier = Modifier.clip(RoundedCornerShape(12.dp))
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, role = Role.Button, onClick = onAction)
                 .padding(horizontal = 12.dp, vertical = 10.dp).testTag("toast-undo"),
         )
     }
