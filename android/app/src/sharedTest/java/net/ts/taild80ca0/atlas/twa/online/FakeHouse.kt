@@ -38,6 +38,7 @@ class FakeHouse : SnapshotTransport, CommandTransport {
     }
 
     val rows = ArrayList<Row>()
+    var categories: List<JSONObject> = CATEGORIES.mapIndexed { index, (id, name) -> SnapshotFixtures.category(id, name, if (name == "Outros") 99 else index + 1) }
     var revision = 840L
 
     /** The server's dictionary revision and what it has learned from `correct_item` (normalized name → category). */
@@ -84,15 +85,8 @@ class FakeHouse : SnapshotTransport, CommandTransport {
                 normalizedName = row.name.lowercase(),
             )
         }
-        val parsed = SnapshotParser.parse(SnapshotFixtures.bytes(SnapshotFixtures.snapshot(revision = revision, dictionaryRevision = dictionaryRevision, items = items).also { it.put("categories", categories()) }))
+        val parsed = SnapshotParser.parse(SnapshotFixtures.bytes(SnapshotFixtures.snapshot(revision = revision, dictionaryRevision = dictionaryRevision, items = items, categories = categories)))
         return SnapshotOutcome.Received((parsed as SnapshotParse.Valid).snapshot)
-    }
-
-    /** The nine categories of the app, as Rails seeds them (the order of the picker). */
-    private fun categories() = JSONArray().also { array ->
-        CATEGORIES.forEachIndexed { index, (id, name) ->
-            array.put(JSONObject().put("public_id", id).put("name", name).put("position", if (name == "Outros") 99 else index + 1))
-        }
     }
 
     // ---- commands ------------------------------------------------------------------------------------------
@@ -117,6 +111,7 @@ class FakeHouse : SnapshotTransport, CommandTransport {
             "add_items" -> addItems(id, command.getJSONObject("payload").getJSONArray("items"))
             "set_item_state" -> setItemState(id, command)
             "correct_item" -> correctItem(id, command)
+            "undo_item_state" -> undoItemState(id, command)
             else -> receipt(id, ReceiptStatus.REJECTED, error = "unsupported_command")
         }
         if (receipt.status.recordedByServer) ledger[id] = receipt
@@ -187,6 +182,21 @@ class FakeHouse : SnapshotTransport, CommandTransport {
         }
         if (changed) { row.lock++; revision++ }
         return receipt(id, if (changed) ReceiptStatus.APPLIED else ReceiptStatus.NOOP, data = JSONObject().put("item", itemJson(row)))
+    }
+
+    /** `undo_item_state`: restores the given state while the item is still at the version the mark left. */
+    private fun undoItemState(id: String, command: JSONObject): CommandReceipt {
+        val payload = command.getJSONObject("payload")
+        val row = rows.firstOrNull { it.id == payload.getString("public_id") } ?: return receipt(id, ReceiptStatus.REJECTED, error = "not_found")
+        val status = payload.getString("status")
+        val purchasedAt = if (payload.isNull("purchased_at")) null else payload.getString("purchased_at")
+        if (row.status == status && row.purchasedAt == purchasedAt) return receipt(id, ReceiptStatus.NOOP, data = JSONObject().put("item", itemJson(row)))
+        if (command.getJSONObject("preconditions").getInt("lock_version") != row.lock) {
+            return receipt(id, ReceiptStatus.CONFLICT, error = "precondition_failed")
+        }
+        row.status = status; row.purchasedAt = purchasedAt; row.lock++
+        revision++
+        return receipt(id, ReceiptStatus.APPLIED, data = JSONObject().put("item", itemJson(row)))
     }
 
     private fun itemJson(row: Row) =

@@ -136,6 +136,47 @@ class OnlineRailsConvergenceTest {
         assertEquals("both phones show the server's list", a.item(name)!!.lockVersion, b.item(name)!!.lockVersion)
     }
 
+    @Test fun undoingAMarkRestoresTheItemOnRailsAndBSeesIt() = runBlocking<Unit> {
+        val a = phone(tokenA)
+        val b = phone(tokenB)
+        val name = newName()
+        a.add(name)
+
+        // Mark, then undo with the version the mark left: the item is pending again, with no purchase instant.
+        val marked = (a.mark(name, ItemStatus.PURCHASED) as ActionResult.Success).receipt.markedItem()!!
+        val undone = a.repository.execute(UndoItemState(marked.publicId, ItemStatus.PENDING, null, marked.lockVersion))
+        assertTrue("$undone", undone is ActionResult.Success)
+        assertEquals(0, a.item(name)!!.status)
+        assertEquals(null, a.item(name)!!.purchasedAtMicros)
+        b.repository.refresh()
+        assertEquals("B sees the item as it was", 0, b.item(name)!!.status)
+
+        // Unmark a purchased item, then undo: the original purchase instant comes back, to the microsecond.
+        a.mark(name, ItemStatus.PURCHASED)
+        val before = a.item(name)!!
+        val unmarked = (a.mark(name, ItemStatus.PENDING) as ActionResult.Success).receipt.markedItem()!!
+        val restored = a.repository.execute(UndoItemState(before.publicId, ItemStatus.PURCHASED, before.purchasedAtMicros, unmarked.lockVersion))
+        assertTrue("$restored", restored is ActionResult.Success)
+        assertEquals(1, a.item(name)!!.status)
+        assertEquals(before.purchasedAtMicros, a.item(name)!!.purchasedAtMicros)
+    }
+
+    @Test fun anUndoAfterTheOtherPhoneChangedTheItemIsRefusedAndNothingIsOverwritten() = runBlocking<Unit> {
+        val a = phone(tokenA)
+        val b = phone(tokenB)
+        val name = newName()
+        a.add(name)
+        val marked = (a.mark(name, ItemStatus.PURCHASED) as ActionResult.Success).receipt.markedItem()!!
+        b.repository.refresh()
+        assertTrue(b.mark(name, ItemStatus.PENDING) is ActionResult.Success) // B unmarked it meanwhile
+        b.mark(name, ItemStatus.PURCHASED)
+
+        val refused = a.repository.execute(UndoItemState(marked.publicId, ItemStatus.PENDING, null, marked.lockVersion))
+
+        assertEquals(ActionResult.Refused("precondition_failed"), refused)
+        assertEquals("B's later state stands", 1, a.item(name)!!.status)
+    }
+
     @Test fun theSameNameOnBothPhonesIsOneItem() = runBlocking<Unit> {
         val a = phone(tokenA)
         val b = phone(tokenB)

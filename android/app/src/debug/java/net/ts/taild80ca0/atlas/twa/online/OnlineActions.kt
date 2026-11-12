@@ -5,6 +5,7 @@ import net.ts.taild80ca0.atlas.twa.data.list.ItemStatus
 import net.ts.taild80ca0.atlas.twa.data.matching.ItemNameSplitter
 import net.ts.taild80ca0.atlas.twa.data.matching.TextNormalizer
 import net.ts.taild80ca0.atlas.twa.sync.CommandReceipt
+import net.ts.taild80ca0.atlas.twa.sync.ServerTime
 import net.ts.taild80ca0.atlas.twa.sync.SnapshotItem
 import org.json.JSONException
 import org.json.JSONObject
@@ -74,6 +75,49 @@ class SetItemState(private val publicId: String, private val desired: ItemStatus
                 type = "set_item_state",
                 payload = """{"public_id":${JSONObject.quote(item.publicId)},"desired":${JSONObject.quote(wire)}}""",
                 preconditions = """{"lock_version":${item.lockVersion}}""",
+            ),
+        )
+    }
+}
+
+/** The item as a `set_item_state` receipt reports it after the command: the version the next command must name. */
+data class MarkedItem(val publicId: String, val lockVersion: Int)
+
+/** `data.item` of a successful `set_item_state`; null for any other receipt or one this client cannot read. */
+fun CommandReceipt.markedItem(): MarkedItem? {
+    val data = dataJson ?: return null
+    return try {
+        val item = (JSONTokener(data).nextValue() as? JSONObject)?.optJSONObject("item") ?: return null
+        val id = item.optString("canonical_public_id").ifBlank { item.optString("public_id") }
+        if (id.isBlank() || !item.has("lock_version")) null else MarkedItem(id, item.getInt("lock_version"))
+    } catch (_: JSONException) {
+        null
+    }
+}
+
+/**
+ * `undo_item_state`: the toast's "Desfazer" after a mark. It carries the state to restore (what this device saw
+ * before marking: [restoreStatus] and the original purchase instant) and the `lock_version` the mark left, so it
+ * only applies while nothing touched the item since. There is no deadline on the server; the ~5 s window is the
+ * toast's.
+ */
+class UndoItemState(
+    private val publicId: String,
+    private val restoreStatus: ItemStatus,
+    private val restorePurchasedAtMicros: Long?,
+    private val markedLockVersion: Int,
+) : OnlineAction {
+    override fun plan(context: PlanContext): ActionPlan {
+        val item = context.snapshot.listItems.firstOrNull { it.publicId.equals(publicId, ignoreCase = true) }
+            ?: return ActionPlan.Invalid(InvalidAction.ITEM_NOT_FOUND)
+        val purchased = restoreStatus == ItemStatus.PURCHASED
+        val status = if (purchased) "purchased" else "pending"
+        val at = restorePurchasedAtMicros.takeIf { purchased }?.let { JSONObject.quote(ServerTime.format(it)) } ?: "null"
+        return ActionPlan.Send(
+            context.document(
+                type = "undo_item_state",
+                payload = """{"public_id":${JSONObject.quote(item.publicId)},"status":"$status","purchased_at":$at}""",
+                preconditions = """{"lock_version":$markedLockVersion}""",
             ),
         )
     }
