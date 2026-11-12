@@ -205,9 +205,9 @@ um comando já enviado.
 | `undo_remove` | vazio; `depends_on` referencia o comando de remoção | remoção original ainda vigente; sem pendente homônimo | compensação pelos atributos do ledger, sem token web |
 | `finish_shopping` | `items: [{ public_id, lock_version? }]` — só os comprados vistos neste aparelho (de 1 a 500) | cada `lock_version` (explícito ou herdado de `depends_on`); tudo ou nada | `Household#finish_shopping!(only:)` |
 | `undo_shopping` | `trip_public_id` (opcional com `depends_on`) | viagem da casa, ainda existente e a mais recente; `depends_on` referencia o `finish_shopping` original | `Household#undo_shopping!` |
-| `create_habitual` | `name` | — | `HabitualItemsController#create` |
-| `remove_habitual` | `public_id` | — | `HabitualItemsController#destroy` |
-| `add_habituals` | `public_ids: []` ou `all: true` | — | `#add_selected` / `#add_all` |
+| `create_habitual` | `name` | — | `HabitualItemsController#create` (#104) |
+| `remove_habitual` | `public_id` | — | `HabitualItemsController#destroy` (#104) |
+| `add_habituals` | `public_ids: []` ou `all: true` | — | `#add_selected` / `#add_all` (#104) |
 
 ### `add_items`
 
@@ -660,13 +660,65 @@ revisão da casa e publica a mudança; sem mudança no item nem no dicionário �
 esse resultado integral: reenvio do mesmo comando retorna o recibo original,
 mesmo se outro aparelho já tiver alterado o item/dicionário depois.
 
+### Habituais (`create_habitual`, `remove_habitual`, `add_habituals`, issue #104)
+
+Servem ao app nativo online (#92). Equivalem ao `HabitualItemsController` da PWA,
+que não muda. Habituais não têm versão (só são criados e removidos) e o servidor
+dá o UUID: o aparelho o aprende em `data.item.public_id` ou pelo snapshot
+(`habitual_items`).
+
+```json
+{ "id": "<uuid>", "type": "create_habitual", "payload": { "name": "Café" } }
+{ "id": "<uuid>", "type": "remove_habitual", "payload": { "public_id": "<uuid do habitual>" } }
+{ "id": "<uuid>", "type": "add_habituals", "payload": { "public_ids": ["<uuid>", "<uuid>"] } }
+{ "id": "<uuid>", "type": "add_habituals", "payload": { "all": true } }
+```
+
+- **`create_habitual`**: `name` é obrigatório, string, com espaços normalizados
+  (`squish`). Branco é `rejected` / `invalid_name` com `data.reason: "blank"`;
+  acima de 100 caracteres, `data.reason: "too_long"`. A identidade é o nome
+  normalizado (`TextNormalizer`), por casa: um nome já salvo (" cafe " para
+  "Café") é `noop` com `data.outcome: "duplicate"` e o habitual existente em
+  `data.item`, sem revisão nova. Salvo, é `applied` (uma revisão),
+  `data.outcome: "created"`. `data.item`:
+  `{ public_id, name, normalized_name, created_at }`.
+- **`remove_habitual`**: `payload.public_id` (UUID, qualquer caixa). Remove só o
+  habitual e grava tombstone `habitual_item`; itens da lista e o histórico não
+  mudam. `applied` com `data.outcome: "removed"` e `data.item`. Como em
+  `set_item_state`, o comando declara o estado final: um habitual que a casa já
+  removeu (tombstone desta casa) é `noop` com `data.outcome: "already_removed"`.
+  UUID desconhecido, de outra casa ou de outro tipo de registro é
+  `rejected` / `not_found` (mesma resposta nos três casos).
+- **`add_habituals`**: exatamente um entre `public_ids` (lista não vazia de
+  UUIDs, repetidos contam uma vez) e `all: true`; qualquer outra forma é
+  `rejected` / `malformed_command` com `data.field`. Os nomes vêm dos habituais
+  da casa, nunca do payload, em ordem de nome normalizado, e entram pela mesma
+  regra da PWA (`Household#add_item_names`: categoria do dicionário, duplicado
+  pendente, comprado que volta a pendente), com **uma** revisão para o lote e
+  sem o limite de 30 nomes do campo de texto. Diferente de `add_items`, não há
+  `revives`: o aparelho online pede a inclusão a partir da tela atual, como a
+  PWA. Um UUID que não é habitual desta casa (inclusive um já removido) faz o
+  comando inteiro ser `rejected` / `not_found`, com `data.public_ids` listando
+  os UUIDs, e nada é adicionado. `all: true` sem nenhum habitual salvo é
+  `rejected` / `no_habituals`.
+  `data.items` traz, na ordem em que os nomes entraram, o item que cada nome
+  virou no formato de `ItemData.entry` (o `public_id` é o do próprio item) mais
+  `habitual_public_id` e `outcome` (`created`, `revived`, `duplicate`; `invalid`
+  se a lista recusou o nome). `applied` se algo entrou (`created`/`revived`),
+  `noop` se todos já estavam pendentes.
+- Cada comando é idempotente pelo UUID do comando como os demais: o reenvio dos
+  mesmos bytes responde `duplicate` com o resultado original, mesmo que o estado
+  tenha mudado depois. Os broadcasts (seção de habituais na criação e remoção,
+  lista na inclusão) saem só depois do commit.
+
 ## Idempotência e deduplicação
 
 Implementado na issue #38 (`SyncCommand`, `SyncCommandProcessor`) e ligado ao
 endpoint `POST /api/v1/commands` na #39. Os comandos de negócio registram seu
 executor em `SyncCommandProcessor::EXECUTORS` nas tasks que os introduzem; hoje
 são `add_items`, `set_item_state`, `undo_item_state`, `correct_item`, `remove_item`,
-`undo_remove`, `finish_shopping` e `undo_shopping` (`app/services/sync_commands/`). Um tipo ainda
+`undo_remove`, `finish_shopping`, `undo_shopping`, `create_habitual`, `remove_habitual` e
+`add_habituals` (`app/services/sync_commands/`). Um tipo ainda
 não implementado responde `rejected` / `unsupported_command`.
 
 ### O que é gravado, e quando
