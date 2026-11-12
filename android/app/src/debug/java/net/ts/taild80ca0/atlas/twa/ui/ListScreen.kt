@@ -27,6 +27,8 @@ import net.ts.taild80ca0.atlas.twa.data.list.ListItem
 import net.ts.taild80ca0.atlas.twa.online.ActionResult
 import net.ts.taild80ca0.atlas.twa.online.OnlineMessages
 import net.ts.taild80ca0.atlas.twa.online.OnlineRepository
+import net.ts.taild80ca0.atlas.twa.online.RemoveItem
+import net.ts.taild80ca0.atlas.twa.online.UndoRemove
 import net.ts.taild80ca0.atlas.twa.online.SetItemState
 import net.ts.taild80ca0.atlas.twa.online.UndoItemState
 import net.ts.taild80ca0.atlas.twa.online.liveItems
@@ -55,6 +57,8 @@ fun ListScreen(
     headerActions: @Composable RowScope.() -> Unit = {},
     afterSummary: @Composable ColumnScope.() -> Unit = {},
     filterState: ListFilterState = rememberListFilterState(),
+    shoppingMode: Boolean = false,
+    rowActions: @Composable RowScope.(ListItem, () -> Unit) -> Unit = { _, _ -> },
 ) {
     val scope = rememberCoroutineScope()
     val items = remember(snapshot) { snapshot.liveItems() }
@@ -67,6 +71,22 @@ fun ListScreen(
     }
     val busy = remember { mutableStateListOf<String>() }
     val pending = items.count { it.status == ItemStatus.PENDING }
+
+    fun remove(item: ListItem) {
+        if (item.publicId in busy || shoppingMode) return
+        busy += item.publicId
+        scope.launch {
+            try {
+                when (val result = repository.execute(RemoveItem(item.publicId))) {
+                    is ActionResult.Success -> showToast(ToastMessage("${item.name} removido", "Desfazer") {
+                        val undone = repository.execute(UndoRemove(result.receipt.commandId))
+                        if (undone !is ActionResult.Success) onFailure(OnlineMessages.failure(undone))
+                    })
+                    else -> onFailure(OnlineMessages.failure(result))
+                }
+            } finally { busy -= item.publicId }
+        }
+    }
 
     fun mark(item: ListItem) {
         if (item.publicId in busy) return
@@ -129,7 +149,9 @@ fun ListScreen(
                 val key = group.category?.publicId ?: "none"
                 item(key = "category-$key") { CategoryHeading(group) }
                 itemsIndexed(group.items.filter { it.publicId in visibleIds }, key = { _, item -> item.publicId }) { index, item ->
-                    ListRow(item, first = index == 0, enabled = item.publicId !in busy, onToggle = { mark(item) })
+                    ListRow(item, first = index == 0, enabled = item.publicId !in busy, onToggle = { mark(item) },
+                        modifier = Modifier.swipeToRemove(!shoppingMode && item.publicId !in busy) { remove(item) },
+                        trailing = { rowActions(item) { remove(item) } })
                 }
                 item(key = "gap-$key") { Spacer(Modifier.height(25.6.dp)) }
             }

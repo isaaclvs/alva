@@ -158,6 +158,7 @@ object AccessGraph {
             binding = RoomHouseholdBinding(database),
             // The online client reads the list when the screen shows it; nothing is scheduled for later.
             onConnected = {},
+            onSignedOut = { onlineRepository?.forget() },
         )
     }
 }

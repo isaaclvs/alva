@@ -65,6 +65,7 @@ class HouseAccess(
     private val binding: HouseholdBinding,
     private val deviceName: String = DEFAULT_DEVICE_NAME,
     private val onConnected: suspend () -> Unit = {},
+    private val onSignedOut: suspend () -> Unit = {},
 ) {
     private val mutex = Mutex()
     private val _state = MutableStateFlow<AccessState?>(null)
@@ -136,6 +137,29 @@ class HouseAccess(
         }
         if (result is ConnectResult.Connected) onConnected()
         return result
+    }
+
+    /**
+     * "Sair": forgets this device's credential and goes back to the entry screen ([state] stops being
+     * [AccessState.Connected], so [AccessScreen] shows the password again). The record in the vault is
+     * overwritten with an empty one, so no secret stays on the device; the password was never kept.
+     *
+     * Local only: the server has no endpoint for a device to revoke itself, so its record of this device
+     * stays until the house revokes it or the password is rotated. Entering again pairs a new device.
+     * The menu of #109 calls this. Returns false, changing nothing, when the vault cannot be written.
+     */
+    suspend fun signOut(): Boolean {
+        val done = mutex.withLock {
+            try {
+                vault.write(StoredAccess(active = null, pending = null, needsReconnect = false))
+            } catch (_: VaultWriteException) {
+                return@withLock false
+            }
+            readState()
+            true
+        }
+        if (done) onSignedOut()
+        return done
     }
 
     private suspend fun doConnect(password: String): ConnectResult {

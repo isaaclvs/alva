@@ -29,11 +29,11 @@ class PlanContext(
     fun newId(): String = ids()
 
     /** The envelope of contract v1 around [payload] and [preconditions], both already JSON. */
-    fun document(type: String, payload: String, preconditions: String = "{}"): String =
+    fun document(type: String, payload: String, preconditions: String = "{}", dependsOn: String? = null): String =
         buildString {
             append("""{"id":""").append(JSONObject.quote(commandId))
             append(""","type":""").append(JSONObject.quote(type))
-            append(""","depends_on":null""")
+            append(""","depends_on":""").append(dependsOn?.let(JSONObject::quote) ?: "null")
             append(""","observed_revision":""").append(snapshot.revision)
             append(""","preconditions":""").append(preconditions)
             append(""","payload":""").append(payload)
