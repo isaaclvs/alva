@@ -20,7 +20,10 @@ import org.json.JSONObject
  * `duplicate`, never applied twice), and it fails on demand. Nothing here is the production code under test.
  */
 class FakeHouse : SnapshotTransport, CommandTransport {
-    class Row(val id: String, var name: String, var status: String, var lock: Int, var purchasedAt: String? = null)
+    class Row(
+        val id: String, var name: String, var status: String, var lock: Int, var purchasedAt: String? = null,
+        var category: String? = SnapshotFixtures.DAIRY,
+    )
 
     /** What the next request does instead of working. One step per request, in order. */
     sealed interface Step {
@@ -36,6 +39,10 @@ class FakeHouse : SnapshotTransport, CommandTransport {
 
     val rows = ArrayList<Row>()
     var revision = 840L
+
+    /** The server's dictionary revision and what it has learned from `correct_item` (normalized name → category). */
+    var dictionaryRevision = 12L
+    val learned = HashMap<String, String>()
     private val ledger = HashMap<String, CommandReceipt>()
 
     /** Every document received, with the command id, in order (lost answers and retries included). */
@@ -47,8 +54,15 @@ class FakeHouse : SnapshotTransport, CommandTransport {
     val commandSteps = ArrayDeque<Step>()
     val snapshotSteps = ArrayDeque<Step>()
 
-    fun seed(name: String, status: String = "pending", lock: Int = 0, id: String = java.util.UUID.randomUUID().toString()): Row =
-        Row(id, name, status, lock, if (status == "purchased") "2026-11-10T12:00:00.000000Z" else null).also { rows += it }
+    fun seed(
+        name: String, status: String = "pending", lock: Int = 0, id: String = java.util.UUID.randomUUID().toString(),
+        category: String? = SnapshotFixtures.DAIRY,
+    ): Row =
+        Row(id, name, status, lock, if (status == "purchased") "2026-11-10T12:00:00.000000Z" else null, category).also { rows += it }
+
+    /** The dictionary: "Leite" is known (and anything a correction taught); every other name falls to "Outros". */
+    private fun categorize(name: String): String =
+        learned[name.lowercase()] ?: if (name.equals("Leite", true)) SnapshotFixtures.DAIRY else SnapshotFixtures.OTHERS
 
     fun named(name: String) = rows.filter { it.name == name }
 
@@ -66,13 +80,19 @@ class FakeHouse : SnapshotTransport, CommandTransport {
         }
         val items = rows.map { row ->
             SnapshotFixtures.item(
-                row.id, row.name, status = row.status, lockVersion = row.lock, purchasedAt = row.purchasedAt,
+                row.id, row.name, status = row.status, category = row.category, lockVersion = row.lock, purchasedAt = row.purchasedAt,
                 normalizedName = row.name.lowercase(),
             )
         }
-        val parsed = SnapshotParser.parse(SnapshotFixtures.bytes(SnapshotFixtures.snapshot(revision = revision, items = items)))
+        val parsed = SnapshotParser.parse(SnapshotFixtures.bytes(SnapshotFixtures.snapshot(revision = revision, dictionaryRevision = dictionaryRevision, items = items).also { it.put("categories", categories()) }))
         return SnapshotOutcome.Received((parsed as SnapshotParse.Valid).snapshot)
     }
+
+    private fun categories() = JSONArray()
+        .put(JSONObject().put("public_id", SnapshotFixtures.DAIRY).put("name", "Laticínios").put("position", 1))
+        .put(JSONObject().put("public_id", PANTRY).put("name", "Mercearia").put("position", 2))
+        .put(JSONObject().put("public_id", BAKERY).put("name", "Padaria").put("position", 3))
+        .put(JSONObject().put("public_id", SnapshotFixtures.OTHERS).put("name", "Outros").put("position", 99))
 
     // ---- commands ------------------------------------------------------------------------------------------
 
@@ -95,6 +115,7 @@ class FakeHouse : SnapshotTransport, CommandTransport {
         val receipt = when (command.getString("type")) {
             "add_items" -> addItems(id, command.getJSONObject("payload").getJSONArray("items"))
             "set_item_state" -> setItemState(id, command)
+            "correct_item" -> correctItem(id, command)
             else -> receipt(id, ReceiptStatus.REJECTED, error = "unsupported_command")
         }
         if (receipt.status.recordedByServer) ledger[id] = receipt
@@ -123,7 +144,7 @@ class FakeHouse : SnapshotTransport, CommandTransport {
                     row = purchased; outcome = "revived"; changed = true
                 }
                 else -> {
-                    row = Row(entry.getString("public_id"), name, "pending", 0)
+                    row = Row(entry.getString("public_id"), name, "pending", 0, category = categorize(name))
                     created += row; outcome = "created"; changed = true
                 }
             }
@@ -151,6 +172,22 @@ class FakeHouse : SnapshotTransport, CommandTransport {
         return receipt(id, ReceiptStatus.APPLIED, data = JSONObject().put("item", itemJson(row)))
     }
 
+    /** `correct_item`: the category chosen by hand goes on the item and teaches the dictionary (`learned`). */
+    private fun correctItem(id: String, command: JSONObject): CommandReceipt {
+        val payload = command.getJSONObject("payload")
+        val preconditions = command.getJSONObject("preconditions")
+        val row = rows.firstOrNull { it.id == payload.getString("public_id") } ?: return receipt(id, ReceiptStatus.REJECTED, error = "not_found")
+        if (preconditions.optInt("lock_version", row.lock) != row.lock) return receipt(id, ReceiptStatus.CONFLICT, error = "precondition_failed")
+        val category = payload.optString("category_id").ifEmpty { null }
+        var changed = false
+        if (category != null && row.category != category) { row.category = category; changed = true }
+        if (category != null && learned[row.name.lowercase()] != category && preconditions.getLong("dictionary_revision") == dictionaryRevision) {
+            learned[row.name.lowercase()] = category; dictionaryRevision++; changed = true
+        }
+        if (changed) { row.lock++; revision++ }
+        return receipt(id, if (changed) ReceiptStatus.APPLIED else ReceiptStatus.NOOP, data = JSONObject().put("item", itemJson(row)))
+    }
+
     private fun itemJson(row: Row) =
         JSONObject().put("public_id", row.id).put("canonical_public_id", row.id).put("name", row.name).put("status", row.status).put("lock_version", row.lock)
 
@@ -159,4 +196,9 @@ class FakeHouse : SnapshotTransport, CommandTransport {
         revision = revision.takeIf { status.recordedByServer }, error = error, dataJson = data?.toString(),
         houseRevision = revision, snapshotRequired = status == ReceiptStatus.CONFLICT,
     )
+
+    companion object {
+        const val PANTRY = "c0000000-0000-4000-8000-000000000003"
+        const val BAKERY = "c0000000-0000-4000-8000-000000000004"
+    }
 }

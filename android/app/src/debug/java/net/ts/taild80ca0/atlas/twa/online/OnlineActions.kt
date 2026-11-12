@@ -79,6 +79,37 @@ class SetItemState(private val publicId: String, private val desired: ItemStatus
     }
 }
 
+/**
+ * `correct_item`: fixes the category (and, later, the name) of an item on the list, in place. A category chosen by
+ * hand is also what teaches the server's dictionary, like the pencil of the PWA, so the same name lands there next
+ * time. [name] null keeps the name the snapshot shows. Preconditions come from the last snapshot: the item's
+ * `lock_version` and, with a category, the `dictionary_revision` the person was looking at (the server still
+ * applies the category if the dictionary moved on; only the learning waits).
+ */
+class CorrectItem(
+    private val publicId: String,
+    private val categoryPublicId: String? = null,
+    private val name: String? = null,
+) : OnlineAction {
+    override fun plan(context: PlanContext): ActionPlan {
+        val item = context.snapshot.listItems.firstOrNull { it.publicId.equals(publicId, ignoreCase = true) }
+            ?: return ActionPlan.Invalid(InvalidAction.ITEM_NOT_FOUND)
+        val cleaned = ItemNameSplitter.clean(name ?: item.name) ?: return ActionPlan.Invalid(InvalidAction.NO_NAMES)
+        val payload = buildString {
+            append("""{"public_id":""").append(JSONObject.quote(item.publicId))
+            append(""","name":""").append(JSONObject.quote(cleaned))
+            if (categoryPublicId != null) append(""","category_id":""").append(JSONObject.quote(categoryPublicId))
+            append('}')
+        }
+        val preconditions = buildString {
+            append("""{"lock_version":""").append(item.lockVersion)
+            if (categoryPublicId != null) append(""","dictionary_revision":""").append(context.snapshot.dictionaryRevision)
+            append('}')
+        }
+        return ActionPlan.Send(context.document("correct_item", payload, preconditions))
+    }
+}
+
 /** What the server did with one name of an `add_items` command. */
 data class AddedItem(val name: String, val itemPublicId: String, val outcome: AddOutcome)
 
