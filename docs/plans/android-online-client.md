@@ -156,21 +156,23 @@ e permissão de leitura. A extensão do FileProvider fica só no debug, restrita
 esse diretório; outros arquivos de cache não são compartilhados. Arquivos de
 exportação com mais de um dia são limpos ao preparar o próximo PDF.
 
-## Widget e painel rápido (#110)
+## Widgets e painel rápido
 
-O provider e seu PendingIntent continuam apontando para `QuickAddActivity`.
-A implementação Java do Alva 1.3 fica no source set `release`, intacta; o debug
-fornece uma Activity Kotlin nativa com o mesmo nome. Isso preserva widgets
-instalados e evita um segundo componente para a mesma ação.
+O app nativo oferece Adicionar rápido, Lista de compras e Atalhos de casa.
+Desenho e regras: [android-widgets.md](android-widgets.md).
 
-O painel reutiliza o layout rosa do Alva 1.3 (inclusive a confirmação e a janela
-no rodapé), independentemente da personalização das duas telas principais.
-`QuickPanelModel` usa `HouseAccess` e `OnlineRepository` da aplicação. Um ViewModel
-mantém o envio durante recriação; somente o rascunho vai ao SavedStateHandle,
-sem fila, comando persistido ou reenvio automático após morte do processo.
-Sucesso fecha após 1,5 s; falha conserva texto e permite nova tentativa. Sem
-acesso, o painel não pede senha: oferece abrir o app principal. A transição de
-release da #111 deve promover também essa implementação nativa do painel.
+`QuickAddWidgetProvider` e `QuickAddActivity` preservam os nomes dos componentes
+para manter widgets instalados funcionando. O painel usa tema, cor e Nunito
+Sans do app. `QuickPanelModel` conserva envio durante recriação e o rascunho
+no SavedStateHandle, sem fila nem comando persistido. Sucesso fecha após
+1,5 s; falha conserva texto. Sem acesso, oferece abrir o app principal.
+
+Os novos widgets reutilizam `OnlineRepository` e as ações existentes. O cache
+de apresentação fica fora de backup e nunca é usado como fila. A lista envia
+a versão observada na linha, e Desfazer usa a versão devolvida pelo recibo.
+Atalhos guardam título, seleção e ordem por instância, sem outro cadastro de
+habituais. Atualizações locais redesenham todos os widgets; atualização manual
+e periódica complementam a leitura, sem prometer tempo real em segundo plano.
 
 ## Validação
 

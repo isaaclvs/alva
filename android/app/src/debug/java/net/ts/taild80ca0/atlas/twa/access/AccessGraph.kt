@@ -98,7 +98,7 @@ object AccessGraph {
             OnlineRepository(
                 OnlineAccess.of(houseAccess(context)), HttpSnapshotTransport(endpoint), HttpCommandTransport(endpoint), scope,
             )
-        }.also { onlineRepository = it }
+        }.also { onlineRepository = it; net.ts.taild80ca0.atlas.twa.widgets.WidgetRuntime.bind(context, it) }
     }
 
     /** The ActionCable signal, which asks the online repository to read the list again. */
@@ -158,7 +158,7 @@ object AccessGraph {
             binding = RoomHouseholdBinding(database),
             // The online client reads the list when the screen shows it; nothing is scheduled for later.
             onConnected = {},
-            onSignedOut = { onlineRepository?.forget() },
+            onSignedOut = { onlineRepository?.forget(); net.ts.taild80ca0.atlas.twa.widgets.WidgetRuntime.clear(context); net.ts.taild80ca0.atlas.twa.widgets.WidgetRuntime.updateAll(context) },
         )
     }
 }

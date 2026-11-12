@@ -65,7 +65,7 @@ class AddItems(private val names: List<String>) : OnlineAction {
 }
 
 /** `set_item_state`: the state the person wants (never a toggle), with the `lock_version` the snapshot showed. */
-class SetItemState(private val publicId: String, private val desired: ItemStatus) : OnlineAction {
+class SetItemState(private val publicId: String, private val desired: ItemStatus, private val observedLockVersion: Int? = null) : OnlineAction {
     override fun plan(context: PlanContext): ActionPlan {
         val item = context.snapshot.listItems.firstOrNull { it.publicId.equals(publicId, ignoreCase = true) }
             ?: return ActionPlan.Invalid(InvalidAction.ITEM_NOT_FOUND)
@@ -74,7 +74,7 @@ class SetItemState(private val publicId: String, private val desired: ItemStatus
             context.document(
                 type = "set_item_state",
                 payload = """{"public_id":${JSONObject.quote(item.publicId)},"desired":${JSONObject.quote(wire)}}""",
-                preconditions = """{"lock_version":${item.lockVersion}}""",
+                preconditions = """{"lock_version":${observedLockVersion ?: item.lockVersion}}""",
             ),
         )
     }

@@ -30,5 +30,18 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <receiver android:name=".widgets.ShoppingListWidgetProvider" android:exported="false" android:label="Lista de compras">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/shopping_list_widget_info" />
+        </receiver>
+        <service android:name=".widgets.ShoppingListWidgetService" android:permission="android.permission.BIND_REMOTEVIEWS" android:exported="false" />
+        <activity android:name=".widgets.WidgetListActionActivity" android:exported="false" android:theme="@android:style/Theme.NoDisplay" android:excludeFromRecents="true" />
+        <receiver android:name=".widgets.HabitualWidgetProvider" android:exported="false" android:label="Atalhos de casa">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/habitual_widget_info" />
+        </receiver>
+        <activity android:name=".widgets.HabitualWidgetConfigureActivity" android:exported="true" android:theme="@android:style/Theme.Material.Light.NoActionBar">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" /></intent-filter>
+        </activity>
     </application>
 </manifest>

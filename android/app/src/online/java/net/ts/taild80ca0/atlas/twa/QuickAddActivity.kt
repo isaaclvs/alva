@@ -1,5 +1,12 @@
 package net.ts.taild80ca0.atlas.twa
 
+import android.graphics.drawable.GradientDrawable
+import android.view.ViewGroup
+import androidx.core.content.res.ResourcesCompat
+import androidx.compose.ui.graphics.toArgb
+import net.ts.taild80ca0.atlas.twa.preferences.DevicePreferencesStore
+import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaColors
+import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaPalettes
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -28,10 +35,21 @@ class QuickAddActivity : ComponentActivity() {
                 QuickPanelModel(handle, AccessGraph.houseAccess(applicationContext), AccessGraph.onlineRepository(applicationContext)) as T
         }
     }
+    private var colors = AlvaPalettes.TealDark
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Share the existing pink 1.3 panel resources; only its transport and lifecycle change.
+        // Keep component and view IDs so installed widgets and panel lifecycle remain compatible.
         setContentView(R.layout.quick_add_sheet)
+        applyPalette(colors)
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                DevicePreferencesStore(applicationContext).values.collect { preferences ->
+                    colors = AlvaPalettes.of(preferences.dark, preferences.color)
+                    applyPalette(colors)
+                }
+            }
+        }
         val input = findViewById<EditText>(R.id.quick_add_product)
         val submit = findViewById<Button>(R.id.quick_add_submit)
         val status = findViewById<TextView>(R.id.quick_add_status)
@@ -61,7 +79,7 @@ class QuickAddActivity : ComponentActivity() {
                     }
                     status.text = current.error ?: if (!current.connected && !current.loading) "Conecte este aparelho à casa pelo app principal." else ""
                     status.visibility = if (status.text.isEmpty()) View.GONE else View.VISIBLE
-                    status.setTextColor(if (current.error != null) 0xffa32636.toInt() else 0xff846674.toInt())
+                    status.setTextColor(if (current.error != null) colors.danger.toArgb() else colors.inkSoft.toArgb())
                     findViewById<View>(R.id.quick_add_form).visibility = if (current.success == null) View.VISIBLE else View.GONE
                     findViewById<View>(R.id.quick_add_success).visibility = if (current.success != null) View.VISIBLE else View.GONE
                     findViewById<TextView>(R.id.quick_add_success_message).text = current.success.orEmpty()
@@ -71,6 +89,46 @@ class QuickAddActivity : ComponentActivity() {
             }
         }
     }
+    private fun applyPalette(palette: AlvaColors) {
+        fun shape(fill: Int, radius: Float, border: Boolean = false) = GradientDrawable().apply {
+            setColor(fill)
+            cornerRadius = radius * resources.displayMetrics.density
+            if (border) setStroke(resources.displayMetrics.density.toInt().coerceAtLeast(1), palette.line.toArgb())
+        }
+        val root = findViewById<View>(R.id.quick_add_panel)
+        root.background = shape(palette.surface.toArgb(), 25f)
+        val regular = ResourcesCompat.getFont(this, R.font.nunito_sans_regular)
+        val bold = ResourcesCompat.getFont(this, R.font.nunito_sans_bold)
+        fun textStyles(view: View) {
+            if (view is TextView) {
+                view.typeface = if (view.typeface?.isBold == true) bold else regular
+                view.setTextColor(palette.inkSoft.toArgb())
+            }
+            if (view is ViewGroup) for (i in 0 until view.childCount) textStyles(view.getChildAt(i))
+        }
+        textStyles(root)
+        listOf(R.id.quick_add_title, R.id.quick_add_success_message).forEach {
+            findViewById<TextView>(it).setTextColor(palette.ink.toArgb())
+        }
+        findViewById<TextView>(R.id.quick_add_brand).setTextColor(palette.accent.toArgb())
+        findViewById<View>(R.id.quick_add_handle).setBackgroundColor(palette.line.toArgb())
+        findViewById<EditText>(R.id.quick_add_product).apply {
+            background = shape(palette.canvas.toArgb(), 14f, border = true)
+            setTextColor(palette.ink.toArgb())
+            setHintTextColor(palette.inkFaint.toArgb())
+        }
+        findViewById<Button>(R.id.quick_add_submit).apply {
+            background = shape(palette.accent.toArgb(), 14f)
+            setTextColor(palette.accentInk.toArgb())
+        }
+        findViewById<TextView>(R.id.quick_add_success_icon).apply {
+            background = shape(palette.accentSoft.toArgb(), 28f)
+            setTextColor(palette.accent.toArgb())
+        }
+        findViewById<TextView>(R.id.quick_add_status).setTextColor(
+            if (model.state.value.error != null) palette.danger.toArgb() else palette.inkSoft.toArgb())
+    }
+
     override fun onStart() {
         super.onStart()
         window.setGravity(Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)

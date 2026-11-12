@@ -1,6 +1,6 @@
 # APK nativo do Alva
 
-A versão 2.0.0 (código 5) é o cliente Android nativo online, em Kotlin/Compose.
+A versão 2.0.1 (código 6) é o cliente Android nativo online, em Kotlin/Compose.
 Instala como atualização das versões TWA 1.x: mantém o identificador
 `net.ts.taild80ca0.atlas.twa` e a chave original de assinatura. Na primeira
 abertura do cliente nativo, informe a senha da casa uma vez; o app e o widget
@@ -20,8 +20,10 @@ o texto para nova tentativa. A PWA continua disponível no mesmo endereço.
   terminado em `.debug` e FileProvider separado.
 - `src/twa`: painel Java legado preservado como referência, fora da compilação.
 
-O widget conserva a aparência rosa do Alva 1.3 e o mesmo componente de Activity,
-para preservar os PendingIntents dos widgets instalados. O painel nativo aceita
+O widget Adicionar rápido conserva o mesmo componente de Activity,
+para preservar os PendingIntents dos widgets instalados. Os três widgets
+(Adicionar rápido, Lista de compras e Atalhos de casa) acompanham tema e cor do
+app. O painel nativo aceita
 vários nomes, mantém rascunho em falhas e recriações, bloqueia envios repetidos
 e confirma/fecha após 1,5 s. Sem acesso, oferece abrir o app principal.
 

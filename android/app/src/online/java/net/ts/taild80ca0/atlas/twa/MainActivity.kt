@@ -1,5 +1,6 @@
 package net.ts.taild80ca0.atlas.twa
 
+import android.content.Intent
 import android.content.ActivityNotFoundException
 import android.os.Bundle
 import android.view.ViewTreeObserver
@@ -20,6 +21,12 @@ import net.ts.taild80ca0.atlas.twa.ui.theme.*
 
 /** Native online entry point, shared by the development and production variants. */
 class MainActivity : ComponentActivity() {
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        recreate()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val preferences = DevicePreferencesStore(this)
@@ -38,6 +45,8 @@ class MainActivity : ComponentActivity() {
         window.decorView.viewTreeObserver.addOnPreDrawListener(gate)
         lifecycleScope.launch {
             val initial = preferences.values.first()
+            val requestedScreen = intent.getStringExtra("widget_screen")
+            intent.removeExtra("widget_screen")
             applyAlvaSystemBars(AlvaPalettes.of(initial.dark, initial.color))
             setContent {
                 val saved by preferences.values.collectAsState(initial)
@@ -46,7 +55,7 @@ class MainActivity : ComponentActivity() {
                     Surface(color = MaterialTheme.colorScheme.background) {
                         AccessScreen(access = access, connected = { actions -> if (repository != null) ShoppingScreens(
                             repository, accessActions = actions, invalidation = invalidation,
-                            preferences = saved, saveDark = preferences::dark, saveColor = preferences::color,
+                            preferences = if (requestedScreen == "list") saved.copy(screen = "list") else saved, saveDark = preferences::dark, saveColor = preferences::color,
                             saveScreen = preferences::screen,
                             signOut = { if (access.signOut()) null else "Não foi possível sair agora. Tente de novo." },
                             exportPdf = {

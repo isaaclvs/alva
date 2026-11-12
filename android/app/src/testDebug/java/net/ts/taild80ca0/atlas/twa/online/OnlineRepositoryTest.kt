@@ -234,6 +234,20 @@ class OnlineRepositoryTest {
         assertEquals(3, ready().snapshot.listItems.single().lockVersion)
     }
 
+    @Test fun widgetMarkKeepsObservedVersionEvenAfterRepositoryWasRefreshed() = runBlocking {
+        val leite = house.seed("Leite", lock = 2)
+        repository.refresh()
+        val observed = ready().snapshot.listItems.single().lockVersion
+        leite.lock++ // renamed or otherwise changed after the widget was drawn
+        repository.refresh()
+
+        val result = repository.execute(SetItemState(leite.id, ItemStatus.PURCHASED, observed))
+
+        assertEquals(ActionResult.Refused("precondition_failed"), result)
+        assertEquals(2, JSONObject(house.sent.single().second).getJSONObject("preconditions").getInt("lock_version"))
+        assertEquals("pending", house.named("Leite").single().status)
+    }
+
     @Test fun markingAnItemThatLeftTheListSendsNothing() = runBlocking {
         repository.refresh()
         assertEquals(ActionResult.Invalid(InvalidAction.ITEM_NOT_FOUND), repository.execute(SetItemState("nope", ItemStatus.PURCHASED)))
