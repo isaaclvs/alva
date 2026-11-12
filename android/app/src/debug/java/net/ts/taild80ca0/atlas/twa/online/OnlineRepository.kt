@@ -65,6 +65,11 @@ class OnlineRepository(
         }
     }
 
+    /** Drops the list on screen (signing out): the next read starts from nothing, as on the first opening. */
+    fun forget() {
+        _state.value = OnlineState.Loading
+    }
+
     /** The ActionCable signal: something changed on the server. */
     override fun requestInvalidation() {
         scope.launch { refresh() }
