@@ -303,7 +303,9 @@ jobs:
 
       # Two devices with their own Room files and the emulator's HTTP stack, syncing through an isolated
       # RAILS_ENV=test server (throwaway SQLite, fixtures only) reached with `adb reverse`.
-      - name: Run the sync cycle against an isolated Rails
+      # The online client (two OnlineRepository phones, no database) runs against its own isolated Rails right after,
+      # on the same emulator.
+      - name: Run the sync cycle and the online client against an isolated Rails
         uses: reactivecircus/android-emulator-runner@v2
         env:
           GRADLE_CMD: ./gradlew --no-daemon
@@ -312,7 +314,9 @@ jobs:
           target: google_apis
           arch: x86_64
           disable-animations: true
-          script: script/android_rails_sync_check
+          script: |
+            script/android_rails_sync_check
+            script/android_rails_online_check
 
   database:
     name: migrations, seeds and autoloading
