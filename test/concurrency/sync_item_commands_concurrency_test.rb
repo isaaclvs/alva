@@ -67,7 +67,36 @@ class SyncItemCommandsConcurrencyTest < ActiveSupport::TestCase
     assert_equal [ "purchased", 1 ], [ item.status, item.lock_version ]
   end
 
+  test "two phones undoing the same mark at once restore the item once" do
+    item = @home.list_items.create!(name: "Tapioca")
+    submit_one(@ana, set_item_state_command(item.public_id, "purchased", lock_version: 0))
+
+    results = race(@ana => undo_item_state_command(item.public_id, "pending", lock_version: 1),
+      @isaac => undo_item_state_command(item.public_id, "pending", lock_version: 1))
+
+    assert_equal %w[applied noop], results.map { |result| result[:status] }.sort
+    item.reload
+    assert_equal [ "pending", nil, 2 ], [ item.status, item.purchased_at, item.lock_version ]
+    assert_equal 2, @home.reload.sync_revision
+  end
+
+  test "an undo and an unmark from the same version at once change the item once" do
+    item = @home.list_items.create!(name: "Tapioca")
+    submit_one(@ana, set_item_state_command(item.public_id, "purchased", lock_version: 0))
+
+    results = race(@ana => undo_item_state_command(item.public_id, "pending", lock_version: 1),
+      @isaac => set_item_state_command(item.public_id, "pending", lock_version: 1))
+
+    # Whoever the lock serves first applies; the other finds the wanted state (a noop).
+    assert_equal %w[applied noop], results.map { |result| result[:status] }.sort
+    assert_equal [ "pending", 2 ], item.reload.then { |reloaded| [ reloaded.status, reloaded.lock_version ] }
+  end
+
   private
+
+  def submit_one(device, command)
+    SyncCommandProcessor.new(device: AndroidDevice.find(device.id)).call([ command ]).first
+  end
 
   def race(commands_by_device)
     barrier = Barrier.new(commands_by_device.size)
