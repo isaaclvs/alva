@@ -115,6 +115,30 @@ class OnlineRailsConvergenceTest {
         assertEquals(1, a.items.count { it.name == name })
     }
 
+    @Test fun correctingARecentAddsCategoryTeachesRailsAndTheOtherPhoneSeesIt() = runBlocking<Unit> {
+        val a = phone(tokenA)
+        val b = phone(tokenB)
+        val name = newName()
+        a.repository.refresh()
+        assertTrue(a.add(name) is ActionResult.Success)
+        val original = a.item(name)!!
+        val category = a.ready.snapshot.categories.first { it.publicId != original.categoryPublicId }
+
+        val corrected = a.repository.execute(CorrectItem(original.publicId, categoryPublicId = category.publicId))
+
+        assertTrue("$corrected", corrected is ActionResult.Success)
+        assertEquals(category.publicId, a.item(name)!!.categoryPublicId)
+        b.repository.refresh()
+        assertEquals(category.publicId, b.item(name)!!.categoryPublicId)
+        assertTrue(b.ready.snapshot.dictionaryRevision > 0)
+        assertTrue(b.ready.snapshot.catalogItems.any { it.name == name && it.categoryPublicId == category.publicId && it.learned })
+        assertTrue(a.mark(name, ItemStatus.PURCHASED) is ActionResult.Success)
+        b.repository.refresh()
+        val revived = b.add(name) as ActionResult.Success
+        assertEquals(listOf(AddOutcome.REVIVED), revived.receipt.addedItems().map { it.outcome })
+        assertEquals(category.publicId, b.item(name)!!.categoryPublicId)
+    }
+
     @Test fun aAddsAndMarksAndBSeesEachStepAndMarksBack() = runBlocking<Unit> {
         val a = phone(tokenA)
         val b = phone(tokenB)

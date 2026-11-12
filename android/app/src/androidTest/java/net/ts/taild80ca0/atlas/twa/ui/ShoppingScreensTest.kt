@@ -114,7 +114,7 @@ class ShoppingScreensTest {
         compose.onNodeWithText("Alva").assertIsDisplayed()
         capture("shopping-add.png")
 
-        compose.onNodeWithTag("nav-list").performClick()
+        compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         waitForText("list-summary", "3 pendentes")
         val id = house.named("Leite").single().id
         compose.onNodeWithTag("item-$id").performClick()
@@ -132,7 +132,7 @@ class ShoppingScreensTest {
         house.seed("Leite")
         house.seed("Pão", status = "purchased")
         launch()
-        compose.onNodeWithTag("nav-list").performClick()
+        compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         waitForText("list-summary", "1 pendente · 1 comprado")
         compose.onNodeWithText("Laticínios", substring = true).assertIsDisplayed()
         compose.onNodeWithTag("item-${house.named("Pão").single().id}").assertIsOn()
@@ -144,9 +144,9 @@ class ShoppingScreensTest {
         launch()
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("add-input").performTextInput("leite")
-        waitForText("duplicate-hint", "Já na lista: Leite")
+        waitForText("duplicate-hint", "Leite já está na lista")
         compose.onNodeWithTag("save-add").performClick()
-        waitForText("feedback", "Nada adicionado · Leite já estava na lista")
+        waitForText("feedback", "Leite já está na lista")
         assertEquals(1, house.rows.size)
     }
 
@@ -162,7 +162,7 @@ class ShoppingScreensTest {
 
         // Nothing was queued: only repeating the action adds it, once.
         compose.onNodeWithTag("save-add").performClick()
-        waitForText("feedback", "1 item adicionado")
+        waitForText("feedback", "Café adicionado em Outros")
         assertEquals(listOf("Café"), house.rows.map { it.name })
         assertEquals(4, house.sent.size)
     }
@@ -180,7 +180,7 @@ class ShoppingScreensTest {
     @Test fun aMarkThatCannotBeSentSaysSoAndTheItemStaysAsItWas() {
         val leite = house.seed("Leite")
         launch()
-        compose.onNodeWithTag("nav-list").performClick()
+        compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         waitForText("list-summary", "1 pendente")
         house.commandSteps += listOf(Step.NetworkDown, Step.NetworkDown, Step.NetworkDown)
         compose.onNodeWithTag("item-${leite.id}").performClick()
@@ -197,14 +197,14 @@ class ShoppingScreensTest {
         waitForText("load-failed", "Sem conexão com o servidor")
         compose.onNodeWithTag("reload").performClick()
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithTag("nav-list").performClick()
+        compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         waitForText("list-summary", "1 pendente")
     }
 
     @Test fun aFailedReloadKeepsTheListAndFlagsItAsPossiblyOutOfDate() {
         house.seed("Leite")
         launch()
-        compose.onNodeWithTag("nav-list").performClick()
+        compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         waitForText("list-summary", "1 pendente")
         house.snapshotSteps += Step.NetworkDown
         scenario!!.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
@@ -218,7 +218,8 @@ class ShoppingScreensTest {
 
     @Test fun resumingTheAppReadsTheListAgain() {
         launch()
-        compose.onNodeWithTag("nav-list").performClick()
+        // The keyboard is still moving the navigation bar after the Add field takes focus.
+        compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         waitForText("list-summary", "Nada na lista")
         scenario!!.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
         house.seed("Leite") // another phone added it while this app was in the background
@@ -235,7 +236,7 @@ class ShoppingScreensTest {
             )
         })
         val receive = connections.poll(10, java.util.concurrent.TimeUnit.SECONDS)!!
-        compose.onNodeWithTag("nav-list").performClick()
+        compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         waitForText("list-summary", "Nada na lista")
         receive(CableEvent.Subscribed)
         house.seed("Leite") // the other phone adds
@@ -277,12 +278,12 @@ class ShoppingScreensTest {
         compose.waitUntil(10_000) { entered.isCompleted }
         compose.onNodeWithTag("add-input").performTextReplacement("Pão")
         release.complete(Unit)
-        waitForText("feedback", "1 item adicionado")
+        waitForText("feedback", "Leite adicionado em Laticínios")
         compose.onNodeWithTag("add-input").assertTextContains("Pão")
         scenario!!.recreate()
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("add-input").assertTextContains("Pão")
-        compose.onNodeWithTag("nav-list").performClick()
+        compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         scenario!!.recreate()
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("nav-list").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("nav-list").assertIsSelected()
@@ -308,7 +309,7 @@ class ShoppingScreensTest {
 
     @Test fun noOfflineMachineryIsOnScreen() {
         launchLoaded()
-        compose.onNodeWithTag("nav-list").performClick()
+        compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         listOf("sync-status", "sync-now", "conflicts-expand").forEach { tag ->
             assertTrue(tag, compose.onAllNodesWithTag(tag).fetchSemanticsNodes().isEmpty())
         }
@@ -541,9 +542,9 @@ class ShoppingScreensTest {
         compose.onNodeWithText("Adicionar").assertIsDisplayed()
         compose.onNodeWithText("Lista").assertIsDisplayed()
         compose.onNodeWithTag("list-counter", useUnmergedTree = true).assertContentDescriptionEquals("0 pendentes")
-        compose.onNodeWithTag("nav-list").performClick()
+        compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         compose.onNodeWithTag("nav-list").assertIsSelected()
-        compose.onNodeWithTag("nav-add").performClick()
+        compose.onNodeWithTag("nav-add").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         compose.onNodeWithTag("nav-add").assertIsSelected()
     }
 }

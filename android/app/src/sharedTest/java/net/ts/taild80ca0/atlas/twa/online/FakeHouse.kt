@@ -38,10 +38,12 @@ class FakeHouse : SnapshotTransport, CommandTransport {
     }
 
     val rows = ArrayList<Row>()
-
-    /** The categories the snapshot carries; null is the fixture's default (Laticínios and Outros). */
-    var categories: List<JSONObject>? = null
+    var categories: List<JSONObject> = CATEGORIES.mapIndexed { index, (id, name) -> SnapshotFixtures.category(id, name, if (name == "Outros") 99 else index + 1) }
     var revision = 840L
+
+    /** The server's dictionary revision and what it has learned from `correct_item` (normalized name → category). */
+    var dictionaryRevision = 12L
+    val learned = HashMap<String, String>()
     private val ledger = HashMap<String, CommandReceipt>()
     private val removed = HashMap<String, Row>()
 
@@ -57,7 +59,12 @@ class FakeHouse : SnapshotTransport, CommandTransport {
     fun seed(
         name: String, status: String = "pending", lock: Int = 0, id: String = java.util.UUID.randomUUID().toString(),
         category: String? = SnapshotFixtures.DAIRY,
-    ): Row = Row(id, name, status, lock, if (status == "purchased") "2026-11-10T12:00:00.000000Z" else null, category).also { rows += it }
+    ): Row =
+        Row(id, name, status, lock, if (status == "purchased") "2026-11-10T12:00:00.000000Z" else null, category).also { rows += it }
+
+    /** The dictionary: "Leite" is known (and anything a correction taught); every other name falls to "Outros". */
+    private fun categorize(name: String): String =
+        learned[name.lowercase()] ?: if (name.equals("Leite", true)) SnapshotFixtures.DAIRY else SnapshotFixtures.OTHERS
 
     fun named(name: String) = rows.filter { it.name == name }
 
@@ -79,7 +86,7 @@ class FakeHouse : SnapshotTransport, CommandTransport {
                 normalizedName = row.name.lowercase(),
             )
         }
-        val parsed = SnapshotParser.parse(SnapshotFixtures.bytes(SnapshotFixtures.snapshot(revision = revision, items = items, categories = categories)))
+        val parsed = SnapshotParser.parse(SnapshotFixtures.bytes(SnapshotFixtures.snapshot(revision = revision, dictionaryRevision = dictionaryRevision, items = items, categories = categories)))
         return SnapshotOutcome.Received((parsed as SnapshotParse.Valid).snapshot)
     }
 
@@ -104,6 +111,7 @@ class FakeHouse : SnapshotTransport, CommandTransport {
         val receipt = when (command.getString("type")) {
             "add_items" -> addItems(id, command.getJSONObject("payload").getJSONArray("items"))
             "set_item_state" -> setItemState(id, command)
+            "correct_item" -> correctItem(id, command)
             "undo_item_state" -> undoItemState(id, command)
             "remove_item" -> removeItem(id, command)
             "undo_remove" -> undoRemove(id, command)
@@ -135,7 +143,7 @@ class FakeHouse : SnapshotTransport, CommandTransport {
                     row = purchased; outcome = "revived"; changed = true
                 }
                 else -> {
-                    row = Row(entry.getString("public_id"), name, "pending", 0)
+                    row = Row(entry.getString("public_id"), name, "pending", 0, category = categorize(name))
                     created += row; outcome = "created"; changed = true
                 }
             }
@@ -161,6 +169,22 @@ class FakeHouse : SnapshotTransport, CommandTransport {
         row.purchasedAt = if (desired == "purchased") "2026-11-10T12:00:00.000000Z" else null
         revision++
         return receipt(id, ReceiptStatus.APPLIED, data = JSONObject().put("item", itemJson(row)))
+    }
+
+    /** `correct_item`: the category chosen by hand goes on the item and teaches the dictionary (`learned`). */
+    private fun correctItem(id: String, command: JSONObject): CommandReceipt {
+        val payload = command.getJSONObject("payload")
+        val preconditions = command.getJSONObject("preconditions")
+        val row = rows.firstOrNull { it.id == payload.getString("public_id") } ?: return receipt(id, ReceiptStatus.REJECTED, error = "not_found")
+        if (preconditions.optInt("lock_version", row.lock) != row.lock) return receipt(id, ReceiptStatus.CONFLICT, error = "precondition_failed")
+        val category = payload.optString("category_id").ifEmpty { null }
+        var changed = false
+        if (category != null && row.category != category) { row.category = category; changed = true }
+        if (category != null && learned[row.name.lowercase()] != category && preconditions.getLong("dictionary_revision") == dictionaryRevision) {
+            learned[row.name.lowercase()] = category; dictionaryRevision++; changed = true
+        }
+        if (changed) { row.lock++; revision++ }
+        return receipt(id, if (changed) ReceiptStatus.APPLIED else ReceiptStatus.NOOP, data = JSONObject().put("item", itemJson(row)))
     }
 
     /** `undo_item_state`: restores the given state while the item is still at the version the mark left. */
@@ -207,4 +231,19 @@ class FakeHouse : SnapshotTransport, CommandTransport {
         revision = revision.takeIf { status.recordedByServer }, error = error, dataJson = data?.toString(),
         houseRevision = revision, snapshotRequired = status == ReceiptStatus.CONFLICT,
     )
+
+    companion object {
+        const val PANTRY = "c0000000-0000-4000-8000-000000000003"
+        const val BAKERY = "c0000000-0000-4000-8000-000000000004"
+        const val PRODUCE = "c0000000-0000-4000-8000-000000000005"
+        const val MEAT = "c0000000-0000-4000-8000-000000000006"
+        const val DRINKS = "c0000000-0000-4000-8000-000000000007"
+        const val CLEANING = "c0000000-0000-4000-8000-000000000008"
+        const val HYGIENE = "c0000000-0000-4000-8000-000000000009"
+
+        private val CATEGORIES = listOf(
+            PRODUCE to "Hortifruti", SnapshotFixtures.DAIRY to "Laticínios", PANTRY to "Mercearia", MEAT to "Açougue",
+            BAKERY to "Padaria", DRINKS to "Bebidas", CLEANING to "Limpeza", HYGIENE to "Higiene", SnapshotFixtures.OTHERS to "Outros",
+        )
+    }
 }
