@@ -88,11 +88,12 @@ class FakeHouse : SnapshotTransport, CommandTransport {
         return SnapshotOutcome.Received((parsed as SnapshotParse.Valid).snapshot)
     }
 
-    private fun categories() = JSONArray()
-        .put(JSONObject().put("public_id", SnapshotFixtures.DAIRY).put("name", "Laticínios").put("position", 1))
-        .put(JSONObject().put("public_id", PANTRY).put("name", "Mercearia").put("position", 2))
-        .put(JSONObject().put("public_id", BAKERY).put("name", "Padaria").put("position", 3))
-        .put(JSONObject().put("public_id", SnapshotFixtures.OTHERS).put("name", "Outros").put("position", 99))
+    /** The nine categories of the app, as Rails seeds them (the order of the picker). */
+    private fun categories() = JSONArray().also { array ->
+        CATEGORIES.forEachIndexed { index, (id, name) ->
+            array.put(JSONObject().put("public_id", id).put("name", name).put("position", if (name == "Outros") 99 else index + 1))
+        }
+    }
 
     // ---- commands ------------------------------------------------------------------------------------------
 
@@ -200,5 +201,15 @@ class FakeHouse : SnapshotTransport, CommandTransport {
     companion object {
         const val PANTRY = "c0000000-0000-4000-8000-000000000003"
         const val BAKERY = "c0000000-0000-4000-8000-000000000004"
+        const val PRODUCE = "c0000000-0000-4000-8000-000000000005"
+        const val MEAT = "c0000000-0000-4000-8000-000000000006"
+        const val DRINKS = "c0000000-0000-4000-8000-000000000007"
+        const val CLEANING = "c0000000-0000-4000-8000-000000000008"
+        const val HYGIENE = "c0000000-0000-4000-8000-000000000009"
+
+        private val CATEGORIES = listOf(
+            PRODUCE to "Hortifruti", SnapshotFixtures.DAIRY to "Laticínios", PANTRY to "Mercearia", MEAT to "Açougue",
+            BAKERY to "Padaria", DRINKS to "Bebidas", CLEANING to "Limpeza", HYGIENE to "Higiene", SnapshotFixtures.OTHERS to "Outros",
+        )
     }
 }

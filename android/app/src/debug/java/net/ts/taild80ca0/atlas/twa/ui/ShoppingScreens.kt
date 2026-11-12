@@ -4,15 +4,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -20,25 +16,19 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
-import net.ts.taild80ca0.atlas.twa.data.list.AddOutcome
 import net.ts.taild80ca0.atlas.twa.data.list.ItemStatus
 import net.ts.taild80ca0.atlas.twa.data.list.ListItem
-import net.ts.taild80ca0.atlas.twa.data.matching.DuplicateHint
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import net.ts.taild80ca0.atlas.twa.online.ActionResult
-import net.ts.taild80ca0.atlas.twa.online.AddItems
-import net.ts.taild80ca0.atlas.twa.online.AddedItem
 import net.ts.taild80ca0.atlas.twa.online.OnlineMessages
 import net.ts.taild80ca0.atlas.twa.online.OnlineRepository
 import net.ts.taild80ca0.atlas.twa.online.OnlineState
 import net.ts.taild80ca0.atlas.twa.online.SetItemState
-import net.ts.taild80ca0.atlas.twa.online.addedItems
 import net.ts.taild80ca0.atlas.twa.online.liveItems
 import net.ts.taild80ca0.atlas.twa.sync.ForegroundInvalidation
 import net.ts.taild80ca0.atlas.twa.ui.theme.*
@@ -56,14 +46,11 @@ fun ShoppingScreens(
 ) {
     val state by repository.state.collectAsState()
     var screen by rememberSaveable { mutableStateOf("add") }
-    var draft by rememberSaveable { mutableStateOf("") }
+    val addState = rememberAddScreenState(repository)
     var feedback by remember { mutableStateOf<String?>(null) }
-    var saving by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
-    var recent by remember { mutableStateOf<List<AddedItem>>(emptyList()) }
     val busyItems = remember { mutableStateListOf<String>() }
     val scope = rememberCoroutineScope()
-    val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
 
     LaunchedEffect(screen) {
@@ -90,26 +77,6 @@ fun ShoppingScreens(
 
     val ready = state as? OnlineState.Ready
     val items = remember(ready?.snapshot) { ready?.snapshot?.liveItems().orEmpty() }
-
-    fun add() {
-        if (saving || ready == null) return
-        val submitted = draft
-        saving = true
-        scope.launch {
-            try {
-                when (val result = repository.execute(AddItems.fromText(submitted))) {
-                    is ActionResult.Success -> {
-                        // Do not erase text typed while the request was in flight.
-                        if (draft == submitted) draft = ""
-                        val added = result.receipt.addedItems()
-                        recent = added.filter { it.outcome != AddOutcome.DUPLICATE }
-                        feedback = OnlineMessages.added(added)
-                    }
-                    else -> feedback = OnlineMessages.failure(result, keepsText = true)
-                }
-            } finally { saving = false }
-        }
-    }
 
     fun mark(item: ListItem) {
         if (item.publicId in busyItems || ready == null) return
@@ -166,41 +133,7 @@ fun ShoppingScreens(
                     Button(onClick = { scope.launch { repository.refresh() } }, modifier = Modifier.testTag("reload")) { Text("Tentar de novo") }
                 }
                 ready == null -> Text("Abrindo sua lista…", modifier = Modifier.testTag("loading"))
-                screen == "add" -> {
-                    val categories = ready.snapshot.categories
-                    LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(vertical = 16.dp)) {
-                        if (recent.isNotEmpty()) {
-                            item { Text("Acabou de adicionar", style = AlvaTheme.type.caption, color = AlvaTheme.colors.inkFaint) }
-                            items(recent, key = { it.itemPublicId }) { addition ->
-                                val item = items.firstOrNull { it.publicId == addition.itemPublicId }
-                                val category = categories.firstOrNull { it.publicId == item?.categoryPublicId }?.name ?: "Outros"
-                                Row(Modifier.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    CategoryIcon(category)
-                                    Text("${addition.name} · $category", style = AlvaTheme.type.bodySmall, modifier = Modifier.padding(start = 8.dp))
-                                }
-                            }
-                        } else item { Text("Acabou em casa? Adicione aqui.", style = AlvaTheme.type.bodySmall, color = AlvaTheme.colors.inkSoft) }
-                    }
-                    val duplicates = DuplicateHint.alreadyPending(draft, items)
-                    if (duplicates.isNotEmpty()) Text("Já na lista: ${duplicates.joinToString()}", maxLines = 2, style = AlvaTheme.type.caption, color = AlvaTheme.colors.warn, modifier = Modifier.testTag("duplicate-hint"))
-                    OutlinedTextField(
-                        value = draft, onValueChange = { draft = it }, label = { Text("O que acabou?") },
-                        modifier = Modifier.fillMaxWidth().focusRequester(focus).testTag("add-input"),
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                        keyboardActions = KeyboardActions(onDone = { add() }), maxLines = 4,
-                        colors = alvaTextFieldColors(), textStyle = AlvaTheme.type.input,
-                    )
-                    // Scaffold subcomposes its content during layout. Request focus
-                    // from this composition, after the field's node is attached.
-                    LaunchedEffect(Unit) {
-                        focus.requestFocus()
-                        keyboard?.show()
-                    }
-                    Text("Separe por vírgula, ponto e vírgula ou quebra de linha.", style = AlvaTheme.type.caption, color = AlvaTheme.colors.inkFaint)
-                    Button(onClick = { add() }, enabled = !saving, shape = AlvaShapes.Control, modifier = Modifier.fillMaxWidth().testTag("save-add")) {
-                        Text(if (saving) "Adicionando…" else "Adicionar à lista")
-                    }
-                }
+                screen == "add" -> AddScreen(addState, ready.snapshot, Modifier.weight(1f).fillMaxWidth())
                 else -> {
                     Text("Pendentes: $pending · Comprados: ${items.size - pending}", style = AlvaTheme.type.summary, color = AlvaTheme.colors.inkSoft, modifier = Modifier.testTag("list-summary"))
                     LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(vertical = 12.dp)) {

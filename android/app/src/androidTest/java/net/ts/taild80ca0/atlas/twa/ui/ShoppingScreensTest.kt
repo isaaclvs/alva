@@ -139,9 +139,9 @@ class ShoppingScreensTest {
         launch()
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("add-input").performTextInput("leite")
-        waitForText("duplicate-hint", "Já na lista: Leite")
+        waitForText("duplicate-hint", "Leite já está na lista")
         compose.onNodeWithTag("save-add").performClick()
-        waitForText("feedback", "Nada adicionado · Leite já estava na lista")
+        waitForText("feedback", "Leite já está na lista")
         assertEquals(1, house.rows.size)
     }
 
@@ -157,7 +157,7 @@ class ShoppingScreensTest {
 
         // Nothing was queued: only repeating the action adds it, once.
         compose.onNodeWithTag("save-add").performClick()
-        waitForText("feedback", "1 item adicionado")
+        waitForText("feedback", "Café adicionado em Outros")
         assertEquals(listOf("Café"), house.rows.map { it.name })
         assertEquals(4, house.sent.size)
     }
@@ -271,7 +271,7 @@ class ShoppingScreensTest {
         compose.waitUntil(10_000) { entered.isCompleted }
         compose.onNodeWithTag("add-input").performTextReplacement("Pão")
         release.complete(Unit)
-        waitForText("feedback", "1 item adicionado")
+        waitForText("feedback", "Leite adicionado em Laticínios")
         compose.onNodeWithTag("add-input").assertTextContains("Pão")
         scenario!!.recreate()
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
