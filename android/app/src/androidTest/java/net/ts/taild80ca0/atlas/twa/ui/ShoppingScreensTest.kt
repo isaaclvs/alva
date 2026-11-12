@@ -332,7 +332,9 @@ class ShoppingScreensTest {
         launch()
         // The list is read before the first tap, so the tap is never lost to the screen still loading.
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithTag("nav-list").performClick()
+        // The semantics action, not a tap at the pill's coordinates: the keyboard of the Add screen is still
+        // sliding in and moves the bar under a tap.
+        compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("list-summary").fetchSemanticsNodes().isNotEmpty() }
     }
 
