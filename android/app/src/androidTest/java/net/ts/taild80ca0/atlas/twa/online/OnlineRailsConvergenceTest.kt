@@ -8,6 +8,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.first
 import net.ts.taild80ca0.atlas.twa.access.AccessCredential
 import net.ts.taild80ca0.atlas.twa.access.ServerEndpoint
 import net.ts.taild80ca0.atlas.twa.data.list.AddOutcome
@@ -89,6 +90,34 @@ class OnlineRailsConvergenceTest {
     private suspend fun Phone.add(name: String) = repository.execute(AddItems.fromText(name))
 
     private suspend fun Phone.mark(name: String, desired: ItemStatus) = repository.execute(SetItemState(item(name)!!.publicId, desired))
+
+    @Test fun theQuickPanelUsesTheAppsCredentialAndAnotherPhoneSeesItsNames() = runBlocking<Unit> {
+        val vault = object : net.ts.taild80ca0.atlas.twa.access.CredentialVault {
+            override fun read() = net.ts.taild80ca0.atlas.twa.access.VaultRead.Found(net.ts.taild80ca0.atlas.twa.access.StoredAccess(AccessCredential(1, tokenA)))
+            override fun write(access: net.ts.taild80ca0.atlas.twa.access.StoredAccess) = error("No credential writes")
+        }
+        val api = object : net.ts.taild80ca0.atlas.twa.access.HouseAccessApi {
+            override suspend fun pair(password: String, deviceName: String, previousToken: String?): net.ts.taild80ca0.atlas.twa.access.ApiResult<AccessCredential> = error("No widget pairing")
+            override suspend fun identifyHousehold(credential: AccessCredential): net.ts.taild80ca0.atlas.twa.access.ApiResult<net.ts.taild80ca0.atlas.twa.access.HouseholdIdentity> = error("No legacy HTTP")
+        }
+        val access = net.ts.taild80ca0.atlas.twa.access.HouseAccess(vault, api, net.ts.taild80ca0.atlas.twa.ui.InMemoryHouseholdBinding())
+        val repository = OnlineRepository(OnlineAccess.of(access), HttpSnapshotTransport(endpoint()), HttpCommandTransport(endpoint()), scope, pause = {})
+        val models = androidx.lifecycle.ViewModelStore()
+        val model = kotlinx.coroutines.withContext(Dispatchers.Main) {
+            net.ts.taild80ca0.atlas.twa.QuickPanelModel(androidx.lifecycle.SavedStateHandle(), access, repository).also { models.put("panel", it); it.resume() }
+        }
+        try {
+            kotlinx.coroutines.withTimeout(10_000) { model.state.first { !it.loading } }
+            val first = newName()
+            val second = newName()
+            kotlinx.coroutines.withContext(Dispatchers.Main) { model.edit("$first, $second"); model.submit() }
+            val result = kotlinx.coroutines.withTimeout(10_000) { model.state.first { it.success != null || it.error != null } }
+            assertEquals("Adicionado à lista", result.success)
+            val b = phone(tokenB)
+            b.repository.refresh()
+            assertTrue(b.item(first) != null && b.item(second) != null)
+        } finally { kotlinx.coroutines.withContext(Dispatchers.Main) { models.clear() } }
+    }
 
     @Test fun authenticatedPdfIsAReadableExportFromRealRails() = runBlocking<Unit> {
         val access = object : OnlineAccess {
