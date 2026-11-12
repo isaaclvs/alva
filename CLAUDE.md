@@ -8,8 +8,9 @@ workflow para o Claude Code.
 ## Como trabalhar neste repositório
 
 - O rastreamento está descrito em AGENTS.md ("Produto atual e destino nativo"):
-  a migração para o app Android nativo offline é acompanhada no GitHub (issue
-  #33) e o Linear fica como histórico do MVP/PWA. Antes de implementar, busque a
+  o app Android nativo online, com paridade com a PWA, é acompanhado no GitHub
+  (issue #92); o offline (#33) está pausado; o Linear fica como histórico do
+  MVP/PWA. Antes de implementar, busque a
   task correspondente (GitHub para a migração, Linear para o histórico) e leia
   contexto, critério de aceite e notas técnicas — não implemente a partir de
   suposição quando a task já documenta o escopo.
