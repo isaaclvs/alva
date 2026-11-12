@@ -340,6 +340,60 @@ class ShoppingScreensTest {
 
     private fun commandTypes() = house.sent.map { JSONObject(it.second).getString("type") }
 
+    @Test fun searchAndPendingFilterCombineWithoutChangingCategoryCounts() {
+        val pending = house.seed("Pão integral")
+        val bought = house.seed("Pão doce", status = "purchased")
+        openList()
+        compose.onNodeWithTag("list-search").assertIsNotFocused().performTextInput("PAO")
+        compose.onNodeWithTag("list-search").performImeAction()
+        compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasTestTag("item-${pending.id}"))
+        compose.onNodeWithTag("item-${pending.id}").assertExists()
+        compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasTestTag("item-${bought.id}"))
+        compose.onNodeWithTag("item-${bought.id}").assertExists()
+        compose.onNodeWithTag("pending-only").performClick()
+        compose.onNodeWithTag("item-${bought.id}").assertDoesNotExist()
+        compose.onNodeWithTag("category-count-Laticínios").assertTextEquals("1/2")
+        compose.onNodeWithTag("list-summary").assertTextEquals("1 pendente · 1 comprado")
+        compose.onNodeWithTag("search-icon").performClick()
+        compose.onNodeWithTag("list-search").assertIsFocused().assertTextContains("PAO")
+        compose.onNodeWithTag("pending-only").assertIsOn()
+    }
+
+    @Test fun noResultsAndClearSearchKeepThePendingChoice() {
+        house.seed("Leite")
+        openList()
+        compose.onNodeWithTag("pending-only").performClick()
+        compose.onNodeWithTag("list-search").performTextInput("arroz")
+        compose.onNodeWithTag("filter-empty").assertTextEquals("Nenhum item encontrado.")
+        compose.onNodeWithTag("list-empty").assertDoesNotExist()
+        compose.onNodeWithTag("clear-search").performClick()
+        compose.onNodeWithTag("list-search").assertTextContains("").assertIsFocused()
+        compose.onNodeWithTag("clear-search").assertDoesNotExist()
+        compose.onNodeWithTag("pending-only").assertIsOn()
+        compose.onNodeWithTag("filter-empty").assertDoesNotExist()
+    }
+
+    @Test fun filtersSurviveRefreshNavigationAndRecreation() {
+        house.seed("Pão")
+        val repository = launch()
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
+        compose.onNodeWithTag("list-search").performTextInput("pao")
+        compose.onNodeWithTag("list-search").performImeAction()
+        compose.onNodeWithTag("pending-only").performClick()
+        val new = house.seed("Pão integral")
+        kotlinx.coroutines.runBlocking { repository.refresh() }
+        compose.onNodeWithTag("item-${new.id}").assertIsDisplayed()
+        compose.onNodeWithTag("nav-add").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
+        compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
+        compose.onNodeWithTag("list-search").assertTextContains("pao")
+        compose.onNodeWithTag("pending-only").assertIsOn()
+        scenario!!.recreate()
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("list-search").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("list-search").assertTextContains("pao")
+        compose.onNodeWithTag("pending-only").assertIsOn()
+    }
+
     @Test fun theListShowsSectionsInCategoryOrderWithXOfYCountsAndThePendingCounter() {
         seedCategories()
         val queijo = house.seed("Queijo")
@@ -350,8 +404,11 @@ class ShoppingScreensTest {
         openList()
         waitForText("list-summary", "3 pendentes · 2 comprados")
 
+        compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasTestTag("item-${leite.id}"))
         assertTrue("pending first inside a section", top("item-${queijo.id}") < top("item-${leite.id}"))
+        compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasTestTag("category-Hortifruti"))
         compose.onNodeWithTag("category-count-Hortifruti").assertTextEquals("1/1")
+        compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasTestTag("category-Laticínios"))
         compose.onNodeWithTag("category-count-Laticínios").assertTextEquals("1/2")
         assertTrue("no count until something is bought", compose.onAllNodesWithTag("category-count-Outros").fetchSemanticsNodes().isEmpty())
         compose.onNodeWithTag("list-counter", useUnmergedTree = true).assertContentDescriptionEquals("3 pendentes")
