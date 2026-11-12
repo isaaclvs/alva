@@ -20,11 +20,11 @@ object AccessGraph {
     private fun endpoint() = ServerEndpoint.parse(BuildConfig.SERVER_URL)
     @Synchronized fun houseAccess(context: Context): HouseAccess = access ?: HouseAccess(
         KeystoreCredentialVault(KeystoreCredentialVault.defaultFile(context)), HttpHouseAccessApi(endpoint()),
-        DeviceHouseholdBinding(context.applicationContext), onSignedOut = { repository?.forget() },
+        DeviceHouseholdBinding(context.applicationContext), onSignedOut = { repository?.forget(); net.ts.taild80ca0.atlas.twa.widgets.WidgetRuntime.clear(context); net.ts.taild80ca0.atlas.twa.widgets.WidgetRuntime.updateAll(context) },
     ).also { access = it }
     @Synchronized fun onlineRepository(context: Context): OnlineRepository = repository ?: OnlineRepository(
         OnlineAccess.of(houseAccess(context)), HttpSnapshotTransport(endpoint()), HttpCommandTransport(endpoint()), scope,
-    ).also { repository = it }
+    ).also { repository = it; net.ts.taild80ca0.atlas.twa.widgets.WidgetRuntime.bind(context, it) }
     @Synchronized fun foregroundInvalidation(context: Context): ForegroundInvalidation = invalidation ?: ForegroundInvalidation(
         houseAccess(context), endpoint(), onlineRepository(context), scope,
     ).also { invalidation = it }

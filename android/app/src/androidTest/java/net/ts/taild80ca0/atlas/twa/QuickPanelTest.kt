@@ -1,5 +1,11 @@
 package net.ts.taild80ca0.atlas.twa
 
+import android.graphics.drawable.GradientDrawable
+import androidx.compose.ui.graphics.toArgb
+import net.ts.taild80ca0.atlas.twa.preferences.DevicePreferencesStore
+import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaColor
+import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaPalettes
+import androidx.test.platform.app.InstrumentationRegistry
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
@@ -50,7 +56,26 @@ class QuickPanelTest {
         } while (System.currentTimeMillis() < deadline)
         fail("Quick panel did not reach the expected state")
     }
-    @After fun cleanup() { scenario?.close(); AccessGraph.install(null); scope.cancel() }
+    @After fun cleanup() {
+        scenario?.close(); AccessGraph.install(null); scope.cancel()
+        runBlocking { DevicePreferencesStore(InstrumentationRegistry.getInstrumentation().targetContext).reset() }
+    }
+
+    @Test fun panelFollowsTheDeviceThemeAndAccent() {
+        val preferences = DevicePreferencesStore(InstrumentationRegistry.getInstrumentation().targetContext)
+        runBlocking { preferences.dark(false); preferences.color(AlvaColor.Pink) }
+        launch()
+        val palette = AlvaPalettes.PinkLight
+        await { it.findViewById<EditText>(R.id.quick_add_product).currentTextColor == palette.ink.toArgb() }
+        scenario!!.onActivity {
+            val submit = it.findViewById<Button>(R.id.quick_add_submit)
+            assertEquals(palette.accentInk.toArgb(), submit.currentTextColor)
+            assertEquals(palette.accent.toArgb(), (submit.background as GradientDrawable).color!!.defaultColor)
+            assertEquals(palette.surface.toArgb(), (it.findViewById<android.view.View>(R.id.quick_add_panel).background as GradientDrawable).color!!.defaultColor)
+        }
+        runBlocking { preferences.dark(true); preferences.color(AlvaColor.Teal) }
+        await { it.findViewById<EditText>(R.id.quick_add_product).currentTextColor == AlvaPalettes.TealDark.ink.toArgb() }
+    }
 
     @Test fun noAccessOffersTheMainAppWithoutPasswordOrTyping() {
         stored = null
