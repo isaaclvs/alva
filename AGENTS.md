@@ -22,10 +22,21 @@ e leia o documento correspondente.
 O que está **em uso hoje** e não pode quebrar durante a migração: a PWA
 instalável e o APK TWA com widget conectados ao Rails, sem modo offline.
 
-O **destino aprovado** (ainda não implementado; regras de sync propostas): app
-Android nativo em Kotlin/Compose com Room e fila local, funcionando offline e
-sincronizando com o Rails/SQLite existente. Kotlin e o desenho cliente
-novo/servidor existente foram aprovados pelo usuário em 10/11/2026.
+O **próximo destino** (decisão do usuário em 11/11/2026): app Android nativo
+em Kotlin/Compose **online**, com paridade com a PWA (mesmas funcionalidades,
+temas, cores e fontes). O servidor é a fonte da verdade, sem fila local nem
+offline; o cliente usa a API v1 existente. Acompanhamento na #92, plano em
+`docs/plans/android-online-parity.md`. Ao final, a release nativa substitui o
+Alva 1.3 (TWA) instalando por cima, com o mesmo identificador e a mesma chave.
+
+O **offline está pausado** (#33 e filhas, rótulo `pausado`): app nativo com
+Room e fila local, sincronizando com o Rails/SQLite. Kotlin e o desenho cliente
+novo/servidor existente foram aprovados em 10/11/2026; a sincronização da #45
+já está integrada na variante debug. O código fica no repositório, desligado da
+interface, e não deve ser ampliado sem o usuário retomar o offline. Os
+documentos abaixo continuam válidos para quando ele voltar.
+
+- Plano da paridade online: `docs/plans/android-online-parity.md`
 
 - Decisão e consequências: `docs/adr/0001-android-offline-com-rails.md`
 - Plano e regras propostas: `docs/plans/android-offline.md`
