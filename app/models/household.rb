@@ -137,12 +137,21 @@ class Household < ApplicationRecord
   # Returns the new trip, or nil (and creates nothing) if nothing was purchased.
   # One UPDATE and one broadcast, instead of one per item (update_all skips the
   # per-item callbacks).
-  def finish_shopping!
+  #
+  # `only` (item ids) narrows the archive to those purchased items: the sync
+  # command archives exactly the items its device observed, so what was bought
+  # or added meanwhile on another device stays on the list.
+  def finish_shopping!(only: nil)
     trip = with_list_lock do
+      purchased = list_items.on_list.purchased
+      purchased = purchased.where(id: only) if only
+      # Checked before anything is written, so "nothing to archive" never
+      # leaves an empty trip behind, also inside a caller's transaction.
+      next unless purchased.exists?
+
       now = Time.current
       trip = shopping_trips.create!(finished_at: now)
-      archived = list_items.on_list.purchased.update_all(shopping_trip_id: trip.id, updated_at: now)
-      raise ActiveRecord::Rollback if archived.zero?
+      purchased.update_all(shopping_trip_id: trip.id, updated_at: now)
 
       # One UPDATE for every item (update_all skips per-item callbacks), so the
       # revision is published here. Archiving is not a deletion: no tombstones.
@@ -159,7 +168,12 @@ class Household < ApplicationRecord
   # broadcast. Only the most recent trip can be undone; returns false (and
   # changes nothing) for any other. Items already back on the list are not
   # duplicated.
-  def undo_shopping!(trip)
+  #
+  # `on_dropped` receives the [[archived item, item that stayed on the list]]
+  # pairs of those duplicates, inside the transaction, before they are deleted:
+  # the sync command redirects the identities of the dropped ones to the item
+  # that stayed.
+  def undo_shopping!(trip, on_dropped: nil)
     undone = with_list_lock do
       next false unless trip.household_id == id && trip == latest_shopping_trip
 
@@ -168,7 +182,9 @@ class Household < ApplicationRecord
       # twice; same idea as typing a bought item bringing it back. `delete`
       # skips callbacks, so these deletions are handed to the tombstone
       # recorder explicitly.
-      dropped = trip.list_items.select { |item| item_named(list_items.on_list, item.name) }
+      kept = trip.list_items.to_h { |item| [ item, item_named(list_items.on_list, item.name) ] }.compact
+      dropped = kept.keys
+      on_dropped&.call(kept.to_a)
       dropped.each(&:delete)
       trip.list_items.update_all(shopping_trip_id: nil, updated_at: Time.current)
       trip.destroy!
@@ -234,6 +250,12 @@ class Household < ApplicationRecord
   def broadcast_habitual_items
     Turbo::StreamsChannel.broadcast_render_to self, partial: "habitual_items/refresh",
       locals: { household: self }
+  end
+
+  # The habits section broadcast, once every open transaction has committed:
+  # for sync commands, which run inside the transaction of the ledger row.
+  def broadcast_habitual_items_after_commit
+    ActiveRecord.after_all_transactions_commit { broadcast_habitual_items }
   end
 
   # A list item changed (called by ListItem's after_commit). Broadcasts right

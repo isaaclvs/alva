@@ -1,10 +1,12 @@
 class HabitualItem < ApplicationRecord
   include HasPublicId
 
+  MAX_NAME_LENGTH = 100
+
   belongs_to :household
 
   validates :name, presence: true
-  validates :name, length: { maximum: 100 }
+  validates :name, length: { maximum: MAX_NAME_LENGTH }
   validates :normalized_name, uniqueness: { scope: :household_id }
 
   before_validation :normalize_name

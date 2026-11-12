@@ -10,8 +10,7 @@ comandos (ledger, linhagem do aparelho, ordem e retenção) foi implementada na
 issue #38 (migração `CreateSyncCommands`). O snapshot está implementado na
 issue #37. O endpoint de comandos, os executores `add_items` e
 `set_item_state` e os aliases foram implementados na issue #39 (migração
-`CreateSyncAliases`); `undo_item_state` foi implementado na issue #96 para o app
-nativo online; os demais comandos e o cliente seguem propostos. O contrato dá um alvo versionado às tasks
+`CreateSyncAliases`); `undo_item_state` (issue #96), `finish_shopping` e `undo_shopping` (issue #51) foram implementados para o app nativo online; os demais comandos e o cliente seguem propostos. O contrato dá um alvo versionado às tasks
 do GitHub
 ([Alva nativo offline — #33](https://github.com/isaaclvs/alva/issues/33)), que
 podem refiná-lo com evidência de implementação.
@@ -188,8 +187,8 @@ Regras do envelope:
 ## Comandos v1
 
 `add_items` e `set_item_state` estão implementados (#39), assim como
-`correct_item`, `remove_item`, `undo_remove` e `undo_item_state` (#96); os demais
-são o alvo das tasks seguintes. As lacunas de UUIDs e versões que a base Room registrou em
+`correct_item`, `remove_item`, `undo_remove`, `undo_item_state` (#96), `finish_shopping` e `undo_shopping`
+(#51); os demais são o alvo das tasks seguintes. As lacunas de UUIDs e versões que a base Room registrou em
 [android-local-persistence.md](android-local-persistence.md#lacunas-observadas-no-contrato-v1-para-37383945)
 estão fechadas abaixo: o comando leva os UUIDs dos itens criados offline, um item
 ainda não visto é alcançado por `depends_on`, e a versão de cada passo da fila é
@@ -204,11 +203,11 @@ um comando já enviado.
 | `correct_item` | `public_id`, `name`, `category_id?` (UUID público) | `lock_version` herdado de `depends_on` ou observado; `dictionary_revision` obrigatória com categoria manual | executor transacional + `ItemCategorizer.learn` condicional |
 | `remove_item` | `public_id` | `lock_version` (herdado de `depends_on` quando este tocou o item) | `Household#remove_item` |
 | `undo_remove` | vazio; `depends_on` referencia o comando de remoção | remoção original ainda vigente; sem pendente homônimo | compensação pelos atributos do ledger, sem token web |
-| `finish_shopping` | `items: [{ public_id, lock_version }]` — só os comprados vistos neste aparelho | cada `lock_version` | `Household#finish_shopping!` |
-| `undo_shopping` | `trip_public_id` | viagem é a mais recente | `Household#undo_shopping!` |
-| `create_habitual` | `name` | — | `HabitualItemsController#create` |
-| `remove_habitual` | `public_id` | — | `HabitualItemsController#destroy` |
-| `add_habituals` | `public_ids: []` ou `all: true` | — | `#add_selected` / `#add_all` |
+| `finish_shopping` | `items: [{ public_id, lock_version? }]` — só os comprados vistos neste aparelho (de 1 a 500) | cada `lock_version` (explícito ou herdado de `depends_on`); tudo ou nada | `Household#finish_shopping!(only:)` |
+| `undo_shopping` | `trip_public_id` (opcional com `depends_on`) | viagem da casa, ainda existente e a mais recente; `depends_on` referencia o `finish_shopping` original | `Household#undo_shopping!` |
+| `create_habitual` | `name` | — | `HabitualItemsController#create` (#104) |
+| `remove_habitual` | `public_id` | — | `HabitualItemsController#destroy` (#104) |
+| `add_habituals` | `public_ids: []` ou `all: true` | — | `#add_selected` / `#add_all` (#104) |
 
 ### `add_items`
 
@@ -517,6 +516,104 @@ interface, sem prazo no servidor).
 - A rota é exclusiva de sync: `POST /list_items/:id/undo_purchase` e o token
   assinado da PWA continuam como estão.
 
+### Finalizar compra (`finish_shopping`, issue #51)
+
+```json
+{
+  "id": "<uuid do comando>",
+  "type": "finish_shopping",
+  "depends_on": null,
+  "payload": {
+    "items": [
+      { "public_id": "<uuid do item ou alias>", "lock_version": 3 },
+      { "public_id": "<uuid>", "lock_version": 1 }
+    ]
+  }
+}
+```
+
+- **Só o que o aparelho viu.** `items` lista os itens comprados observados (de 1 a
+  500). O comando nunca arquiva "todos os comprados que existirem": item pendente,
+  item não listado e item que apareceu ou foi marcado depois em outro aparelho
+  ficam intactos na lista viva. Lista vazia, grande demais ou entrada malformada é
+  `rejected` / `malformed_command` com `data.field` (`payload.items`,
+  `payload.items[i]`, `payload.items[i].public_id`, `payload.items[i].lock_version`).
+- **Versão por item**, como em `set_item_state`: a maior entre `lock_version` da
+  entrada e a herdada do resultado de `depends_on` para o item canônico (um
+  `set_item_state` que o marcou). Sem nenhuma das duas, ou inválida, é
+  `malformed_command`. Duas entradas que resolvem para o mesmo item (UUID e alias)
+  são `malformed_command` (`data.reason` `repeated_item`).
+- **Tudo ou nada.** Todas as entradas são verificadas sob o lock da casa antes de
+  qualquer escrita. Se alguma falhar, nada é arquivado, nenhuma viagem é criada,
+  a revisão não se move e nada é registrado (o UUID não é consumido). O resultado
+  traz `data.problems`, **todas** as entradas a revisar na ordem do payload, cada uma com
+  `index`, `public_id`, `status` (`conflict` ou `rejected`), `error` e o detalhe: o
+  primeiro problema dá o `status`/`error` do comando e seus campos aparecem também
+  no topo de `data`. Causas:
+  - `conflict` / `precondition_failed`, `reason` `version_changed` (com
+    `expected_lock_version` e `current`) ou `not_purchased` (a versão confere, mas
+    o item está pendente);
+  - `rejected` / `gone` (`reason` `archived` ou `removed`, `canonical_public_id`):
+    já foi arquivado por outra viagem ou removido;
+  - `rejected` / `not_found`: UUID desconhecido ou de outra casa, resposta idêntica.
+- **Efetivo:** `applied`, uma revisão para o comando todo, uma só viagem
+  (`ShoppingTrip`), os itens arquivados sem tombstone e com nome, categoria,
+  `status` e `purchased_at` preservados; um único broadcast depois do commit. O
+  Rails soma um ao `lock_version` das linhas arquivadas (`update_all`). Resultado:
+  `data.trip` (`public_id`, `finished_at`) e `data.items`, uma entrada por item no
+  formato de `ItemData` mais `shopping_trip_public_id`.
+- **Replay e finalizações simultâneas.** Reenviar o mesmo UUID devolve `duplicate`
+  com o recibo original, mesmo depois de a viagem ser desfeita. Os mesmos itens com
+  **outro** UUID já estão arquivados: `rejected` / `gone`; nunca nasce viagem vazia
+  ou duplicada. Duas finalizações simultâneas sobre os mesmos itens são
+  serializadas pelo lock da casa: uma aplica e a outra recebe `gone`.
+- A rota é exclusiva de sync; `POST /shopping_trips` e o desfazer web continuam
+  como estão.
+
+### Desfazer compra (`undo_shopping`, issue #51)
+
+```json
+{
+  "id": "<uuid do comando de desfazer>",
+  "type": "undo_shopping",
+  "depends_on": "<UUID do finish_shopping original, opcional>",
+  "payload": { "trip_public_id": "<uuid da viagem>" }
+}
+```
+
+- A viagem é a do `trip_public_id` ou, com `depends_on`, a do recibo do
+  `finish_shopping` referenciado (`data.trip.public_id`); com ambos, devem ser a
+  mesma. `depends_on` precisa ser um `finish_shopping` aplicado da mesma linhagem
+  (outro tipo, ou `trip_public_id` divergente, é `malformed_command` com
+  `data.field` `depends_on` / `payload.trip_public_id`; sem nenhum dos dois,
+  `payload.trip_public_id`). Isso permite enfileirar finalizar → desfazer sem
+  conhecer o UUID da viagem.
+- **Precondições**, sob o lock da casa: a viagem existe nesta casa; é a **mais
+  recente** (maior `finished_at`, empate para o maior id). Viagem desconhecida ou
+  de outra casa é `rejected` / `not_found`, com a mesma resposta; viagem já
+  desfeita (tombstone) é `rejected` / `gone` (`data.reason` `undone`); viagem
+  antiga com outra mais nova é `conflict` / `precondition_failed` com `data.reason`
+  `not_latest` e `data.latest_trip_public_id`. Não há prazo: desfazer tarde vale
+  enquanto a viagem for a mais recente. Itens arquivados não mudam por comandos
+  (são `gone`), então não há precondição por item.
+- **Efetivo:** `applied`, uma revisão, um broadcast depois do commit. Os itens da
+  viagem voltam à lista viva como estavam (comprados, nome, categoria e
+  `purchased_at` intactos; `lock_version` mais um) e a viagem é apagada com
+  tombstone `shopping_trip`. `data`: `trip_public_id`, `finish_id` (o `depends_on`,
+  quando houve), `items` (formato de `ItemData`, o que voltou) e `dropped`.
+- **Duplicados.** Como na PWA, um item que foi digitado de novo na lista depois da
+  finalização permanece, e a cópia arquivada de mesmo nome é descartada (com
+  tombstone). Decisão desta task para os aliases: o UUID da cópia descartada e os
+  aliases que apontavam para ela passam a apontar para o item que ficou (novo
+  `SyncAlias` na mesma transação), então comandos que ainda citam essas
+  identidades alcançam o item vivo em vez de responder `gone`. `data.dropped` lista
+  `{ public_id, canonical_public_id }` de cada redirecionamento.
+- Reenviar o mesmo UUID devolve `duplicate` com o recibo; outro UUID para a mesma
+  viagem já desfeita é `gone`. Dois desfazer simultâneos: um aplica, o outro
+  recebe `gone`. Desfazer simultâneo a uma finalização mais nova: ou o desfazer
+  corre primeiro e aplica, ou a viagem deixa de ser a mais recente (`not_latest`).
+- A rota é exclusiva de sync; `DELETE /shopping_trips/:id` da PWA não muda.
+
 ### Corrigir item (`correct_item`, issue #47)
 
 ```json
@@ -563,13 +660,65 @@ revisão da casa e publica a mudança; sem mudança no item nem no dicionário �
 esse resultado integral: reenvio do mesmo comando retorna o recibo original,
 mesmo se outro aparelho já tiver alterado o item/dicionário depois.
 
+### Habituais (`create_habitual`, `remove_habitual`, `add_habituals`, issue #104)
+
+Servem ao app nativo online (#92). Equivalem ao `HabitualItemsController` da PWA,
+que não muda. Habituais não têm versão (só são criados e removidos) e o servidor
+dá o UUID: o aparelho o aprende em `data.item.public_id` ou pelo snapshot
+(`habitual_items`).
+
+```json
+{ "id": "<uuid>", "type": "create_habitual", "payload": { "name": "Café" } }
+{ "id": "<uuid>", "type": "remove_habitual", "payload": { "public_id": "<uuid do habitual>" } }
+{ "id": "<uuid>", "type": "add_habituals", "payload": { "public_ids": ["<uuid>", "<uuid>"] } }
+{ "id": "<uuid>", "type": "add_habituals", "payload": { "all": true } }
+```
+
+- **`create_habitual`**: `name` é obrigatório, string, com espaços normalizados
+  (`squish`). Branco é `rejected` / `invalid_name` com `data.reason: "blank"`;
+  acima de 100 caracteres, `data.reason: "too_long"`. A identidade é o nome
+  normalizado (`TextNormalizer`), por casa: um nome já salvo (" cafe " para
+  "Café") é `noop` com `data.outcome: "duplicate"` e o habitual existente em
+  `data.item`, sem revisão nova. Salvo, é `applied` (uma revisão),
+  `data.outcome: "created"`. `data.item`:
+  `{ public_id, name, normalized_name, created_at }`.
+- **`remove_habitual`**: `payload.public_id` (UUID, qualquer caixa). Remove só o
+  habitual e grava tombstone `habitual_item`; itens da lista e o histórico não
+  mudam. `applied` com `data.outcome: "removed"` e `data.item`. Como em
+  `set_item_state`, o comando declara o estado final: um habitual que a casa já
+  removeu (tombstone desta casa) é `noop` com `data.outcome: "already_removed"`.
+  UUID desconhecido, de outra casa ou de outro tipo de registro é
+  `rejected` / `not_found` (mesma resposta nos três casos).
+- **`add_habituals`**: exatamente um entre `public_ids` (lista não vazia de
+  UUIDs, repetidos contam uma vez) e `all: true`; qualquer outra forma é
+  `rejected` / `malformed_command` com `data.field`. Os nomes vêm dos habituais
+  da casa, nunca do payload, em ordem de nome normalizado, e entram pela mesma
+  regra da PWA (`Household#add_item_names`: categoria do dicionário, duplicado
+  pendente, comprado que volta a pendente), com **uma** revisão para o lote e
+  sem o limite de 30 nomes do campo de texto. Diferente de `add_items`, não há
+  `revives`: o aparelho online pede a inclusão a partir da tela atual, como a
+  PWA. Um UUID que não é habitual desta casa (inclusive um já removido) faz o
+  comando inteiro ser `rejected` / `not_found`, com `data.public_ids` listando
+  os UUIDs, e nada é adicionado. `all: true` sem nenhum habitual salvo é
+  `rejected` / `no_habituals`.
+  `data.items` traz, na ordem em que os nomes entraram, o item que cada nome
+  virou no formato de `ItemData.entry` (o `public_id` é o do próprio item) mais
+  `habitual_public_id` e `outcome` (`created`, `revived`, `duplicate`; `invalid`
+  se a lista recusou o nome). `applied` se algo entrou (`created`/`revived`),
+  `noop` se todos já estavam pendentes.
+- Cada comando é idempotente pelo UUID do comando como os demais: o reenvio dos
+  mesmos bytes responde `duplicate` com o resultado original, mesmo que o estado
+  tenha mudado depois. Os broadcasts (seção de habituais na criação e remoção,
+  lista na inclusão) saem só depois do commit.
+
 ## Idempotência e deduplicação
 
 Implementado na issue #38 (`SyncCommand`, `SyncCommandProcessor`) e ligado ao
 endpoint `POST /api/v1/commands` na #39. Os comandos de negócio registram seu
 executor em `SyncCommandProcessor::EXECUTORS` nas tasks que os introduzem; hoje
-são `add_items`, `set_item_state`, `undo_item_state`, `correct_item`,
-`remove_item` e `undo_remove` (`app/services/sync_commands/`). Um tipo ainda
+são `add_items`, `set_item_state`, `undo_item_state`, `correct_item`, `remove_item`,
+`undo_remove`, `finish_shopping`, `undo_shopping`, `create_habitual`, `remove_habitual` e
+`add_habituals` (`app/services/sync_commands/`). Um tipo ainda
 não implementado responde `rejected` / `unsupported_command`.
 
 ### O que é gravado, e quando
@@ -724,10 +873,10 @@ não pode ter anunciado algo que não existiu.
   em `add_items` responde `public_id_conflict`, sem dizer de quem é.
 - O alias aponta para o `public_id` canônico (texto, não chave estrangeira): se o
   item canônico for arquivado ou removido, o alias continua respondendo `gone`.
-  Limite conhecido: o desfazer compra (#51) descarta duplicados e grava
-  tombstones; aliases que apontavam para um duplicado descartado passam a
-  responder `gone`, e a task que o implementa precisa decidir se os redireciona
-  para o item que ficou.
+  Desfazer compra (#51): o `undo_shopping` descarta duplicados e grava tombstones;
+  os aliases que apontavam para um duplicado descartado, e o próprio UUID dele,
+  são redirecionados para o item que ficou (ver "Desfazer compra"), em vez de
+  responderem `gone`.
 - Aliases são mantidos pelo mesmo critério dos UUIDs de operação: nunca são
   podados, pois pode haver comando em trânsito que os cite.
 

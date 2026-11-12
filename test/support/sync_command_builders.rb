@@ -23,6 +23,17 @@ module SyncCommandBuilders
     command
   end
 
+  # items: [[public_id, lock_version], ...]; a nil version is left out (inherited from depends_on).
+  def finish_shopping_command(*items, id: uuid, depends_on: nil)
+    entries = items.map { |public_id, lock_version| { "public_id" => public_id, "lock_version" => lock_version }.compact }
+    { "id" => id, "type" => "finish_shopping", "depends_on" => depends_on, "payload" => { "items" => entries } }
+  end
+
+  def undo_shopping_command(trip_public_id = nil, id: uuid, depends_on: nil)
+    payload = trip_public_id ? { "trip_public_id" => trip_public_id } : {}
+    { "id" => id, "type" => "undo_shopping", "depends_on" => depends_on, "payload" => payload }
+  end
+
   def correct_item_command(public_id, name, lock_version: nil, category_id: nil, dictionary_revision: nil, id: uuid, depends_on: nil)
     command = { "id" => id, "type" => "correct_item", "depends_on" => depends_on,
       "payload" => { "public_id" => public_id, "name" => name } }
