@@ -119,6 +119,16 @@ snapshot). A tela Lista vive em `ui/ListScreen.kt` (agrupamento e ordem da PWA e
 `trailing` de `ListRow` (lápis #100, remover/swipe #99). Novos toasts (remover, compra
 feita) reutilizam `ToastMessage`.
 
+## Modo compras (#102)
+
+`ShoppingMode` lê a preferência local de 24 horas antes de compor as telas e a
+revalida ao retomar. O modo força a Lista, esconde navegação, personalização,
+edição e swipe; a saída limpa filtros. A busca fica no rodapé, sem autofocus.
+`LocalView.keepScreenOn` mantém a tela acesa enquanto o modo está ativo;
+marcações aceitas no aparelho pedem feedback háptico pela API do Android.
+A barra de progresso e os contadores vêm do snapshot inteiro, mesmo com busca.
+O modo não envia comandos nem finaliza uma compra; a finalização é a #103.
+
 ## Validação
 
 - JVM: `OnlineRepositoryTest` (servidor falso: leitura, rede caindo, resposta

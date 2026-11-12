@@ -11,8 +11,14 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import net.ts.taild80ca0.atlas.twa.data.list.ItemStatus
@@ -47,9 +53,26 @@ fun ShoppingScreens(
     var toast by remember { mutableStateOf<ToastMessage?>(null) }
     val scope = rememberCoroutineScope()
     val keyboard = LocalSoftwareKeyboardController.current
+    val context = LocalContext.current
+    val shopping = remember { ShoppingMode(context.getSharedPreferences(SHOPPING_PREFERENCES, android.content.Context.MODE_PRIVATE)) }
+    val shoppingMode = shopping.active
+    val focus = LocalFocusManager.current
+    val shownScreen = if (shoppingMode) "list" else screen
+    val haptics = LocalHapticFeedback.current
+    val view = LocalView.current
+    DisposableEffect(shoppingMode, view) {
+        if (shoppingMode) view.keepScreenOn = true
+        onDispose { view.keepScreenOn = false }
+    }
 
-    LaunchedEffect(screen) {
-        if (screen == "list") keyboard?.hide()
+    LaunchedEffect(shownScreen) {
+        if (shownScreen == "list") keyboard?.hide()
+    }
+    LaunchedEffect(shopping.until) {
+        if (shoppingMode) {
+            delay((shopping.until - System.currentTimeMillis()).coerceAtLeast(0L))
+            shopping.refresh()
+        }
     }
     // The undo toast is the device's own: it lives here, never in the snapshot, and fades after ~5 s.
     LaunchedEffect(toast) {
@@ -63,7 +86,7 @@ fun ShoppingScreens(
     DisposableEffect(repository, invalidation, lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_RESUME -> { invalidation?.start(); scope.launch { repository.refresh() } }
+                Lifecycle.Event.ON_RESUME -> { shopping.refresh(); invalidation?.start(); scope.launch { repository.refresh() } }
                 Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_DESTROY -> invalidation?.stop()
                 else -> Unit
             }
@@ -100,6 +123,7 @@ fun ShoppingScreens(
         Scaffold(
             modifier = Modifier.imePadding(),
             bottomBar = {
+                if (!shoppingMode)
                 BottomNavigation(
                     current = if (screen == "list") AppScreen.List else AppScreen.Add, pending = pending,
                     onSelect = { screen = it.tag },
@@ -118,13 +142,29 @@ fun ShoppingScreens(
                         BrandHeader(trailing = menu)
                         Text("Abrindo sua lista…", modifier = Modifier.padding(top = 16.dp).testTag("loading"))
                     }
-                    screen == "list" -> ListScreen(
+                    shownScreen == "list" -> ListScreen(
                         repository = repository, snapshot = ready.snapshot, editState = editState, filterState = listFilters,
-                        onAddItems = { screen = "add" },
+                        onAddItems = { if (!shoppingMode) screen = "add" },
                         onFailure = { feedback = it },
                         showToast = { toast = it },
                         notice = { notices(20.dp) },
                         headerActions = { menu() },
+                        shoppingMode = shoppingMode,
+                        afterSummary = {
+                            if (shoppingMode) Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.End) {
+                                TextButton(onClick = { shopping.exit(); screen = "list"; listFilters.value = ListFilters(); focus.clearFocus(); keyboard?.hide() }, modifier = Modifier.testTag("exit-shopping")) { Text("Sair das compras") }
+                            } else if (items.isNotEmpty()) {
+                                Button(onClick = {
+                                    if (editState.itemId == null) { focus.clearFocus(); keyboard?.hide(); shopping.start() }
+                                    else editState.focusRequest++
+                                }, colors = ButtonDefaults.buttonColors(containerColor = AlvaTheme.colors.accentSoft, contentColor = AlvaTheme.colors.accentStrong),
+                                    shape = AlvaShapes.Control, modifier = Modifier.fillMaxWidth().padding(top = 12.dp).testTag("start-shopping")
+                                        .semantics { if (editState.itemId != null) disabled() }) { Text("Iniciar compras", style = AlvaTheme.type.button) }
+                                if (editState.itemId != null) Text("Salve ou cancele a edição para iniciar as compras.", color = AlvaTheme.colors.warn,
+                                    style = AlvaTheme.type.caption, modifier = Modifier.testTag("shopping-edit-hint"))
+                            }
+                        },
+                        onMarked = { if (shoppingMode) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove) },
                     )
                     else -> Column(Modifier.fillMaxSize().padding(horizontal = 20.dp).padding(top = 20.dp)) {
                         BrandHeader(markSize = 28.dp, gap = 9.6.dp, markBox = 36.dp, trailing = menu)

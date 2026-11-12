@@ -1,6 +1,10 @@
 package net.ts.taild80ca0.atlas.twa.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -61,6 +65,7 @@ fun ListScreen(
     filterState: ListFilterState = rememberListFilterState(),
     shoppingMode: Boolean = false,
     rowActions: @Composable RowScope.(ListItem, () -> Unit) -> Unit = { _, _ -> },
+    onMarked: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     val items = remember(snapshot) { snapshot.liveItems() }
@@ -113,6 +118,7 @@ fun ListScreen(
                         // Only a mark that took effect on this device's request can be undone; "already in that
                         // state" (another phone got there first) has nothing to take back.
                         val marked = result.receipt.markedItem()
+                        if (result.receipt.status != ReceiptStatus.NOOP) onMarked()
                         if (marked != null && result.receipt.status != ReceiptStatus.NOOP) {
                             val undo = UndoItemState(item.publicId, item.status, item.purchasedAt, marked.lockVersion)
                             showToast(ToastMessage(
@@ -130,14 +136,16 @@ fun ListScreen(
         }
     }
 
-    Column(modifier.fillMaxSize().testTag("list-screen")) {
-        Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 16.dp)) {
-            BrandHeader(Modifier.padding(bottom = 4.dp))
-            Spacer(Modifier.height(18.9.dp))
+    val header: @Composable () -> Unit = {
+        Column(Modifier.fillMaxWidth().padding(start = if (shoppingMode) 20.dp else 0.dp, end = if (shoppingMode) 20.dp else 0.dp, top = 24.dp, bottom = 16.dp)) {
+            if (!shoppingMode) {
+                BrandHeader(Modifier.padding(bottom = 4.dp))
+                Spacer(Modifier.height(18.9.dp))
+            }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Lista de compras", style = AlvaTheme.type.pageTitle.copy(lineHeight = 33.6.sp), color = AlvaTheme.colors.ink,
+                Text(if (shoppingMode) "Em compras" else "Lista de compras", style = AlvaTheme.type.pageTitle.copy(lineHeight = 33.6.sp), color = AlvaTheme.colors.ink,
                     modifier = Modifier.weight(1f).testTag("list-title"))
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (!shoppingMode) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     SearchButton(searchFocus)
                     headerActions()
                 }
@@ -146,23 +154,38 @@ fun ListScreen(
                 ListGroups.summary(pending, items.size - pending), style = AlvaTheme.type.summary.copy(lineHeight = 18.sp),
                 color = AlvaTheme.colors.inkSoft, modifier = Modifier.padding(top = 7.7.dp).testTag("list-summary"),
             )
+            if (shoppingMode && items.isNotEmpty()) {
+                val bought = items.size - pending
+                Box(Modifier.fillMaxWidth().padding(top = 8.dp).height(4.dp).background(AlvaTheme.colors.surface2, CircleShape)
+                    .testTag("shopping-progress").semantics {
+                        contentDescription = "Itens comprados"
+                        progressBarRangeInfo = ProgressBarRangeInfo(bought.toFloat(), 0f..items.size.toFloat())
+                    }) {
+                    Box(Modifier.fillMaxWidth(bought.toFloat() / items.size).fillMaxHeight().background(AlvaTheme.colors.accent, CircleShape))
+                }
+            }
             afterSummary()
-            ListSearchFilters(filterState, searchFocus)
+            if (!shoppingMode) ListSearchFilters(filterState, searchFocus)
         }
+    }
+    Column(modifier.fillMaxSize().testTag("list-screen")) {
+        if (shoppingMode) header()
         notice()
         LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp)) {
+            if (!shoppingMode) item(key = "header") { header() }
             if (groups.isEmpty()) item(key = "empty") {
                 if (filters.active) Text("Nenhum item encontrado.", style = AlvaTheme.type.body, color = AlvaTheme.colors.inkSoft,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp).testTag("filter-empty")
                         .semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite })
-                else EmptyList(onAddItems)
+                else if (!shoppingMode) EmptyList(onAddItems)
+                else Text("Nada na lista por enquanto.", color = AlvaTheme.colors.inkSoft)
             }
             groups.forEach { group ->
                 val key = group.category?.publicId ?: "none"
-                item(key = "category-$key") { CategoryHeading(group) }
+                item(key = "category-$key") { CategoryHeading(group, shoppingMode) }
                 itemsIndexed(group.items.filter { it.publicId in visibleIds }, key = { _, item -> item.publicId }) { index, item ->
-                    if (editState.itemId == item.publicId) {
+                    if (!shoppingMode && editState.itemId == item.publicId) {
                         EditItemForm(editState, snapshot.categories, onCancel = { editState.close() }, onSave = {
                             editState.saving = true
                             scope.launch {
@@ -181,9 +204,9 @@ fun ListScreen(
                         }, remove = {
                             RemoveItemButton(enabled = !editState.saving && item.publicId !in busy) { remove(item, editState.version) }
                         })
-                    } else ListRow(item, first = index == 0, enabled = item.publicId !in busy, onToggle = { mark(item) },
+                    } else ListRow(item, first = index == 0, enabled = item.publicId !in busy, onToggle = { mark(item) }, shoppingMode = shoppingMode,
                         modifier = Modifier.swipeToRemove(!shoppingMode && item.publicId !in busy) { remove(item) }, trailing = {
-                        rowActions(item) { remove(item) }
+                        if (!shoppingMode) rowActions(item) { remove(item) }
                         if (!shoppingMode) EditItemButton(item.name, Modifier.testTag("edit-${item.publicId}")) {
                             editState.open(item, snapshot.listItems.first { it.publicId == item.publicId }.lockVersion, snapshot.dictionaryRevision)
                         }
@@ -192,18 +215,21 @@ fun ListScreen(
                 item(key = "gap-$key") { Spacer(Modifier.height(25.6.dp)) }
             }
         }
+        if (shoppingMode) Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp)) {
+            ListSearchFilters(filterState, searchFocus, shoppingMode = true)
+        }
     }
 }
 
 /** `.shopping-category > h2`: category chip, name, and "x/y" once something in it is bought. */
 @Composable
-private fun CategoryHeading(group: ListGroup) {
+private fun CategoryHeading(group: ListGroup, shoppingMode: Boolean = false) {
     Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, bottom = 14.dp).testTag("category-${group.label}"),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         CategoryIcon(group.label)
         Text(group.label, style = AlvaTheme.type.sectionLabel, color = AlvaTheme.colors.inkSoft, modifier = Modifier.weight(1f))
-        if (group.purchased > 0) Text(
-            "${group.purchased}/${group.items.size}",
+        if (shoppingMode || group.purchased > 0) Text(
+            if (shoppingMode) { if (group.purchased == group.items.size) "tudo pego" else "${group.items.size - group.purchased} restantes" } else "${group.purchased}/${group.items.size}",
             // `h2 > span:last-child` is the (hidden) shopping span, so the count keeps text-xs; it inherits the 0.04em tracking.
             style = AlvaTheme.type.caption.copy(fontWeight = FontWeight.Medium, letterSpacing = 0.416.sp, fontFeatureSettings = "tnum"),
             color = AlvaTheme.colors.inkFaint,
@@ -222,6 +248,7 @@ internal fun ListRow(
     onToggle: () -> Unit,
     modifier: Modifier = Modifier,
     trailing: @Composable RowScope.() -> Unit = {},
+    shoppingMode: Boolean = false,
 ) {
     val bought = item.status == ItemStatus.PURCHASED
     val source = remember { MutableInteractionSource() }
@@ -236,11 +263,11 @@ internal fun ListRow(
                 .pressedSurface(source, AlvaTheme.colors.surface2)
                 .toggleable(value = bought, enabled = enabled, role = Role.Checkbox, interactionSource = source, indication = null,
                     onValueChange = { onToggle() })
-                .padding(start = 5.6.dp, top = 12.dp, bottom = 12.dp),
+                .padding(start = 5.6.dp, top = if (shoppingMode) 16.dp else 12.dp, bottom = if (shoppingMode) 16.dp else 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            AlvaCheck(checked = bought)
+            AlvaCheck(checked = bought, modifier = if (shoppingMode) Modifier.size(28.dp) else Modifier)
             // `text-base` keeps a 1.5 line height, so at the 0.95rem the row is 22.8dp tall, not 24.
             Text(
                 item.name, style = AlvaTheme.type.row.copy(lineHeight = 22.8.sp),

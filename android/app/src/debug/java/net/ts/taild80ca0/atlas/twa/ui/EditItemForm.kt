@@ -25,6 +25,7 @@ import net.ts.taild80ca0.atlas.twa.ui.theme.*
 /** Lives above lazy rows and screen navigation, so broadcasts, scrolling and recreation keep the draft. */
 @Stable
 class EditItemState {
+    var focusRequest by mutableIntStateOf(0)
     var itemId by mutableStateOf<String?>(null)
     var name by mutableStateOf("")
     var categoryId by mutableStateOf<String?>(null)
@@ -107,5 +108,5 @@ internal fun EditItemForm(state: EditItemState, categories: List<Category>, onCa
                 colors = ButtonDefaults.buttonColors(containerColor = colors.accent, contentColor = colors.accentInk)) { Text("Salvar") }
         }
     }
-    LaunchedEffect(state.itemId) { focus.requestFocus() }
+    LaunchedEffect(state.itemId, state.focusRequest) { focus.requestFocus() }
 }

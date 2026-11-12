@@ -72,7 +72,7 @@ internal fun SearchButton(focus: FocusRequester) {
 }
 
 @Composable
-internal fun ListSearchFilters(state: ListFilterState, focus: FocusRequester) {
+internal fun ListSearchFilters(state: ListFilterState, focus: FocusRequester, shoppingMode: Boolean = false) {
     val c = AlvaTheme.colors
     val filters = state.value
     val keyboard = LocalSoftwareKeyboardController.current
@@ -95,7 +95,7 @@ internal fun ListSearchFilters(state: ListFilterState, focus: FocusRequester) {
                 Text("×", color = c.inkSoft)
             } else Spacer(Modifier.width(44.dp))
         }
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+        if (!shoppingMode) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Row(Modifier.heightIn(min = 44.dp).toggleable(filters.pendingOnly, role = Role.Switch,
                 onValueChange = { state.value = filters.copy(pendingOnly = it) }).testTag("pending-only"),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
