@@ -95,6 +95,7 @@ class FakeHouse : SnapshotTransport, CommandTransport {
         val receipt = when (command.getString("type")) {
             "add_items" -> addItems(id, command.getJSONObject("payload").getJSONArray("items"))
             "set_item_state" -> setItemState(id, command)
+            "undo_item_state" -> undoItemState(id, command)
             else -> receipt(id, ReceiptStatus.REJECTED, error = "unsupported_command")
         }
         if (receipt.status.recordedByServer) ledger[id] = receipt
@@ -147,6 +148,21 @@ class FakeHouse : SnapshotTransport, CommandTransport {
         }
         row.status = desired; row.lock++
         row.purchasedAt = if (desired == "purchased") "2026-11-10T12:00:00.000000Z" else null
+        revision++
+        return receipt(id, ReceiptStatus.APPLIED, data = JSONObject().put("item", itemJson(row)))
+    }
+
+    /** `undo_item_state`: restores the given state while the item is still at the version the mark left. */
+    private fun undoItemState(id: String, command: JSONObject): CommandReceipt {
+        val payload = command.getJSONObject("payload")
+        val row = rows.firstOrNull { it.id == payload.getString("public_id") } ?: return receipt(id, ReceiptStatus.REJECTED, error = "not_found")
+        val status = payload.getString("status")
+        val purchasedAt = if (payload.isNull("purchased_at")) null else payload.getString("purchased_at")
+        if (row.status == status && row.purchasedAt == purchasedAt) return receipt(id, ReceiptStatus.NOOP, data = JSONObject().put("item", itemJson(row)))
+        if (command.getJSONObject("preconditions").getInt("lock_version") != row.lock) {
+            return receipt(id, ReceiptStatus.CONFLICT, error = "precondition_failed")
+        }
+        row.status = status; row.purchasedAt = purchasedAt; row.lock++
         revision++
         return receipt(id, ReceiptStatus.APPLIED, data = JSONObject().put("item", itemJson(row)))
     }
