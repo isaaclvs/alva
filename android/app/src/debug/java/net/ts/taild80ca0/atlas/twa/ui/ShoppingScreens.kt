@@ -51,6 +51,7 @@ fun ShoppingScreens(
     invalidation: ForegroundInvalidation? = null,
 ) {
     val state by repository.state.collectAsState()
+    val listFilters = rememberListFilterState()
     var screen by rememberSaveable { mutableStateOf("add") }
     var draft by rememberSaveable { mutableStateOf("") }
     var feedback by remember { mutableStateOf<String?>(null) }
@@ -152,7 +153,7 @@ fun ShoppingScreens(
                         Text("Abrindo sua lista…", modifier = Modifier.padding(top = 16.dp).testTag("loading"))
                     }
                     screen == "list" -> ListScreen(
-                        repository = repository, snapshot = ready.snapshot,
+                        repository = repository, snapshot = ready.snapshot, filterState = listFilters,
                         onAddItems = { screen = "add" },
                         onFailure = { feedback = it },
                         showToast = { toast = it },

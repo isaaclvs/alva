@@ -10,10 +10,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -54,12 +56,19 @@ fun ListScreen(
     notice: @Composable () -> Unit = {},
     headerActions: @Composable RowScope.() -> Unit = {},
     afterSummary: @Composable ColumnScope.() -> Unit = {},
+    filterState: ListFilterState = rememberListFilterState(),
     shoppingMode: Boolean = false,
     rowActions: @Composable RowScope.(ListItem, () -> Unit) -> Unit = { _, _ -> },
 ) {
     val scope = rememberCoroutineScope()
     val items = remember(snapshot) { snapshot.liveItems() }
-    val groups = remember(snapshot) { ListGroups.of(snapshot.categories, items) }
+    val filters = filterState.value
+    val searchFocus = remember { FocusRequester() }
+    val visibleItems = remember(items, filters) { filters.apply(items) }
+    val visibleIds = remember(visibleItems) { visibleItems.map { it.publicId }.toSet() }
+    val groups = remember(snapshot.categories, items, visibleIds) {
+        ListGroups.of(snapshot.categories, items).filter { group -> group.items.any { it.publicId in visibleIds } }
+    }
     val busy = remember { mutableStateListOf<String>() }
     val pending = items.count { it.status == ItemStatus.PENDING }
 
@@ -115,21 +124,31 @@ fun ListScreen(
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Lista de compras", style = AlvaTheme.type.pageTitle.copy(lineHeight = 33.6.sp), color = AlvaTheme.colors.ink,
                     modifier = Modifier.weight(1f).testTag("list-title"))
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) { headerActions() }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    SearchButton(searchFocus)
+                    headerActions()
+                }
             }
             Text(
                 ListGroups.summary(pending, items.size - pending), style = AlvaTheme.type.summary.copy(lineHeight = 18.sp),
                 color = AlvaTheme.colors.inkSoft, modifier = Modifier.padding(top = 7.7.dp).testTag("list-summary"),
             )
             afterSummary()
+            ListSearchFilters(filterState, searchFocus)
         }
         notice()
         LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp)) {
-            if (groups.isEmpty()) item(key = "empty") { EmptyList(onAddItems) }
+            if (groups.isEmpty()) item(key = "empty") {
+                if (filters.active) Text("Nenhum item encontrado.", style = AlvaTheme.type.body, color = AlvaTheme.colors.inkSoft,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp).testTag("filter-empty")
+                        .semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite })
+                else EmptyList(onAddItems)
+            }
             groups.forEach { group ->
                 val key = group.category?.publicId ?: "none"
                 item(key = "category-$key") { CategoryHeading(group) }
-                itemsIndexed(group.items, key = { _, item -> item.publicId }) { index, item ->
+                itemsIndexed(group.items.filter { it.publicId in visibleIds }, key = { _, item -> item.publicId }) { index, item ->
                     ListRow(item, first = index == 0, enabled = item.publicId !in busy, onToggle = { mark(item) },
                         modifier = Modifier.swipeToRemove(!shoppingMode && item.publicId !in busy) { remove(item) },
                         trailing = { rowActions(item) { remove(item) } })
