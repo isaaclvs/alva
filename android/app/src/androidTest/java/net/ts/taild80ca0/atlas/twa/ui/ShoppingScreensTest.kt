@@ -1,5 +1,6 @@
 package net.ts.taild80ca0.atlas.twa.ui
 
+import androidx.activity.compose.setContent
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.core.app.ActivityScenario
@@ -15,6 +16,8 @@ import net.ts.taild80ca0.atlas.twa.online.FakeHouse
 import net.ts.taild80ca0.atlas.twa.online.FakeHouse.Step
 import net.ts.taild80ca0.atlas.twa.online.OnlineAccess
 import net.ts.taild80ca0.atlas.twa.online.OnlineRepository
+import net.ts.taild80ca0.atlas.twa.online.OnlineState
+import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaTheme
 import net.ts.taild80ca0.atlas.twa.sync.CableConnector
 import net.ts.taild80ca0.atlas.twa.sync.CableEvent
 import net.ts.taild80ca0.atlas.twa.sync.CableSocket
@@ -339,6 +342,41 @@ class ShoppingScreensTest {
     }
 
     private fun commandTypes() = house.sent.map { JSONObject(it.second).getString("type") }
+
+    @Test fun swipingLeftRemovesAndUndoRestoresOnlyOnThisDevice() {
+        val item = house.seed("Leite", status = "purchased")
+        openList()
+        compose.onNodeWithTag("item-${item.id}").performTouchInput { swipeLeft() }
+        waitForText("toast-message", "Leite removido")
+        compose.onNodeWithTag("item-${item.id}").assertDoesNotExist()
+        compose.onNodeWithTag("toast-undo").performClick()
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("item-${item.id}").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("item-${item.id}").assertIsOn()
+        assertEquals(listOf("remove_item", "undo_remove"), commandTypes())
+    }
+
+    @Test fun swipingRightDoesNotRemoveOrMark() {
+        val item = house.seed("Leite")
+        openList()
+        compose.onNodeWithTag("item-${item.id}").performTouchInput { swipeRight() }
+        compose.onNodeWithTag("item-${item.id}").assertIsOff()
+        assertTrue(house.sent.isEmpty())
+    }
+
+    @Test fun shoppingModeDisablesSwipeRemoval() {
+        val item = house.seed("Leite")
+        val repository = launch()
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
+        val snapshot = (repository.state.value as OnlineState.Ready).snapshot
+        scenario!!.onActivity { activity -> activity.setContent {
+            AlvaTheme {
+                ListScreen(repository, snapshot, onAddItems = {}, onFailure = { error(it) }, showToast = { error("unexpected removal") }, shoppingMode = true)
+            }
+        } }
+        compose.onNodeWithTag("item-${item.id}").performTouchInput { swipeLeft() }
+        compose.onNodeWithTag("item-${item.id}").assertIsOff()
+        assertTrue(house.sent.isEmpty())
+    }
 
     @Test fun theListShowsSectionsInCategoryOrderWithXOfYCountsAndThePendingCounter() {
         seedCategories()
