@@ -20,6 +20,7 @@ import org.junit.After
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
+import org.json.JSONObject
 
 /** The Adicionar screen over the online repository, with a server in memory standing in for Rails. */
 class AddScreenTest {
@@ -32,7 +33,7 @@ class AddScreenTest {
         override suspend fun identifyHousehold(credential: AccessCredential): ApiResult<HouseholdIdentity> = error("UI must not use HTTP")
     }
 
-    private fun launch() {
+    private fun launch(): OnlineRepository {
         val vault = object : CredentialVault {
             override fun read() = VaultRead.Found(StoredAccess(AccessCredential(1, "test-only")))
             override fun write(access: StoredAccess) = error("opening must not write credentials")
@@ -42,6 +43,43 @@ class AddScreenTest {
         AccessGraph.install(access, online = repository)
         scenario = ActivityScenario.launch(MainActivity::class.java)
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
+        return repository
+    }
+
+    private fun recommendation(name: String) = JSONObject().put("name", name)
+        .put("category_public_id", SnapshotFixtures.DAIRY).put("trips", 2).put("last_purchased_at", SnapshotFixtures.EARLY)
+
+    @Test fun buyAgainShowsAtMostFiveShortcutsAndAddsWithoutErasingTheDraft() {
+        house.buyAgain = listOf("Leite", "Pão", "Café", "Ovos", "Arroz", "Feijão").map(::recommendation)
+        launch()
+        compose.onNodeWithText("Comprar de novo").assertExists()
+        compose.onNodeWithTag("buy-again-Arroz").assertExists()
+        compose.onNodeWithTag("buy-again-Feijão").assertDoesNotExist()
+        compose.onNodeWithTag("add-input").performTextInput("Farinha")
+        compose.onNodeWithTag("buy-again-Leite").performScrollTo()
+            .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
+        waitForText("feedback", "Leite adicionado")
+        compose.onNodeWithTag("add-input").assertTextContains("Farinha")
+        compose.onNodeWithTag("buy-again-Leite").assertDoesNotExist()
+        compose.onNodeWithTag("recent-adds").assertExists()
+        assertEquals(1, house.rows.count { it.name == "Leite" })
+    }
+
+    @Test fun failedShortcutKeepsTheDraftAndRecommendationsFollowTheNextSnapshot() {
+        house.buyAgain = listOf(recommendation("Leite"))
+        val repository = launch()
+        compose.onNodeWithTag("add-input").performTextInput("Farinha")
+        house.commandSteps += Step.ServerError
+        compose.onNodeWithTag("buy-again-Leite").performScrollTo()
+            .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
+        waitForText("feedback", "O servidor não está disponível agora")
+        compose.onNodeWithTag("add-input").assertTextContains("Farinha")
+        compose.onNodeWithTag("buy-again-Leite").assertExists()
+        assertTrue(house.rows.isEmpty())
+        house.buyAgain = listOf(recommendation("Pão"))
+        kotlinx.coroutines.runBlocking { repository.refresh() }
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("buy-again-Pão").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("buy-again-Leite").assertDoesNotExist()
     }
 
     @After fun cleanup() {

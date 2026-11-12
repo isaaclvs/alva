@@ -38,6 +38,7 @@ class FakeHouse : SnapshotTransport, CommandTransport {
     }
 
     val rows = ArrayList<Row>()
+    var buyAgain: List<JSONObject> = emptyList()
     var categories: List<JSONObject> = CATEGORIES.mapIndexed { index, (id, name) -> SnapshotFixtures.category(id, name, if (name == "Outros") 99 else index + 1) }
     var revision = 840L
 
@@ -86,7 +87,9 @@ class FakeHouse : SnapshotTransport, CommandTransport {
                 normalizedName = row.name.lowercase(),
             )
         }
-        val parsed = SnapshotParser.parse(SnapshotFixtures.bytes(SnapshotFixtures.snapshot(revision = revision, dictionaryRevision = dictionaryRevision, items = items, categories = categories)))
+        val recommendations = JSONArray(buyAgain.filter { entry -> rows.none { it.name.equals(entry.getString("name"), true) } })
+        val parsed = SnapshotParser.parse(SnapshotFixtures.bytes(SnapshotFixtures.snapshot(revision = revision, dictionaryRevision = dictionaryRevision, items = items, categories = categories)
+            .put("buy_again", recommendations)))
         return SnapshotOutcome.Received((parsed as SnapshotParse.Valid).snapshot)
     }
 
