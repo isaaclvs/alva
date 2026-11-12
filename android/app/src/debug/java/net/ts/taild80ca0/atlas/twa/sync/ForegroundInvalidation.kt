@@ -14,11 +14,16 @@ import net.ts.taild80ca0.atlas.twa.access.AccessState
 import net.ts.taild80ca0.atlas.twa.access.HouseAccess
 import net.ts.taild80ca0.atlas.twa.access.ServerEndpoint
 
+/** Whoever reloads its data when the ActionCable channel says the household changed. */
+fun interface InvalidationSink {
+    fun requestInvalidation()
+}
+
 /** One foreground subscription; stopping it cancels the socket, callbacks and reconnect delay. */
 class ForegroundInvalidation(
     private val access: HouseAccess,
     private val endpoint: ServerEndpoint,
-    private val sync: SyncController,
+    private val sync: InvalidationSink,
     private val scope: CoroutineScope,
     private val connector: CableConnector = OkHttpCableConnector(),
     private val pause: suspend (Long) -> Unit = { delay(it) },
