@@ -282,6 +282,7 @@ dependencies {
     debugImplementation platform('androidx.compose:compose-bom:2025.05.01')
     debugImplementation 'androidx.activity:activity-compose:1.10.1'
     debugImplementation 'androidx.core:core-ktx:1.16.0'
+    debugImplementation 'androidx.datastore:datastore-preferences:1.1.7'
     debugImplementation 'androidx.compose.ui:ui'
     debugImplementation 'androidx.compose.material3:material3'
     debugImplementation 'androidx.compose.ui:ui-tooling-preview'

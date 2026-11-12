@@ -10,6 +10,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
 import net.ts.taild80ca0.atlas.twa.MainActivity
 import net.ts.taild80ca0.atlas.twa.access.*
 import net.ts.taild80ca0.atlas.twa.online.FakeHouse
@@ -33,6 +34,10 @@ import org.junit.Test
 
 /** The installed Compose app over the online repository, with a server in memory standing in for Rails. */
 class ShoppingScreensTest {
+    @org.junit.Before fun resetDevicePreferences() = kotlinx.coroutines.runBlocking {
+        net.ts.taild80ca0.atlas.twa.preferences.DevicePreferencesStore(
+            androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext).reset()
+    }
     @get:Rule val compose = createEmptyComposeRule()
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
     private val house = FakeHouse()
@@ -217,6 +222,42 @@ class ShoppingScreensTest {
         release.complete(Unit)
         waitForText("toast-message", "Compra registrada")
         assertEquals(1, house.trips.size)
+    }
+
+    @Test fun menuPreferencesSurviveANewActivityAndRestoreTheLastScreen() {
+        house.seed("Leite")
+        launchLoaded()
+        press("house-menu")
+        compose.onNodeWithTag("export-pdf").assertDoesNotExist()
+        press("toggle-theme")
+        val store = net.ts.taild80ca0.atlas.twa.preferences.DevicePreferencesStore(context)
+        compose.waitUntil(10_000) { kotlinx.coroutines.runBlocking { !store.values.first().dark } }
+        press("house-menu")
+        compose.onNodeWithText("Tema escuro").assertExists()
+        press("color-Pink")
+        compose.waitUntil(10_000) { kotlinx.coroutines.runBlocking { store.values.first().color == net.ts.taild80ca0.atlas.twa.ui.theme.AlvaColor.Pink } }
+        press("nav-list")
+        compose.waitUntil(10_000) { kotlinx.coroutines.runBlocking { store.values.first().screen == "list" } }
+        scenario!!.close()
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("list-title").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("add-input").assertDoesNotExist()
+        press("house-menu")
+        compose.onNodeWithText("Tema escuro").assertExists()
+        compose.onNodeWithTag("color-Pink").assertIsSelected()
+        compose.onNodeWithTag("export-pdf").assertExists()
+    }
+
+    @Test fun savedShoppingModeForcesListWithoutOverwritingTheSavedScreen() {
+        house.seed("Leite")
+        val store = net.ts.taild80ca0.atlas.twa.preferences.DevicePreferencesStore(context)
+        kotlinx.coroutines.runBlocking { store.screen("add") }
+        context.getSharedPreferences(SHOPPING_PREFERENCES, 0).edit().putLong("until", System.currentTimeMillis() + 60_000).commit()
+        launch()
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("exit-shopping").fetchSemanticsNodes().isNotEmpty() }
+        assertEquals("add", kotlinx.coroutines.runBlocking { store.values.first().screen })
+        compose.onNodeWithTag("house-menu").assertDoesNotExist()
+        compose.onNodeWithTag("add-input").assertDoesNotExist()
     }
 
     private fun launch(

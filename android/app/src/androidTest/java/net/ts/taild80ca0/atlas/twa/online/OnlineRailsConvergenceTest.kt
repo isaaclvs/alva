@@ -90,6 +90,21 @@ class OnlineRailsConvergenceTest {
 
     private suspend fun Phone.mark(name: String, desired: ItemStatus) = repository.execute(SetItemState(item(name)!!.publicId, desired))
 
+    @Test fun authenticatedPdfIsAReadableExportFromRealRails() = runBlocking<Unit> {
+        val access = object : OnlineAccess {
+            override suspend fun credential() = AccessCredential(1, tokenA)
+            override suspend fun reportUnauthorized(credential: AccessCredential) { error("Valid token was refused") }
+        }
+        val result = PdfClient(endpoint(), access).download() as PdfResult.Ready
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val file = java.io.File.createTempFile("rails-export-", ".pdf", context.cacheDir)
+        try {
+            file.writeBytes(result.bytes)
+            val descriptor = android.os.ParcelFileDescriptor.open(file, android.os.ParcelFileDescriptor.MODE_READ_ONLY)
+            android.graphics.pdf.PdfRenderer(descriptor).use { assertTrue(it.pageCount > 0) }
+        } finally { file.delete() }
+    }
+
     @Test fun finishAndUndoShareHistoryPreservePendingAndRefuseAStaleBatch() = runBlocking<Unit> {
         val a = phone(tokenA)
         val b = phone(tokenB)

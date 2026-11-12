@@ -35,7 +35,7 @@ object AlvaTheme {
 
 /**
  * The Alva look: PWA colors for [dark]/light and [color] teal/pink, Nunito Sans, PWA shapes.
- * Defaults are the PWA's (dark, teal); the saved preferences arrive with #109.
+ * Defaults are the PWA's (dark, teal); MainActivity loads the device preferences before drawing.
  * Stock Material components are mapped onto the tokens, so screens only name tokens for what Material lacks.
  */
 @Composable

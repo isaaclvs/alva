@@ -52,7 +52,7 @@ internal class HttpExchange(
     private val readTimeoutMillis: Int,
     private val maxBodyBytes: Int,
 ) {
-    suspend fun execute(method: String, path: String, bearer: String?, body: ByteArray?): HttpResult =
+    suspend fun execute(method: String, path: String, bearer: String?, body: ByteArray?, accept: String = "application/json"): HttpResult =
         withContext(Dispatchers.IO) {
             var connection: HttpURLConnection? = null
             try {
@@ -65,7 +65,7 @@ internal class HttpExchange(
                     // One request per connection: a pooled connection that the server already
                     // closed could make the stack silently resend a POST.
                     setRequestProperty("Connection", "close")
-                    setRequestProperty("Accept", "application/json")
+                    setRequestProperty("Accept", accept)
                     if (bearer != null) setRequestProperty("Authorization", "Bearer $bearer")
                     if (body != null) {
                         doOutput = true

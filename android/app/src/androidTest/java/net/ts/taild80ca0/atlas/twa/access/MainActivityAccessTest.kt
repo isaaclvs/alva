@@ -13,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.first
 import net.ts.taild80ca0.atlas.twa.MainActivity
 import net.ts.taild80ca0.atlas.twa.online.FakeHouse
 import net.ts.taild80ca0.atlas.twa.online.OnlineAccess
@@ -39,7 +40,11 @@ class MainActivityAccessTest {
     private lateinit var access: HouseAccess
 
     @Before
-    fun freshProcess() = startProcess()
+    fun freshProcess() {
+        runBlocking { net.ts.taild80ca0.atlas.twa.preferences.DevicePreferencesStore(
+            androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext).reset() }
+        startProcess()
+    }
 
     @After
     fun tearDown() {
@@ -106,7 +111,7 @@ class MainActivityAccessTest {
 
         waitForText("Senha incorreta. Tente novamente.")
         compose.onNodeWithText("Senha incorreta. Tente novamente.").assertIsDisplayed()
-        compose.onNodeWithTag("connect").assertIsDisplayed()
+        compose.onNodeWithTag("connect").performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -152,4 +157,19 @@ class MainActivityAccessTest {
         connectWith(server.password)
         waitForText("Nossa casa")
     }
+    @Test fun menuSignOutReturnsToEntryAndKeepsDevicePreferences() {
+        waitForText(AccessMessages.TITLE)
+        connectWith(server.password)
+        waitForText("Nossa casa")
+        val preferences = net.ts.taild80ca0.atlas.twa.preferences.DevicePreferencesStore(
+            androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext)
+        runBlocking { preferences.dark(false); preferences.color(net.ts.taild80ca0.atlas.twa.ui.theme.AlvaColor.Pink) }
+        compose.onNodeWithTag("house-menu").performClick()
+        compose.onNodeWithTag("sign-out").performClick()
+        waitForText(AccessMessages.TITLE)
+        val saved = runBlocking { preferences.values.first() }
+        assertTrue(!saved.dark)
+        assertEquals(net.ts.taild80ca0.atlas.twa.ui.theme.AlvaColor.Pink, saved.color)
+    }
+
 }
