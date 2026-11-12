@@ -37,6 +37,8 @@ data class SnapshotTrip(val publicId: String, val finishedAtMicros: Long, val cr
 
 data class SnapshotHabitual(val publicId: String, val name: String, val normalizedName: String, val createdAtMicros: Long)
 
+data class SnapshotSuggestion(val name: String, val categoryPublicId: String?, val trips: Long, val lastPurchasedAtMicros: Long)
+
 data class SnapshotTombstone(val recordType: String, val publicId: String, val revision: Long)
 
 /**
@@ -62,6 +64,7 @@ data class ServerSnapshot(
     val shoppingTrips: List<SnapshotTrip>,
     val habitualItems: List<SnapshotHabitual>,
     val tombstones: List<SnapshotTombstone>,
+    val buyAgain: List<SnapshotSuggestion> = emptyList(),
 ) {
     /** The part [net.ts.taild80ca0.atlas.twa.data.catalog.LocalCatalog] stores. */
     fun catalog() = CatalogSnapshot(categories, catalogItems, dictionaryRevision)
@@ -190,9 +193,19 @@ object SnapshotParser {
         }
         unique(tombstones.map { Triple(it.recordType, it.publicId, it.revision) }, "tombstones")
 
+        // Additive in v1: older servers can omit recommendations. The server owns their order and ranking.
+        val buyAgain = if (!root.has("buy_again")) emptyList() else array(root, "buy_again").map { (i, entry) ->
+            val at = "buy_again[$i]"
+            val category = if (entry.has("category_public_id") && entry.isNull("category_public_id")) null
+                else id(entry, "category_public_id", "$at.category_public_id").also { if (it !in categoryIds) broken("$at.category_public_id") }
+            SnapshotSuggestion(string(entry, "name", "$at.name"), category,
+                whole(entry, "trips", "$at.trips").also { if (it < 1) shape("$at.trips") },
+                time(entry, "last_purchased_at", "$at.last_purchased_at"))
+        }
+
         return ServerSnapshot(
             schema.toInt(), revision, dictionaryRevision, householdId, householdName, categories, catalog,
-            live, archived, trips, habituals, tombstones,
+            live, archived, trips, habituals, tombstones, buyAgain,
         )
     }
 
