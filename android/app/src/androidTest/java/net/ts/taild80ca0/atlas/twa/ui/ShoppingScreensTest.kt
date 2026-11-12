@@ -185,14 +185,6 @@ class ShoppingScreensTest {
         it.config[androidx.compose.ui.semantics.SemanticsProperties.EditableText].text.isEmpty()
     }
 
-    private fun capture(name: String) {
-        compose.waitForIdle()
-        // Public emulator output survives the runner uninstalling the test APK.
-        val descriptor = InstrumentationRegistry.getInstrumentation().uiAutomation
-            .executeShellCommand("screencap -p /sdcard/Download/$name")
-        android.os.ParcelFileDescriptor.AutoCloseInputStream(descriptor).use { it.readBytes() }
-    }
-
     private fun submit(text: String) {
         compose.onNodeWithTag("add-input").performTextInput(text)
         compose.onNodeWithTag("save-add").assertIsDisplayed()
@@ -207,9 +199,7 @@ class ShoppingScreensTest {
         waitForText("feedback", "3 itens adicionados")
         compose.waitUntil(10_000) { compose.onAllNodes(hasTestTag("add-input") and emptyInput).fetchSemanticsNodes().isNotEmpty() }
         assertEquals(listOf("Leite", "Pão", "Ovos"), house.rows.map { it.name })
-        compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Alva"))
         compose.onNodeWithText("Alva").assertIsDisplayed()
-        capture("shopping-add.png")
 
         compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         waitForText("list-summary", "3 pendentes")
@@ -218,7 +208,6 @@ class ShoppingScreensTest {
         assertMarked(id, true)
         waitForText("list-summary", "2 pendentes · 1 comprado")
         assertEquals("purchased", house.named("Leite").single().status)
-        capture("shopping-list.png")
 
         compose.onNodeWithTag("item-$id").performClick()
         assertMarked(id, false)
