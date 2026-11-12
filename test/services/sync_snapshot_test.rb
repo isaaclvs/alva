@@ -20,6 +20,7 @@ class SyncSnapshotTest < ActiveSupport::TestCase
     assert_equal [], snapshot[:archived_items]
     assert_equal [], snapshot[:shopping_trips]
     assert_equal [], snapshot[:habitual_items]
+    assert_equal [], snapshot[:buy_again]
     assert_equal [], snapshot[:tombstones]
     assert_equal Category.count, snapshot[:categories].size
     assert_equal CatalogItem.count, snapshot[:catalog_items].size
@@ -34,6 +35,7 @@ class SyncSnapshotTest < ActiveSupport::TestCase
     assert_equal %w[name position public_id], snapshot[:categories].first.keys.map(&:to_s).sort
     assert_equal %w[category_public_id learned name normalized_name public_id], snapshot[:catalog_items].first.keys.map(&:to_s).sort
     assert_equal %w[created_at normalized_name name public_id].sort, snapshot[:habitual_items].first.keys.map(&:to_s).sort
+    assert_equal %w[category_public_id last_purchased_at name trips], snapshot[:buy_again].first.keys.map(&:to_s).sort
     assert_equal %w[created_at finished_at public_id], snapshot[:shopping_trips].first.keys.map(&:to_s).sort
     assert_equal %w[public_id record_type revision], snapshot[:tombstones].first.keys.map(&:to_s).sort
 
@@ -189,6 +191,38 @@ class SyncSnapshotTest < ActiveSupport::TestCase
     assert_operator expected.size, :>, BuyAgainSuggestions::LIMIT
     assert_equal expected, client_buy_again(snapshot)
     assert_equal expected.first(BuyAgainSuggestions::LIMIT), client_buy_again(snapshot).first(BuyAgainSuggestions::LIMIT)
+  end
+
+  test "buy_again carries the PWA's own suggestions: at most five, in the order the PWA shows them" do
+    seed_history
+    snapshot = snap
+
+    expected = BuyAgainSuggestions.call(@home)
+    assert_equal BuyAgainSuggestions::LIMIT, expected.size
+    assert_equal expected.map { [ _1.name, _1.category&.public_id, _1.trips, _1.last_purchased_at.utc.iso8601(6) ] },
+      snapshot[:buy_again].map { _1.values_at(:name, :category_public_id, :trips, :last_purchased_at) }
+    assert_equal client_buy_again(snapshot).first(BuyAgainSuggestions::LIMIT),
+      snapshot[:buy_again].map { _1.values_at(:name, :category_public_id, :trips, :last_purchased_at) }
+  end
+
+  test "buy_again leaves out what is already on the list and follows it when the list changes" do
+    seed_history
+    first = snap[:buy_again].first[:name]
+    @home.add_item(first)
+
+    names = snap[:buy_again].map { _1[:name] }
+
+    assert_not_includes names.map { TextNormalizer.call(_1) }, TextNormalizer.call(first)
+    assert_equal BuyAgainSuggestions::LIMIT, names.size
+    assert_equal BuyAgainSuggestions.call(@home).map(&:name), names
+  end
+
+  test "an uncategorized suggestion has a null category" do
+    trip = @home.shopping_trips.create!(finished_at: 1.day.ago)
+    item = @home.list_items.create!(name: "Sem dono", status: :purchased, purchased_at: 1.day.ago, shopping_trip: trip)
+    item.update_columns(category_id: nil)
+
+    assert_nil snap[:buy_again].sole[:category_public_id]
   end
 
   test "the latest trip and its items can be found for undo" do

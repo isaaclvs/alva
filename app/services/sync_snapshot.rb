@@ -29,6 +29,7 @@ class SyncSnapshot
   end
 
   def initialize(household)
+    @household = household
     @household_id = household.id
   end
 
@@ -52,6 +53,7 @@ class SyncSnapshot
         archived_items: items(ListItem.archived, archived: true),
         shopping_trips: trips.map { |_, public_id, finished_at, created_at| { public_id:, finished_at: time(finished_at), created_at: time(created_at) } },
         habitual_items: habitual_items,
+        buy_again: buy_again,
         tombstones: tombstones
       }
     end
@@ -88,6 +90,17 @@ class SyncSnapshot
   def habitual_items
     HabitualItem.where(household_id: @household_id).order(:id).pluck(:public_id, :name, :normalized_name, :created_at)
       .map { |public_id, name, normalized_name, created_at| { public_id:, name:, normalized_name:, created_at: time(created_at) } }
+  end
+
+  # The PWA's "Comprar de novo" shortcuts, ranked by the same service (up to
+  # BuyAgainSuggestions::LIMIT, in the order the PWA shows them), so the native
+  # app never reimplements the ranking. Derived from the archive, it is read in
+  # the snapshot's transaction like everything else.
+  def buy_again
+    BuyAgainSuggestions.call(@household).map do |suggestion|
+      { name: suggestion.name, category_public_id: suggestion.category&.public_id,
+        trips: suggestion.trips, last_purchased_at: time(suggestion.last_purchased_at) }
+    end
   end
 
   def tombstones
