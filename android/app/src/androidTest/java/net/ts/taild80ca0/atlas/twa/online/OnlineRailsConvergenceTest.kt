@@ -90,6 +90,28 @@ class OnlineRailsConvergenceTest {
 
     private suspend fun Phone.mark(name: String, desired: ItemStatus) = repository.execute(SetItemState(item(name)!!.publicId, desired))
 
+    @Test fun habitualsAreSharedAndRemovingOneDoesNotRemoveTheLiveItem() = runBlocking<Unit> {
+        val a = phone(tokenA)
+        val b = phone(tokenB)
+        val name = newName()
+        a.repository.refresh()
+        assertTrue(a.repository.execute(CreateHabitual(name)) is ActionResult.Success)
+        b.repository.refresh()
+        val habit = b.ready.snapshot.habitualItems.single { it.name == name }
+        val duplicate = b.repository.execute(CreateHabitual(name)) as ActionResult.Success
+        assertEquals("duplicate", JSONObject(duplicate.receipt.dataJson!!).getString("outcome"))
+        assertTrue(b.repository.execute(AddHabituals(listOf(habit.publicId))) is ActionResult.Success)
+        a.repository.refresh()
+        assertTrue(a.item(name) != null)
+        assertTrue(a.mark(name, ItemStatus.PURCHASED) is ActionResult.Success)
+        assertTrue(a.repository.execute(AddHabituals()) is ActionResult.Success)
+        assertEquals(0, a.item(name)!!.status)
+        assertTrue(a.repository.execute(RemoveHabitual(habit.publicId)) is ActionResult.Success)
+        b.repository.refresh()
+        assertTrue(b.ready.snapshot.habitualItems.none { it.publicId == habit.publicId })
+        assertTrue(b.item(name) != null)
+    }
+
     @Test fun editingUsesTheObservedVersionAndTheChosenCategoryTeachesRails() = runBlocking<Unit> {
         val a = phone(tokenA)
         val b = phone(tokenB)

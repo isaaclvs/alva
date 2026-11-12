@@ -60,6 +60,7 @@ enum class InvalidAction {
     ITEM_NOT_FOUND,
     INVALID_NAME,
     CATEGORY_NOT_FOUND,
+    NO_HABITUALS,
 }
 
 /** What happened to one action. The text for each case lives in [OnlineMessages]. */

@@ -46,6 +46,69 @@ class AddScreenTest {
         return repository
     }
 
+    private fun clickHabitual(tag: String) {
+        compose.onNodeWithTag(tag).performScrollTo().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
+    }
+
+    @Test fun habitualPanelCreatesSelectsAddsAndRemovesWithoutChangingRecentAdds() {
+        launch()
+        clickHabitual("habitual-toggle")
+        compose.onNodeWithText("Ainda não há itens habituais salvos.").assertExists()
+        compose.onNodeWithTag("habitual-name").performScrollTo().performTextInput("Café")
+        clickHabitual("habitual-save")
+        waitForText("habitual-feedback", "Café salvo nos habituais")
+        compose.onNodeWithTag("habitual-name").assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, androidx.compose.ui.text.AnnotatedString("")))
+        clickHabitual("habitual-select-Café")
+        clickHabitual("habitual-add-selected")
+        waitForText("habitual-feedback", "1 adicionados à lista")
+        compose.onNodeWithTag("recent-adds").assertDoesNotExist()
+        clickHabitual("habitual-add-all")
+        waitForText("habitual-feedback", "0 adicionados, 1 já estavam na lista")
+        compose.onNodeWithContentDescription("Remover item habitual Café").performScrollTo()
+            .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
+        waitForText("habitual-feedback", "Café removido dos habituais")
+        assertEquals(1, house.rows.size)
+        assertTrue(house.habituals.isEmpty())
+    }
+
+    @Test fun habitualDraftSelectionAndPanelSurviveRefreshAndNavigationAndFailuresKeepText() {
+        house.habituals += SnapshotFixtures.habitual(java.util.UUID.randomUUID().toString(), "Café")
+        val repository = launch()
+        clickHabitual("habitual-toggle")
+        clickHabitual("habitual-select-Café")
+        compose.onNodeWithTag("habitual-name").performScrollTo().performTextInput("Arroz")
+        kotlinx.coroutines.runBlocking { repository.refresh() }
+        compose.onNodeWithTag("habitual-select-Café").assertIsOn()
+        compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
+        compose.onNodeWithTag("nav-add").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
+        compose.onNodeWithTag("habitual-name").assertTextEquals("Arroz")
+        house.commandSteps += Step.ServerError
+        clickHabitual("habitual-save")
+        waitForText("habitual-feedback", "O servidor não está disponível agora")
+        compose.onNodeWithTag("habitual-name").assertTextEquals("Arroz")
+        compose.onNodeWithTag("habitual-select-Café").assertIsOn()
+    }
+
+    @Test fun habitualValidationDuplicateAndRecreationKeepTheForm() {
+        house.habituals += SnapshotFixtures.habitual(java.util.UUID.randomUUID().toString(), "Café")
+        launch()
+        clickHabitual("habitual-toggle")
+        clickHabitual("habitual-save")
+        waitForText("habitual-feedback", "Digite o nome do item habitual")
+        compose.onNodeWithTag("habitual-name").performTextInput("x".repeat(101))
+        clickHabitual("habitual-save")
+        waitForText("habitual-feedback", "O item habitual deve ter até 100 caracteres")
+        compose.onNodeWithTag("habitual-name").performTextReplacement("Café")
+        clickHabitual("habitual-save")
+        waitForText("habitual-feedback", "Esse item habitual já está salvo")
+        compose.onNodeWithTag("habitual-name").assertTextEquals("Café")
+        clickHabitual("habitual-select-Café")
+        scenario!!.recreate()
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("habitual-name").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("habitual-name").assertTextEquals("Café")
+        compose.onNodeWithTag("habitual-select-Café").assertIsOn()
+    }
+
     private fun recommendation(name: String) = JSONObject().put("name", name)
         .put("category_public_id", SnapshotFixtures.DAIRY).put("trips", 2).put("last_purchased_at", SnapshotFixtures.EARLY)
 

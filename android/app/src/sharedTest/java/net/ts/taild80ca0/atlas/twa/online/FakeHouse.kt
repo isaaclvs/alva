@@ -38,6 +38,7 @@ class FakeHouse : SnapshotTransport, CommandTransport {
     }
 
     val rows = ArrayList<Row>()
+    val habituals = ArrayList<JSONObject>()
     var buyAgain: List<JSONObject> = emptyList()
     var categories: List<JSONObject> = CATEGORIES.mapIndexed { index, (id, name) -> SnapshotFixtures.category(id, name, if (name == "Outros") 99 else index + 1) }
     var revision = 840L
@@ -88,7 +89,7 @@ class FakeHouse : SnapshotTransport, CommandTransport {
             )
         }
         val recommendations = JSONArray(buyAgain.filter { entry -> rows.none { it.name.equals(entry.getString("name"), true) } })
-        val parsed = SnapshotParser.parse(SnapshotFixtures.bytes(SnapshotFixtures.snapshot(revision = revision, dictionaryRevision = dictionaryRevision, items = items, categories = categories)
+        val parsed = SnapshotParser.parse(SnapshotFixtures.bytes(SnapshotFixtures.snapshot(revision = revision, dictionaryRevision = dictionaryRevision, items = items, categories = categories, habituals = habituals)
             .put("buy_again", recommendations)))
         check(parsed is SnapshotParse.Valid) { "Fake snapshot invalid: $parsed" }
         return SnapshotOutcome.Received(parsed.snapshot)
@@ -113,6 +114,25 @@ class FakeHouse : SnapshotTransport, CommandTransport {
     private fun answer(id: String, command: JSONObject): CommandReceipt {
         ledger[id]?.let { return it.copy(status = ReceiptStatus.DUPLICATE, originalStatus = it.status) }
         val receipt = when (command.getString("type")) {
+            "create_habitual" -> createHabitual(id, command.getJSONObject("payload").getString("name"))
+            "remove_habitual" -> {
+                habituals.removeAll { it.getString("public_id") == command.getJSONObject("payload").getString("public_id") }
+                revision++
+                receipt(id, ReceiptStatus.APPLIED)
+            }
+            "add_habituals" -> {
+                val payload = command.getJSONObject("payload")
+                val ids = payload.optJSONArray("public_ids")
+                val selected = habituals.filter { habit -> ids == null || (0 until ids.length()).any { ids.getString(it) == habit.getString("public_id") } }
+                if (selected.isEmpty()) receipt(id, ReceiptStatus.REJECTED, error = "no_habituals")
+                else addItems(id, JSONArray(selected.map { habit ->
+                    JSONObject().put("public_id", java.util.UUID.randomUUID().toString()).put("name", habit.getString("name")).also { entry ->
+                        rows.firstOrNull { it.name == habit.getString("name") && it.status == "purchased" }?.let {
+                            entry.put("revives", JSONObject().put("public_id", it.id).put("lock_version", it.lock))
+                        }
+                    }
+                }))
+            }
             "add_items" -> addItems(id, command.getJSONObject("payload").getJSONArray("items"))
             "set_item_state" -> setItemState(id, command)
             "correct_item" -> correctItem(id, command)
@@ -123,6 +143,13 @@ class FakeHouse : SnapshotTransport, CommandTransport {
         }
         if (receipt.status.recordedByServer) ledger[id] = receipt
         return receipt
+    }
+
+    private fun createHabitual(id: String, name: String): CommandReceipt {
+        val existing = habituals.firstOrNull { it.getString("name").equals(name, true) }
+        val item = existing ?: SnapshotFixtures.habitual(java.util.UUID.randomUUID().toString(), name).also { habituals.add(it); revision++ }
+        return receipt(id, if (existing == null) ReceiptStatus.APPLIED else ReceiptStatus.NOOP,
+            data = JSONObject().put("outcome", if (existing == null) "created" else "duplicate").put("item", item))
     }
 
     private fun addItems(id: String, items: JSONArray): CommandReceipt {

@@ -31,7 +31,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -110,8 +110,8 @@ data class AddFeedback(val text: String, val tone: Tone, val id: Long) {
  * Everything the Adicionar screen remembers: the draft, what the last add said, what this device just added and
  * the actions in flight. It lives above the screen (see [rememberAddScreenState]) so that switching to the list
  * and back keeps the draft, like the PWA's two panels that stay on the page, and so that a request already sent
- * is not cancelled by leaving the screen. Only the draft survives a recreation; the rest is device-local feedback
- * that the PWA does not keep across a reload either.
+ * is not cancelled by leaving the screen. Drafts, the habitual panel and its selection survive a recreation.
+ * Feedback is device-local and, like the PWA, does not survive a reload.
  */
 @Stable
 class AddScreenState internal constructor(
@@ -132,6 +132,7 @@ class AddScreenState internal constructor(
         private set
 
     private val correcting = mutableStateListOf<String>()
+    val habituals = HabitualPanelState(repository, scope)
     private var feedbackCount = 0L
 
     fun isCorrecting(itemPublicId: String) = itemPublicId in correcting
@@ -209,7 +210,14 @@ fun rememberAddScreenState(repository: OnlineRepository): AddScreenState {
     val scope = rememberCoroutineScope()
     return rememberSaveable(
         repository,
-        saver = Saver(save = { it.draft }, restore = { AddScreenState(it, repository, scope) }),
+        saver = listSaver<AddScreenState, String>(
+            save = { listOf(it.draft, it.habituals.draft, it.habituals.expanded.toString()) + it.habituals.selected },
+            restore = { saved -> AddScreenState(saved[0], repository, scope).also {
+                it.habituals.draft = saved[1]
+                it.habituals.expanded = saved[2].toBoolean()
+                it.habituals.selected.addAll(saved.drop(3))
+            } },
+        ),
     ) { AddScreenState("", repository, scope) }
 }
 
@@ -289,6 +297,8 @@ fun AddScreen(
             )
             if (habituals != null) {
                 Box(Modifier.padding(top = 8.dp)) { habituals() }
+            } else {
+                HabitualPanel(state.habituals, snapshot.habitualItems)
             }
         }
     }
