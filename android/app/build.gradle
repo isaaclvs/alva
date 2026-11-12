@@ -61,8 +61,8 @@ android {
         applicationId 'net.ts.taild80ca0.atlas.twa'
         minSdkVersion 24
         targetSdkVersion 36
-        versionCode 4
-        versionName '1.3.0'
+        versionCode 5
+        versionName '2.0.0'
 
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
 
@@ -183,6 +183,7 @@ android {
             buildConfigField 'String', 'SERVER_URL', "\"${serverUrl}\""
         }
         release {
+            buildConfigField 'String', 'SERVER_URL', '"https://atlas.taild80ca0.ts.net"'
             // Only attach the signing config when the local keystore is available,
             // so CI can assembleRelease without any private key.
             if (System.getenv('ALVA_ANDROID_KEYSTORE')) {
@@ -203,6 +204,10 @@ android {
         checkReleaseBuilds false
     }
     sourceSets {
+        debug.java.srcDirs += 'src/online/java'
+        release.java.srcDirs += 'src/online/java'
+        debug.res.srcDirs += 'src/online/res'
+        release.res.srcDirs += 'src/online/res'
         // Room schema history (one JSON per database version). The instrumented
         // migration tests read it as assets, so a version bump without its
         // schema file and migration fails.
@@ -277,27 +282,25 @@ dependencies {
     implementation 'androidx.security:security-crypto:1.1.0-alpha06'
     implementation 'com.google.code.findbugs:jsr305:3.0.2'
 
-    // Jetpack Compose is only pulled in for the development entry point, so the
-    // release TWA APK keeps its current dependency set.
-    debugImplementation platform('androidx.compose:compose-bom:2025.05.01')
-    debugImplementation 'androidx.activity:activity-compose:1.10.1'
-    debugImplementation 'androidx.core:core-ktx:1.16.0'
-    debugImplementation 'androidx.datastore:datastore-preferences:1.1.7'
-    debugImplementation 'androidx.compose.ui:ui'
-    debugImplementation 'androidx.compose.material3:material3'
-    debugImplementation 'androidx.compose.ui:ui-tooling-preview'
+    // Native online UI shared by debug and the signed production app.
+    implementation platform('androidx.compose:compose-bom:2025.05.01')
+    implementation 'androidx.activity:activity-compose:1.10.1'
+    implementation 'androidx.core:core-ktx:1.16.0'
+    implementation 'androidx.datastore:datastore-preferences:1.1.7'
+    implementation 'androidx.compose.ui:ui'
+    implementation 'androidx.compose.material3:material3'
+    implementation 'androidx.compose.ui:ui-tooling-preview'
 
-    // Local persistence (Room) is a debug-only dependency until the explicit
-    // transition: the release TWA APK must not ship it. See
+    // The paused offline implementation remains debug-only. Production has no Room. See
     // docs/plans/android-local-persistence.md.
     debugImplementation 'androidx.room:room-runtime:2.7.2'
     debugImplementation 'androidx.room:room-ktx:2.7.2'
     kspDebug 'androidx.room:room-compiler:2.7.2'
-    debugImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
 
     // Persistent synchronization belongs only to the native development client.
     debugImplementation 'androidx.work:work-runtime-ktx:2.10.1'
-    debugImplementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
     androidTestImplementation 'androidx.work:work-testing:2.10.1'
 
     testImplementation 'junit:junit:4.13.2'
@@ -320,7 +323,7 @@ dependencies {
 
 // Verifies the effective merged manifest of each variant: exactly one launcher
 // entry, the native Compose screen only in debug, the TWA launcher kept in
-// release. Wired into `check` and into the CI Android job.
+// release. Both variants now launch the native client. Wired into `check` and CI.
 abstract class VerifyLauncherEntry extends DefaultTask {
     @InputFile
     abstract RegularFileProperty getMergedManifest()
@@ -353,10 +356,10 @@ abstract class VerifyLauncherEntry extends DefaultTask {
 
         if (expectNativeEntry.get()) {
             if (nativeBlock == null || !nativeBlock.contains('android.intent.category.LAUNCHER')) {
-                throw new GradleException("Debug launcher must be ${nativeName}")
+                throw new GradleException("Native launcher must be ${nativeName}")
             }
             if (twaBlock == null || !twaBlock.contains('android:enabled="false"')) {
-                throw new GradleException('Debug manifest must disable the TWA LauncherActivity')
+                throw new GradleException('Native manifest must disable the TWA LauncherActivity')
             }
         } else {
             if (twaBlock == null || !twaBlock.contains('android.intent.category.LAUNCHER')) {
@@ -369,10 +372,8 @@ abstract class VerifyLauncherEntry extends DefaultTask {
     }
 }
 
-// The native client's backup policy and loopback-only cleartext rule belong to the
-// debug variant (docs/plans/android-house-access.md). Checks the effective merged
-// manifest: debug carries all three attributes, release carries none of them, so
-// the production TWA's backup and network behavior is exactly what it was.
+// Both native variants apply the credential backup exclusions and network policy.
+// Debug permits loopback for test harnesses; release is TLS-only.
 abstract class VerifyAccessPolicy extends DefaultTask {
     @InputFile
     abstract RegularFileProperty getMergedManifest()
@@ -391,7 +392,7 @@ abstract class VerifyAccessPolicy extends DefaultTask {
         required.each { attribute ->
             def present = text.contains(attribute)
             if (expectPolicy.get() && !present) {
-                throw new GradleException("Debug manifest must declare ${attribute}")
+                throw new GradleException("Native manifest must declare ${attribute}")
             }
             if (!expectPolicy.get() && present) {
                 throw new GradleException("Release manifest must not declare ${attribute}")
@@ -409,18 +410,17 @@ androidComponents {
         tasks.register("verify${capitalized}Manifest", VerifyLauncherEntry) {
             mergedManifest.set(variant.artifacts.get(
                 com.android.build.api.artifact.SingleArtifact.MERGED_MANIFEST.INSTANCE))
-            expectNativeEntry.set(variant.name == 'debug')
+            expectNativeEntry.set(true)
         }
         tasks.register("verify${capitalized}AccessPolicy", VerifyAccessPolicy) {
             mergedManifest.set(variant.artifacts.get(
                 com.android.build.api.artifact.SingleArtifact.MERGED_MANIFEST.INSTANCE))
-            expectPolicy.set(variant.name == 'debug')
+            expectPolicy.set(true)
         }
     }
 }
 
-// Local persistence and background sync are debug-only until the explicit
-// transition: the release TWA APK must keep its dependency set.
+// The paused offline implementation stays in debug; production is strictly online.
 tasks.register('verifyReleaseHasNoLocalPersistence') {
     def releaseGroups = provider {
         configurations.releaseRuntimeClasspath.incoming.resolutionResult.allComponents

@@ -16,7 +16,8 @@ import org.w3c.dom.Node
  */
 class BackupPolicyTest {
     private fun xml(name: String): Element {
-        val file = File("src/debug/res/xml/$name")
+        val file = listOf(File("src/debug/res/xml/$name"), File("src/online/res/xml/$name")).firstOrNull { it.exists() }
+            ?: error("Missing resource $name")
         assertTrue("${file.path} must exist", file.exists())
         return DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(file).documentElement
     }
