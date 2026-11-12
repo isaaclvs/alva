@@ -19,6 +19,8 @@ object OnlineMessages {
                 InvalidAction.NO_NAMES -> "Digite pelo menos um item."
                 InvalidAction.TOO_MANY_NAMES -> "São itens demais de uma vez (no máximo ${AddItems.MAX_NAMES}). Adicione em partes."
                 InvalidAction.ITEM_NOT_FOUND -> "Este item não está mais na lista."
+                InvalidAction.INVALID_NAME -> "Digite um nome para o item."
+                InvalidAction.CATEGORY_NOT_FOUND -> "Escolha uma categoria válida."
             }
             is ActionResult.Success -> ""
         }

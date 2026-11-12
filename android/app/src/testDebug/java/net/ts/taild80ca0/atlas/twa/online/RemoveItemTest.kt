@@ -52,4 +52,13 @@ class RemoveItemTest {
         assertEquals(house.sent[0], house.sent[1])
         assertTrue(house.rows.isEmpty())
     }
+
+    @Test fun removalFromAnOpenFormKeepsItsObservedVersionAfterRefresh() = runBlocking {
+        val item = house.seed("Leite", lock = 3)
+        repository.refresh()
+        item.lock++
+        repository.refresh()
+        assertEquals(ActionResult.Refused("precondition_failed"), repository.execute(RemoveItem(item.id, observedLockVersion = 3)))
+        assertEquals(1, house.rows.size)
+    }
 }

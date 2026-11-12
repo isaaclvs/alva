@@ -90,7 +90,8 @@ class FakeHouse : SnapshotTransport, CommandTransport {
         val recommendations = JSONArray(buyAgain.filter { entry -> rows.none { it.name.equals(entry.getString("name"), true) } })
         val parsed = SnapshotParser.parse(SnapshotFixtures.bytes(SnapshotFixtures.snapshot(revision = revision, dictionaryRevision = dictionaryRevision, items = items, categories = categories)
             .put("buy_again", recommendations)))
-        return SnapshotOutcome.Received((parsed as SnapshotParse.Valid).snapshot)
+        check(parsed is SnapshotParse.Valid) { "Fake snapshot invalid: $parsed" }
+        return SnapshotOutcome.Received(parsed.snapshot)
     }
 
     // ---- commands ------------------------------------------------------------------------------------------
@@ -180,8 +181,12 @@ class FakeHouse : SnapshotTransport, CommandTransport {
         val preconditions = command.getJSONObject("preconditions")
         val row = rows.firstOrNull { it.id == payload.getString("public_id") } ?: return receipt(id, ReceiptStatus.REJECTED, error = "not_found")
         if (preconditions.optInt("lock_version", row.lock) != row.lock) return receipt(id, ReceiptStatus.CONFLICT, error = "precondition_failed")
-        val category = payload.optString("category_id").ifEmpty { null }
+        val category = if (payload.isNull("category_id")) null else payload.getString("category_id")
         var changed = false
+        val name = payload.getString("name").trim()
+        if (name.isBlank()) return receipt(id, ReceiptStatus.REJECTED, error = "invalid_name")
+        if (rows.any { it.id != row.id && it.status == "pending" && it.name.equals(name, true) }) return receipt(id, ReceiptStatus.CONFLICT, error = "precondition_failed")
+        if (row.name != name) { row.name = name; changed = true; if (category == null) row.category = categorize(name) }
         if (category != null && row.category != category) { row.category = category; changed = true }
         if (category != null && learned[row.name.lowercase()] != category && preconditions.getLong("dictionary_revision") == dictionaryRevision) {
             learned[row.name.lowercase()] = category; dictionaryRevision++; changed = true
