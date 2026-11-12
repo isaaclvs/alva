@@ -82,6 +82,7 @@ import net.ts.taild80ca0.atlas.twa.online.AddedItem
 import net.ts.taild80ca0.atlas.twa.online.CorrectItem
 import net.ts.taild80ca0.atlas.twa.online.OnlineMessages
 import net.ts.taild80ca0.atlas.twa.online.OnlineRepository
+import net.ts.taild80ca0.atlas.twa.online.OnlineAction
 import net.ts.taild80ca0.atlas.twa.online.OnlineState
 import net.ts.taild80ca0.atlas.twa.online.addedItems
 import net.ts.taild80ca0.atlas.twa.online.liveItems
@@ -136,16 +137,20 @@ class AddScreenState internal constructor(
     fun isCorrecting(itemPublicId: String) = itemPublicId in correcting
 
     /** Sends what is in the field. The text leaves the field only when the server took it. */
-    fun submit() {
+    fun submit() = send(AddItems.fromText(draft), draft)
+
+    /** A shortcut uses the same online command and feedback, while leaving the field's draft intact. */
+    fun addSuggestion(name: String) = send(AddItems(listOf(name)), null)
+
+    private fun send(action: OnlineAction, submitted: String?) {
         if (saving) return
-        val submitted = draft
         saving = true
         scope.launch {
             try {
-                when (val result = repository.execute(AddItems.fromText(submitted))) {
+                when (val result = repository.execute(action)) {
                     is ActionResult.Success -> {
                         // Do not erase text typed while the request was in flight.
-                        if (draft == submitted) draft = ""
+                        if (submitted != null && draft == submitted) draft = ""
                         val added = result.receipt.addedItems()
                         val snapshot = (repository.state.value as? OnlineState.Ready)?.snapshot
                         say(
@@ -229,6 +234,9 @@ fun AddScreen(
     val keyboard = LocalSoftwareKeyboardController.current
     val colors = AlvaTheme.colors
     val type = AlvaTheme.type
+    val recommendations: (@Composable () -> Unit)? = buyAgain ?: if (snapshot.buyAgain.isEmpty()) null else {
+        { BuyAgainShortcuts(snapshot.buyAgain, enabled = !state.saving, onAdd = state::addSuggestion) }
+    }
 
     state.feedback?.let { current ->
         LaunchedEffect(current.id) {
@@ -253,8 +261,8 @@ fun AddScreen(
             Text("Lembrou, adicionou.", style = type.bodySmall, color = colors.inkSoft, modifier = Modifier.padding(top = 2.dp))
 
             Spacer(Modifier.height(16.dp))
-            if (buyAgain != null) {
-                buyAgain()
+            if (recommendations != null) {
+                recommendations()
                 Spacer(Modifier.height(12.dp))
             }
             AddField(state, focus)

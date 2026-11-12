@@ -23,6 +23,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
+import org.json.JSONObject
+import org.json.JSONArray
 
 /**
  * Two phones — two [OnlineRepository] objects with their own credentials and no shared memory — talking to a
@@ -87,6 +89,32 @@ class OnlineRailsConvergenceTest {
     private suspend fun Phone.add(name: String) = repository.execute(AddItems.fromText(name))
 
     private suspend fun Phone.mark(name: String, desired: ItemStatus) = repository.execute(SetItemState(item(name)!!.publicId, desired))
+
+    @Test fun railsRecommendsAPastPurchaseAndAddingItRemovesTheShortcutOnBothPhones() = runBlocking<Unit> {
+        val a = phone(tokenA)
+        val b = phone(tokenB)
+        val name = newName()
+        a.repository.refresh()
+        assertTrue(a.add(name) is ActionResult.Success)
+        assertTrue(a.mark(name, ItemStatus.PURCHASED) is ActionResult.Success)
+        val bought = a.item(name)!!
+        // Arrange real purchase history through the existing Rails command, not a fabricated snapshot.
+        val finish = object : OnlineAction {
+            override fun plan(context: PlanContext) = ActionPlan.Send(context.document("finish_shopping",
+                JSONObject().put("items", JSONArray().put(JSONObject().put("public_id", bought.publicId)
+                    .put("lock_version", bought.lockVersion))).toString()))
+        }
+        assertTrue(a.repository.execute(finish) is ActionResult.Success)
+        b.repository.refresh()
+        val suggestion = b.ready.snapshot.buyAgain.single { it.name == name }
+        assertEquals(1L, suggestion.trips)
+        assertEquals(bought.categoryPublicId, suggestion.categoryPublicId)
+        assertTrue(suggestion.lastPurchasedAtMicros > 0)
+        assertTrue(b.add(name) is ActionResult.Success)
+        assertTrue(b.ready.snapshot.buyAgain.none { it.name == name })
+        a.repository.refresh()
+        assertTrue(a.ready.snapshot.buyAgain.none { it.name == name })
+    }
 
     @Test fun removalAndUndoPreserveTheServersItemAndRefuseANamesake() = runBlocking<Unit> {
         val a = phone(tokenA)
