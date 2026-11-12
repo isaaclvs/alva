@@ -813,6 +813,8 @@ consistente; não há modo incremental na v1.
   "shopping_trips": [ { "public_id": "…", "finished_at": "…", "created_at": "…" } ],
   "habitual_items": [ { "public_id": "…", "name": "Café", "normalized_name": "cafe",
                         "created_at": "…" } ],
+  "buy_again": [ { "name": "Leite", "category_public_id": "…", "trips": 4,
+                  "last_purchased_at": "2026-11-08T18:30:00.123456Z" } ],
   "tombstones": [ { "record_type": "list_item", "public_id": "…", "revision": 838 } ]
 }
 ```
@@ -835,6 +837,17 @@ consistente; não há modo incremental na v1.
   crescente do id interno (categorias por `position`, depois id; tombstones por
   `revision`, depois id). É o desempate que o Rails usa (viagem mais recente,
   grafia mais recente) e o aparelho não tem outro modo de reproduzi-lo.
+- **`buy_again`** (campo aditivo, issue #106; `schema_version` continua 1):
+  as sugestões de "Comprar de novo" que a PWA mostra, calculadas por
+  `BuyAgainSuggestions` na mesma transação do snapshot, para o app nativo online
+  não reimplementar o ranking. Até 5 entradas, **já na ordem de exibição** (nº de
+  compras em que o nome aparece, depois compra mais recente, depois nome), sem os
+  nomes que estão na lista viva. Cada entrada: `name` (grafia mais recente),
+  `category_public_id` (`null` sem categoria), `trips` e `last_purchased_at`
+  (UTC com microssegundos). A lista é derivada do histórico e não tem
+  identidade própria: o cliente a substitui inteira a cada snapshot. Clientes
+  que não conhecem o campo o ignoram; o par offline continua podendo calcular o
+  ranking a partir de `archived_items`.
 - Fica de fora, por decisão: segredos, digests, dispositivos e credenciais; dados
   de outra casa; preferências do aparelho (tema, tela, modo compras); resultados
   de comandos e aliases. Campos novos só entram de forma **aditiva**: o cliente

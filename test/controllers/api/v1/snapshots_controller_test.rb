@@ -29,8 +29,8 @@ class Api::V1::SnapshotsControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
     assert_equal "no-store", response.headers["Cache-Control"]
     assert_equal "application/json", response.media_type
-    assert_equal %w[archived_items catalog_items categories dictionary_revision habitual_items household list_items
-      revision schema_version shopping_trips tombstones], body.keys.sort
+    assert_equal %w[archived_items buy_again catalog_items categories dictionary_revision habitual_items household
+      list_items revision schema_version shopping_trips tombstones], body.keys.sort
     assert_equal 1, body["schema_version"]
     assert_equal @home.sync_revision, body["revision"]
     assert_equal({ "public_id" => @home.public_id, "name" => "Casa" }, body["household"])
@@ -199,10 +199,30 @@ class Api::V1::SnapshotsControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
-  test "reading costs the same number of queries however large the household is" do
-    small = count_queries { get "/api/v1/snapshot", headers: bearer(@sync_token) }
+  test "buy_again matches the suggestions the PWA renders, in the same order" do
+    trip = @home.shopping_trips.create!(finished_at: 3.days.ago)
+    other = @home.shopping_trips.create!(finished_at: 2.days.ago)
+    [ [ "Café", trip ], [ "Café", other ], [ "Arroz", trip ], [ "Feijão", other ] ].each_with_index do |(name, t), index|
+      @home.list_items.create!(name:, status: :purchased, purchased_at: t.finished_at + index.minutes, shopping_trip: t)
+    end
 
+    get "/api/v1/snapshot", headers: bearer(@sync_token)
+    names = body["buy_again"].map { _1["name"] }
+    assert_equal %w[Café Feijão Arroz], names
+
+    post login_path, params: { password: "senha-da-casa" }
+    get root_path
+    assert_equal names, css_select("#buy_again button").map { _1.text.squish.delete_prefix("+ ") }
+  end
+
+  test "reading costs the same number of queries however large the household is" do
+    # One archived item already, so the "buy again" suggestions load their category in both reads.
     trip = @home.shopping_trips.create!(finished_at: 1.day.ago)
+    @home.list_items.create!(name: "Histórico", status: :purchased, purchased_at: 3.days.ago, shopping_trip: trip,
+      category: categories(:dairy))
+    small = count_queries { get "/api/v1/snapshot", headers: bearer(@sync_token) }
+    assert_equal [ "Histórico" ], body["buy_again"].map { _1["name"] }
+
     30.times do |index|
       @home.list_items.create!(name: "Item #{index}", category: categories(:dairy))
       @home.list_items.create!(name: "Arquivado #{index}", status: :purchased, purchased_at: 2.days.ago, shopping_trip: trip)
@@ -210,7 +230,7 @@ class Api::V1::SnapshotsControllerTest < ActionDispatch::IntegrationTest
     end
     large = count_queries { get "/api/v1/snapshot", headers: bearer(@sync_token) }
 
-    assert_equal [ 32, 30, 30 ], body.values_at("list_items", "archived_items", "habitual_items").map(&:size)
+    assert_equal [ 32, 31, 30 ], body.values_at("list_items", "archived_items", "habitual_items").map(&:size)
     assert_equal small, large
   end
 
@@ -227,6 +247,8 @@ class Api::V1::SnapshotsControllerTest < ActionDispatch::IntegrationTest
   def count_queries
     queries = 0
     counter = ->(*, payload) { queries += 1 unless payload[:name] == "SCHEMA" || payload[:cached] }
+    # Broadcasts of the writes above may have cached the very same ranking query.
+    ActiveRecord::Base.connection_pool.clear_query_cache
     ActiveSupport::Notifications.subscribed(counter, "sql.active_record") { yield }
     queries
   end
