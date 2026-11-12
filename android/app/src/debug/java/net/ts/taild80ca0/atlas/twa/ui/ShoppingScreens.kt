@@ -44,7 +44,6 @@ fun ShoppingScreens(
     var feedback by remember { mutableStateOf<String?>(null) }
     var toast by remember { mutableStateOf<ToastMessage?>(null) }
     val scope = rememberCoroutineScope()
-    val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
 
     LaunchedEffect(screen) {
