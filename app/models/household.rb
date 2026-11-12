@@ -252,6 +252,12 @@ class Household < ApplicationRecord
       locals: { household: self }
   end
 
+  # The habits section broadcast, once every open transaction has committed:
+  # for sync commands, which run inside the transaction of the ledger row.
+  def broadcast_habitual_items_after_commit
+    ActiveRecord.after_all_transactions_commit { broadcast_habitual_items }
+  end
+
   # A list item changed (called by ListItem's after_commit). Broadcasts right
   # away, unless inside batch_list_broadcasts, which defers it to the end.
   def list_changed(category: :all)
