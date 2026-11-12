@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
@@ -18,6 +17,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 import net.ts.taild80ca0.atlas.twa.data.list.ConflictResolver
+import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaTheme
 
 /**
  * An explicit review of local refusals and of changes whose result can no longer be confirmed, outside the add form
@@ -74,7 +74,7 @@ fun ConflictPanel(resolver: ConflictResolver, onResolved: () -> Unit = {}) {
                     } else {
                         "Descartar retira estas alterações locais. A lista mantém o último estado recebido e as outras alterações locais."
                     },
-                    style = MaterialTheme.typography.bodySmall,
+                    style = AlvaTheme.type.caption, color = AlvaTheme.colors.inkSoft,
                 )
                 val count = review.commandIds.size
                 Button(onClick = {
@@ -119,7 +119,7 @@ fun ConflictPanel(resolver: ConflictResolver, onResolved: () -> Unit = {}) {
             groups.forEach { group ->
                 Text(group.intentions.first().description)
                 if (group.kind == ConflictResolver.Kind.UNCERTAIN) {
-                    Text("Sem confirmação do servidor", style = MaterialTheme.typography.bodySmall)
+                    Text("Sem confirmação do servidor", style = AlvaTheme.type.caption, color = AlvaTheme.colors.warn)
                 }
                 TextButton(onClick = { selected = group; message = null }, modifier = Modifier.testTag("conflict-review-${group.rootId}")) {
                     Text(if (group.commandIds.size == 1) "Revisar alteração" else "Revisar ${group.commandIds.size} alterações")

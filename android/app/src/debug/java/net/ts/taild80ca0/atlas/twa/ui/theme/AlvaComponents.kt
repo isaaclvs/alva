@@ -16,6 +16,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
@@ -103,3 +104,6 @@ fun alvaNavigationItemColors(): NavigationBarItemColors {
         unselectedIconColor = c.inkFaint, unselectedTextColor = c.inkFaint,
     )
 }
+
+/** `divide-y divide-line`: a 1dp line above a row that is not the first of its group. */
+fun Modifier.rowDivider(color: Color): Modifier = drawBehind { drawLine(color, Offset.Zero, Offset(size.width, 0f), strokeWidth = 1.dp.toPx()) }
