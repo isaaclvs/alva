@@ -111,6 +111,33 @@ class OnlineRailsConvergenceTest {
         assertTrue(b.ready.snapshot.catalogItems.any { it.name == draft && it.learned && it.categoryPublicId == category.publicId })
     }
 
+    @Test fun removalAndUndoPreserveTheServersItemAndRefuseANamesake() = runBlocking<Unit> {
+        val a = phone(tokenA)
+        val b = phone(tokenB)
+        val name = newName()
+        a.repository.refresh()
+        assertTrue(a.add(name) is ActionResult.Success)
+        assertTrue(a.mark(name, ItemStatus.PURCHASED) is ActionResult.Success)
+        val before = a.item(name)!!
+        val removal = a.repository.execute(RemoveItem(before.publicId)) as ActionResult.Success
+        assertEquals(null, a.item(name))
+        b.repository.refresh()
+        assertEquals(null, b.item(name))
+        assertTrue(a.repository.execute(UndoRemove(removal.receipt.commandId)) is ActionResult.Success)
+        val restored = a.item(name)!!
+        assertEquals(before.publicId, restored.publicId)
+        assertEquals(before.categoryPublicId, restored.categoryPublicId)
+        assertEquals(before.status, restored.status)
+        assertEquals(before.purchasedAtMicros, restored.purchasedAtMicros)
+        assertEquals(before.createdAtMicros, restored.createdAtMicros)
+        assertTrue(restored.lockVersion > before.lockVersion)
+        val second = a.repository.execute(RemoveItem(restored.publicId)) as ActionResult.Success
+        b.repository.refresh()
+        assertTrue(b.add(name) is ActionResult.Success)
+        assertEquals(ActionResult.Refused("precondition_failed"), a.repository.execute(UndoRemove(second.receipt.commandId)))
+        assertEquals(1, a.items.count { it.name == name })
+    }
+
     @Test fun aAddsAndMarksAndBSeesEachStepAndMarksBack() = runBlocking<Unit> {
         val a = phone(tokenA)
         val b = phone(tokenB)

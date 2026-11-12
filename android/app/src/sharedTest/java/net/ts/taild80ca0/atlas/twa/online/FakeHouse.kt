@@ -45,6 +45,7 @@ class FakeHouse : SnapshotTransport, CommandTransport {
     var dictionaryRevision = 12L
     val learned = HashMap<String, String>()
     private val ledger = HashMap<String, CommandReceipt>()
+    private val removed = HashMap<String, Row>()
 
     /** Every document received, with the command id, in order (lost answers and retries included). */
     val sent = ArrayList<Pair<String, String>>()
@@ -113,6 +114,8 @@ class FakeHouse : SnapshotTransport, CommandTransport {
             "set_item_state" -> setItemState(id, command)
             "correct_item" -> correctItem(id, command)
             "undo_item_state" -> undoItemState(id, command)
+            "remove_item" -> removeItem(id, command)
+            "undo_remove" -> undoRemove(id, command)
             else -> receipt(id, ReceiptStatus.REJECTED, error = "unsupported_command")
         }
         if (receipt.status.recordedByServer) ledger[id] = receipt
@@ -202,6 +205,27 @@ class FakeHouse : SnapshotTransport, CommandTransport {
         row.status = status; row.purchasedAt = purchasedAt; row.lock++
         revision++
         return receipt(id, ReceiptStatus.APPLIED, data = JSONObject().put("item", itemJson(row)))
+    }
+
+    private fun removeItem(id: String, command: JSONObject): CommandReceipt {
+        val row = rows.firstOrNull { it.id == command.getJSONObject("payload").getString("public_id") }
+            ?: return receipt(id, ReceiptStatus.REJECTED, error = "gone")
+        if (row.lock != command.getJSONObject("preconditions").getInt("lock_version"))
+            return receipt(id, ReceiptStatus.CONFLICT, error = "precondition_failed")
+        removed[id] = row
+        rows.remove(row)
+        revision++
+        return receipt(id, ReceiptStatus.APPLIED, data = JSONObject().put("item", itemJson(row)))
+    }
+
+    private fun undoRemove(id: String, command: JSONObject): CommandReceipt {
+        val original = removed[command.getString("depends_on")]
+            ?: return receipt(id, ReceiptStatus.REJECTED, error = "invalid_removal")
+        if (rows.any { it.id == original.id || (it.status == "pending" && it.name.equals(original.name, true)) })
+            return receipt(id, ReceiptStatus.CONFLICT, error = "precondition_failed")
+        rows += Row(original.id, original.name, original.status, original.lock + 1, original.purchasedAt, original.category)
+        revision++
+        return receipt(id, ReceiptStatus.APPLIED)
     }
 
     private fun itemJson(row: Row) =

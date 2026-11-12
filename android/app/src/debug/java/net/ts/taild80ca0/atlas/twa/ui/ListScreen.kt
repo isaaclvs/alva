@@ -25,6 +25,8 @@ import net.ts.taild80ca0.atlas.twa.data.list.ListItem
 import net.ts.taild80ca0.atlas.twa.online.ActionResult
 import net.ts.taild80ca0.atlas.twa.online.OnlineMessages
 import net.ts.taild80ca0.atlas.twa.online.OnlineRepository
+import net.ts.taild80ca0.atlas.twa.online.RemoveItem
+import net.ts.taild80ca0.atlas.twa.online.UndoRemove
 import net.ts.taild80ca0.atlas.twa.online.SetItemState
 import net.ts.taild80ca0.atlas.twa.online.CorrectItem
 import net.ts.taild80ca0.atlas.twa.online.UndoItemState
@@ -54,12 +56,41 @@ fun ListScreen(
     headerActions: @Composable RowScope.() -> Unit = {},
     afterSummary: @Composable ColumnScope.() -> Unit = {},
     editState: EditItemState = rememberEditItemState(),
+    shoppingMode: Boolean = false,
+    rowActions: @Composable RowScope.(ListItem, () -> Unit) -> Unit = { _, _ -> },
 ) {
     val scope = rememberCoroutineScope()
     val items = remember(snapshot) { snapshot.liveItems() }
     val groups = remember(snapshot) { ListGroups.of(snapshot.categories, items) }
     val busy = remember { mutableStateListOf<String>() }
     val pending = items.count { it.status == ItemStatus.PENDING }
+
+    fun remove(item: ListItem, observedVersion: Int? = null) {
+        if (item.publicId in busy || shoppingMode) return
+        busy += item.publicId
+        val editing = editState.itemId == item.publicId
+        if (editing) editState.saving = true
+        scope.launch {
+            try {
+                when (val result = repository.execute(RemoveItem(item.publicId, observedVersion))) {
+                    is ActionResult.Success -> {
+                        if (editState.itemId == item.publicId) editState.close()
+                        showToast(ToastMessage("${item.name} removido", "Desfazer") {
+                            val undone = repository.execute(UndoRemove(result.receipt.commandId))
+                            if (undone !is ActionResult.Success) onFailure(OnlineMessages.failure(undone))
+                        })
+                    }
+                    else -> {
+                        if (editing) editState.error = OnlineMessages.failure(result, keepsText = true)
+                        else onFailure(OnlineMessages.failure(result))
+                    }
+                }
+            } finally {
+                busy -= item.publicId
+                if (editing) editState.saving = false
+            }
+        }
+    }
 
     fun mark(item: ListItem) {
         if (item.publicId in busy) return
@@ -128,9 +159,13 @@ fun ListScreen(
                                     }
                                 } finally { editState.saving = false }
                             }
+                        }, remove = {
+                            RemoveItemButton(enabled = !editState.saving && item.publicId !in busy) { remove(item, editState.version) }
                         })
-                    } else ListRow(item, first = index == 0, enabled = item.publicId !in busy, onToggle = { mark(item) }, trailing = {
-                        EditItemButton(item.name, Modifier.testTag("edit-${item.publicId}")) {
+                    } else ListRow(item, first = index == 0, enabled = item.publicId !in busy, onToggle = { mark(item) },
+                        modifier = Modifier.swipeToRemove(!shoppingMode && item.publicId !in busy) { remove(item) }, trailing = {
+                        rowActions(item) { remove(item) }
+                        if (!shoppingMode) EditItemButton(item.name, Modifier.testTag("edit-${item.publicId}")) {
                             editState.open(item, snapshot.listItems.first { it.publicId == item.publicId }.lockVersion, snapshot.dictionaryRevision)
                         }
                     })
