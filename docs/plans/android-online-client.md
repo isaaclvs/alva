@@ -156,6 +156,22 @@ e permissão de leitura. A extensão do FileProvider fica só no debug, restrita
 esse diretório; outros arquivos de cache não são compartilhados. Arquivos de
 exportação com mais de um dia são limpos ao preparar o próximo PDF.
 
+## Widget e painel rápido (#110)
+
+O provider e seu PendingIntent continuam apontando para `QuickAddActivity`.
+A implementação Java do Alva 1.3 fica no source set `release`, intacta; o debug
+fornece uma Activity Kotlin nativa com o mesmo nome. Isso preserva widgets
+instalados e evita um segundo componente para a mesma ação.
+
+O painel reutiliza o layout rosa do Alva 1.3 (inclusive a confirmação e a janela
+no rodapé), independentemente da personalização das duas telas principais.
+`QuickPanelModel` usa `HouseAccess` e `OnlineRepository` da aplicação. Um ViewModel
+mantém o envio durante recriação; somente o rascunho vai ao SavedStateHandle,
+sem fila, comando persistido ou reenvio automático após morte do processo.
+Sucesso fecha após 1,5 s; falha conserva texto e permite nova tentativa. Sem
+acesso, o painel não pede senha: oferece abrir o app principal. A transição de
+release da #111 deve promover também essa implementação nativa do painel.
+
 ## Validação
 
 - JVM: `OnlineRepositoryTest` (servidor falso: leitura, rede caindo, resposta
