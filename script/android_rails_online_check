@@ -11,7 +11,8 @@
 #   4.   `adb reverse` puts that server on the emulator's own loopback (the debug build only allows cleartext to
 #        127.0.0.1), and removes the mapping when the script ends.
 #   5.   Runs the instrumented OnlineRailsConvergenceTest: two phones (two repositories), A adds and marks and B
-#        sees each step, the same name on both phones, a stale mark refused with the list reloaded, an answer lost
+#        sees each step, the same name on both phones, a stale mark refused with the list reloaded, a mark and an
+#        unmark undone (and an undo refused once the other phone changed the item), an answer lost
 #        after Rails committed (retried with the same bytes, no second effect), a refused credential, no server.
 #   6.   Fails if that class was skipped or did not run (a skipped test proves nothing).
 #
