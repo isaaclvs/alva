@@ -15,7 +15,8 @@ import java.security.MessageDigest
 
 /**
  * Preview and explicit, audited removal of a command group from the queue: either a definitively refused command
- * ([Kind.REFUSED]) or one whose effect can no longer be learned ([Kind.UNCERTAIN]), each with its dependency closure.
+ * or a revive the device held ([Kind.REFUSED]), or a group with a member whose effect can no longer be learned
+ * ([Kind.UNCERTAIN]), each with its dependency closure.
  */
 class ConflictResolver(
     private val db: AlvaDatabase,
@@ -29,9 +30,10 @@ class ConflictResolver(
         REFUSED,
 
         /**
-         * The root was sent by an older credential lineage of this device (its secret was lost) and now only gets
-         * `idempotency_conflict`: resending can never say whether it took effect, so it holds the snapshot forever.
-         * Removing it lets the server's list in; whatever it did is in that list, whatever it did not is gone.
+         * Some member may have taken effect and resending can never say: refused only by `idempotency_conflict` (sent
+         * by an older credential lineage whose secret was lost), or sent without an answer and now blocked so it is
+         * never sent again. Such commands hold the snapshot forever. Removing the group lets the server's list in;
+         * whatever it did is in that list, whatever it did not is gone.
          */
         UNCERTAIN,
     }
@@ -60,7 +62,7 @@ class ConflictResolver(
             val covered = mutableSetOf<String>()
             buildList {
                 for (command in commands) {
-                    if (command.id in covered || command.status !in setOf("CONFLICT", "REJECTED")) continue
+                    if (command.id in covered || !isRootCandidate(command)) continue
                     val (kind, group) = closure(command.id, commands) ?: continue
                     val preview = makePreview(command.id, kind, group)
                     add(preview)
@@ -93,13 +95,7 @@ class ConflictResolver(
     private suspend fun closure(rootId: String, commands: List<CommandEntity>): Pair<Kind, List<CommandEntity>>? {
         val byId = commands.associateBy { it.id }
         val root = byId[rootId] ?: return null
-        val kind = when {
-            root.attempts <= 0 || root.wireDocument == null -> return null
-            root.status in setOf("CONFLICT", "REJECTED") && root.answeredAttempt >= root.attempts &&
-                root.lastErrorCode != IDEMPOTENCY_CONFLICT -> Kind.REFUSED
-            root.status == "REJECTED" && root.lastErrorCode == IDEMPOTENCY_CONFLICT -> Kind.UNCERTAIN
-            else -> return null
-        }
+        if (!isRootCandidate(root)) return null
         val result = linkedMapOf(root.id to root)
         var changed: Boolean
         do {
@@ -107,20 +103,35 @@ class ConflictResolver(
             commands.filter { it.dependsOn in result && it.id !in result }.forEach { command ->
                 // A consumed dependent proves its dependency took effect: never take that history away.
                 if (command.status == "ACKNOWLEDGED") return null
-                // Discarding a refusal must not hide an effect that may have happened. Accepting the server's list
-                // already gives up knowing, for every command that depends on the uncertain one.
-                if (kind == Kind.REFUSED && (command.attempts > command.answeredAttempt ||
-                        (command.attempts > 0 && command.wireDocument == null) ||
-                        (command.status in setOf("CONFLICT", "REJECTED") && (command.answeredAttempt < command.attempts || command.wireDocument == null)))) return null
                 result[command.id] = command
                 changed = true
             }
         } while (changed)
         val group = result.values.sortedBy { it.sequence }
         if (group.any { db.receipts().find(it.id) != null }) return null
-        if (kind == Kind.REFUSED && group.any { it.lastErrorCode == IDEMPOTENCY_CONFLICT }) return null
+        // Discarding is only for what provably had no effect. One member whose effect cannot be known (sent without
+        // an answer, sent before its bytes were kept, or refused only by idempotency) turns the whole group into a
+        // decision to take the server's list instead: never into an assumption that nothing happened.
+        val kind = if (group.any { !provenWithoutEffect(it) }) Kind.UNCERTAIN else Kind.REFUSED
         return kind to group
     }
+
+    /**
+     * What a person can be asked about: the server refused it (`CONFLICT`/`REJECTED`), or the device itself held it
+     * because a revive was answered with another item (`BLOCKED`/`revive_redirected`) and nothing will ever send it.
+     * A command refused on an attempt that is not its latest, or sent before its bytes were kept, is not a root.
+     */
+    private fun isRootCandidate(command: CommandEntity): Boolean = when {
+        command.status == "BLOCKED" && command.lastErrorCode == REVIVE_REDIRECTED -> true
+        command.status !in setOf("CONFLICT", "REJECTED") -> false
+        command.lastErrorCode == IDEMPOTENCY_CONFLICT -> command.attempts > 0 && command.wireDocument != null
+        else -> command.attempts > 0 && command.wireDocument != null && command.answeredAttempt >= command.attempts
+    }
+
+    /** Never sent, or every attempt answered by a refusal that proves it did nothing. */
+    private fun provenWithoutEffect(command: CommandEntity): Boolean =
+        command.attempts == 0 ||
+            (command.wireDocument != null && command.answeredAttempt >= command.attempts && command.lastErrorCode != IDEMPOTENCY_CONFLICT)
 
     private suspend fun makePreview(rootId: String, kind: Kind, group: List<CommandEntity>): Preview {
         val subjects = group.flatMap { db.commands().subjectsOf(it.id) }.map { it.subjectPublicId }.distinct().sorted()
@@ -174,5 +185,6 @@ class ConflictResolver(
 
     private companion object {
         const val IDEMPOTENCY_CONFLICT = "idempotency_conflict"
+        const val REVIVE_REDIRECTED = "revive_redirected"
     }
 }

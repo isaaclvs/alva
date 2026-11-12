@@ -70,9 +70,15 @@ class ConflictResolverTest : DatabaseTest() {
         assertNull(resolver(db).preview("root"))
     }
 
-    @Test fun protectsUncertainLegacyAcknowledgedAndIdempotencyConflictingDescendants() = runBlocking {
-        val cases = listOf("uncertain", "legacy", "acknowledged", "idempotency")
-        for (kind in cases) {
+    @Test fun aDescendantWhoseEffectIsUnknownTurnsTheGroupUncertainAndAConsumedOneProtectsIt() = runBlocking {
+        val cases = mapOf(
+            "uncertain" to ConflictResolver.Kind.UNCERTAIN,
+            "legacy" to ConflictResolver.Kind.UNCERTAIN,
+            "idempotency" to ConflictResolver.Kind.UNCERTAIN,
+            "answered" to ConflictResolver.Kind.REFUSED,
+            "acknowledged" to null,
+        )
+        for ((kind, expected) in cases) {
             val db = openDatabase()
             val root = "root-$kind"
             add(db, root)
@@ -81,10 +87,31 @@ class ConflictResolverTest : DatabaseTest() {
                 wire = if (kind == "legacy") null else "frozen",
                 status = if (kind == "acknowledged") "ACKNOWLEDGED" else "REJECTED",
                 error = if (kind == "idempotency") "idempotency_conflict" else "precondition_failed")
-            assertNull(kind, resolver(db).preview(root))
+            assertEquals(kind, expected, resolver(db).preview(root)?.kind)
             assertTrue(db.resolutions().all().isEmpty())
             db.close()
         }
+    }
+
+    @Test fun aReviveTheDeviceHeldIsDiscardableWhenUnsentAndUncertainWhenItsAnswerWasLost() = runBlocking {
+        val db = openDatabase()
+        add(db, "held-unsent", status = "BLOCKED", attempts = 0, error = "revive_redirected")
+        add(db, "after-held", "held-unsent")
+        add(db, "held-in-flight", status = "BLOCKED", attempts = 1, answered = 0, error = "revive_redirected")
+        add(db, "blocked-by-a-dependency", status = "BLOCKED", attempts = 0, error = "dependency_not_applied")
+
+        val groups = resolver(db).observe().first()
+        assertEquals(listOf("held-unsent", "held-in-flight"), groups.map { it.rootId })
+        assertEquals(listOf("held-unsent", "after-held"), groups[0].commandIds)
+        assertEquals(ConflictResolver.Kind.REFUSED, groups[0].kind)
+        assertEquals(ConflictResolver.Kind.UNCERTAIN, groups[1].kind)
+        assertNull("only a hold of the device itself is a root", resolver(db).preview("blocked-by-a-dependency"))
+
+        assertTrue(resolver(db).discard(groups[1]) is ConflictResolver.Result.Discarded)
+        assertFalse("its lost answer no longer holds the snapshot", "held-in-flight" in db.commands().unresolvedAttemptIds())
+        val second = ConflictResolver(db, IdGenerator { "decision-2" }, Clock { 124L })
+        assertTrue(second.discard(second.preview("held-unsent")!!) is ConflictResolver.Result.Discarded)
+        assertEquals(listOf("blocked-by-a-dependency"), db.commands().inOrder().map { it.id })
     }
 
     @Test fun anIdempotencyConflictRootIsUncertainAndTakesEveryDependentWhileReleasingTheSnapshotHold() = runBlocking {

@@ -2,6 +2,7 @@ package net.ts.taild80ca0.atlas.twa.sync
 
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.first
 import net.ts.taild80ca0.atlas.twa.data.db.CommandReceiptEntity
 import net.ts.taild80ca0.atlas.twa.data.list.CommandStatus
 import net.ts.taild80ca0.atlas.twa.data.list.IntentResult
@@ -267,6 +268,40 @@ class SyncCycleTest {
 
         assertTrue(a.cycle.run().outcome is SyncOutcome.Synced)
         assertEquals("never resent in a loop", 2, server.received.size)
+    }
+
+    @Test
+    fun aMarkHeldByARedirectedReviveIsOfferedForDiscardAndTheQueueThenEmpties() = runBlocking<Unit> {
+        val a = device()
+        val purchase = "9a1d0000-0000-4000-8000-0000000000e1"
+        val elsewhere = "9a1d0000-0000-4000-8000-0000000000e2"
+        server.addElsewhere(purchase, "Leite")
+        server.markElsewhere(purchase, purchased = true)
+        assertTrue(a.cycle.run().outcome is SyncOutcome.Synced)
+        server.addElsewhere(elsewhere, "Leite") // another phone added a new pending "Leite" meanwhile
+
+        a.store.execute(ListIntent.AddText("Leite")) // revives the purchase this phone saw
+        a.mark("Leite", ItemStatus.PURCHASED)
+        val report = a.cycle.run()
+
+        assertTrue("$report", report.outcome is SyncOutcome.Synced)
+        assertEquals(1, report.needsAttention)
+        // The consumed revive stays until nothing unprepared depends on it; the mark is the one held.
+        val held = a.db.commands().inOrder().single { it.status != CommandStatus.ACKNOWLEDGED.name }
+        assertEquals(ReceiptApplier.REVIVE_REDIRECTED, held.lastErrorCode)
+        val resolver = net.ts.taild80ca0.atlas.twa.data.list.ConflictResolver(
+            a.db, net.ts.taild80ca0.atlas.twa.data.list.IdGenerator { "decision" }, net.ts.taild80ca0.atlas.twa.data.list.Clock { 0L },
+        )
+        val group = resolver.observe().first().single()
+        assertEquals(held.id, group.rootId)
+        assertEquals(net.ts.taild80ca0.atlas.twa.data.list.ConflictResolver.Kind.REFUSED, group.kind)
+        assertTrue(resolver.discard(group) is net.ts.taild80ca0.atlas.twa.data.list.ConflictResolver.Result.Discarded)
+
+        val sent = server.received.size
+        assertTrue(a.cycle.run().outcome is SyncOutcome.Synced)
+        assertEquals("the held mark was never sent", sent, server.received.size)
+        assertEquals(0, a.db.commands().count())
+        assertEquals("the server's two items, untouched", listOf("Leite" to true, "Leite" to false).sortedBy { it.second }, a.names().sortedBy { it.second })
     }
 
     @Test
