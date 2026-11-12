@@ -3,7 +3,6 @@ package net.ts.taild80ca0.atlas.twa.ui
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
@@ -16,17 +15,15 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import net.ts.taild80ca0.atlas.twa.data.list.AddOutcome
 import net.ts.taild80ca0.atlas.twa.data.list.ItemStatus
-import net.ts.taild80ca0.atlas.twa.data.list.ListItem
 import net.ts.taild80ca0.atlas.twa.data.matching.DuplicateHint
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
@@ -37,7 +34,6 @@ import net.ts.taild80ca0.atlas.twa.online.AddedItem
 import net.ts.taild80ca0.atlas.twa.online.OnlineMessages
 import net.ts.taild80ca0.atlas.twa.online.OnlineRepository
 import net.ts.taild80ca0.atlas.twa.online.OnlineState
-import net.ts.taild80ca0.atlas.twa.online.SetItemState
 import net.ts.taild80ca0.atlas.twa.online.addedItems
 import net.ts.taild80ca0.atlas.twa.online.liveItems
 import net.ts.taild80ca0.atlas.twa.sync.ForegroundInvalidation
@@ -59,15 +55,21 @@ fun ShoppingScreens(
     var draft by rememberSaveable { mutableStateOf("") }
     var feedback by remember { mutableStateOf<String?>(null) }
     var saving by remember { mutableStateOf(false) }
-    var menuOpen by remember { mutableStateOf(false) }
+    var toast by remember { mutableStateOf<ToastMessage?>(null) }
     var recent by remember { mutableStateOf<List<AddedItem>>(emptyList()) }
-    val busyItems = remember { mutableStateListOf<String>() }
     val scope = rememberCoroutineScope()
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
 
     LaunchedEffect(screen) {
         if (screen == "list") keyboard?.hide()
+    }
+    // The undo toast is the device's own: it lives here, never in the snapshot, and fades after ~5 s.
+    LaunchedEffect(toast) {
+        if (toast != null) {
+            delay(UNDO_TOAST_MILLIS)
+            toast = null
+        }
     }
     // Opening or resuming the app reads the list again; the live signal exists only while this screen is resumed.
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -111,62 +113,55 @@ fun ShoppingScreens(
         }
     }
 
-    fun mark(item: ListItem) {
-        if (item.publicId in busyItems || ready == null) return
-        busyItems += item.publicId
-        scope.launch {
-            try {
-                val desired = if (item.status == ItemStatus.PURCHASED) ItemStatus.PENDING else ItemStatus.PURCHASED
-                val result = repository.execute(SetItemState(item.publicId, desired))
-                if (result !is ActionResult.Success) feedback = OnlineMessages.failure(result)
-            } finally { busyItems -= item.publicId }
+    val pending = items.count { it.status == ItemStatus.PENDING }
+    val menu: @Composable () -> Unit = { HouseMenu(accessActions) }
+    // The connection and feedback lines that sit under the header of either screen.
+    val notices: @Composable (Dp) -> Unit = { gutter ->
+        // The latest reload failed but a list is on screen: say it may be out of date, and offer to read again.
+        ready?.problem?.let { problem ->
+            Row(Modifier.fillMaxWidth().padding(horizontal = gutter, vertical = 4.dp)) {
+                Text(problem.message, style = AlvaTheme.type.caption, color = AlvaTheme.colors.warn, modifier = Modifier.weight(1f)
+                    .testTag("connection-notice").semantics { liveRegion = LiveRegionMode.Polite })
+                TextButton(onClick = { scope.launch { repository.refresh() } }, modifier = Modifier.testTag("reload")) { Text("Atualizar") }
+            }
+        }
+        feedback?.let {
+            Text(it, maxLines = 3, modifier = Modifier.padding(horizontal = gutter).testTag("feedback").semantics { liveRegion = LiveRegionMode.Polite })
         }
     }
-
-    val pending = items.count { it.status == ItemStatus.PENDING }
-    Scaffold(
-        modifier = modifier.imePadding(),
-        bottomBar = {
-            NavigationBar(containerColor = AlvaTheme.colors.canvas) {
-                NavigationBarItem(selected = screen == "add", onClick = { screen = "add" }, colors = alvaNavigationItemColors(),
-                    icon = { Text("+") }, label = { Text("Adicionar", style = AlvaTheme.type.navigation) }, modifier = Modifier.testTag("nav-add"))
-                NavigationBarItem(selected = screen == "list", onClick = { screen = "list" }, colors = alvaNavigationItemColors(),
-                    icon = { Text("☷") }, label = { Text("Lista ($pending)", style = AlvaTheme.type.navigation) }, modifier = Modifier.testTag("nav-list"))
-            }
-        },
-    ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp).testTag("shopping-home")) {
-            Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(if (screen == "add") "Alva" else "Lista de compras", style = AlvaTheme.type.pageTitle,
-                    modifier = Modifier.weight(1f))
-                if (accessActions != null) Box {
-                    TextButton(onClick = { menuOpen = true }, modifier = Modifier.testTag("house-menu")
-                        .semantics { contentDescription = "Menu da casa" }) { Text("⋯") }
-                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        Column(Modifier.widthIn(max = 280.dp).padding(12.dp)) { accessActions() }
+    Box(modifier.fillMaxSize()) {
+        Scaffold(
+            modifier = Modifier.imePadding(),
+            bottomBar = {
+                BottomNavigation(
+                    current = if (screen == "list") AppScreen.List else AppScreen.Add, pending = pending,
+                    onSelect = { screen = it.tag },
+                )
+            },
+        ) { padding ->
+            Column(Modifier.fillMaxSize().padding(padding).testTag("shopping-home")) {
+                when {
+                    state is OnlineState.Failed -> Column(Modifier.padding(horizontal = 20.dp, vertical = 20.dp)) {
+                        BrandHeader(trailing = menu)
+                        Text((state as OnlineState.Failed).problem.message, modifier = Modifier.testTag("load-failed")
+                            .padding(vertical = 8.dp))
+                        Button(onClick = { scope.launch { repository.refresh() } }, modifier = Modifier.testTag("reload")) { Text("Tentar de novo") }
                     }
-                }
-            }
-            Text("Nossa casa", style = AlvaTheme.type.caption, color = AlvaTheme.colors.inkFaint)
-            // The latest reload failed but a list is on screen: say it may be out of date, and offer to read again.
-            ready?.problem?.let { problem ->
-                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                    Text(problem.message, style = AlvaTheme.type.caption, color = AlvaTheme.colors.warn, modifier = Modifier.weight(1f)
-                        .testTag("connection-notice").semantics { liveRegion = LiveRegionMode.Polite })
-                    TextButton(onClick = { scope.launch { repository.refresh() } }, modifier = Modifier.testTag("reload")) { Text("Atualizar") }
-                }
-            }
-            feedback?.let {
-                Text(it, maxLines = 3, modifier = Modifier.testTag("feedback").semantics { liveRegion = LiveRegionMode.Polite })
-            }
-            when {
-                state is OnlineState.Failed -> {
-                    Text((state as OnlineState.Failed).problem.message, modifier = Modifier.testTag("load-failed")
-                        .padding(vertical = 8.dp))
-                    Button(onClick = { scope.launch { repository.refresh() } }, modifier = Modifier.testTag("reload")) { Text("Tentar de novo") }
-                }
-                ready == null -> Text("Abrindo sua lista…", modifier = Modifier.testTag("loading"))
-                screen == "add" -> {
+                    ready == null -> Column(Modifier.padding(horizontal = 20.dp, vertical = 20.dp)) {
+                        BrandHeader(trailing = menu)
+                        Text("Abrindo sua lista…", modifier = Modifier.padding(top = 16.dp).testTag("loading"))
+                    }
+                    screen == "list" -> ListScreen(
+                        repository = repository, snapshot = ready.snapshot,
+                        onAddItems = { screen = "add" },
+                        onFailure = { feedback = it },
+                        showToast = { toast = it },
+                        notice = { notices(20.dp) },
+                        headerActions = { menu() },
+                    )
+                    else -> Column(Modifier.fillMaxSize().padding(horizontal = 20.dp).padding(top = 20.dp)) {
+                        BrandHeader(markSize = 28.dp, gap = 9.6.dp, trailing = menu)
+                        notices(0.dp)
                     val categories = ready.snapshot.categories
                     LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(vertical = 16.dp)) {
                         if (recent.isNotEmpty()) {
@@ -201,48 +196,33 @@ fun ShoppingScreens(
                         Text(if (saving) "Adicionando…" else "Adicionar à lista")
                     }
                 }
-                else -> {
-                    Text("Pendentes: $pending · Comprados: ${items.size - pending}", style = AlvaTheme.type.summary, color = AlvaTheme.colors.inkSoft, modifier = Modifier.testTag("list-summary"))
-                    LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(vertical = 12.dp)) {
-                        if (items.isEmpty()) item { Text("Sua lista está vazia. Adicione o que acabou em casa.") }
-                        val known = ready.snapshot.categories.sortedBy { it.position }
-                        val unknown = items.filter { item -> known.none { it.publicId == item.categoryPublicId } }
-                        val groups = known.map { category ->
-                            category.name to (items.filter { it.categoryPublicId == category.publicId } +
-                                if (category.name == "Outros") unknown else emptyList())
-                        } + if (known.none { it.name == "Outros" }) listOf("Outros" to unknown) else emptyList()
-                        groups.filter { it.second.isNotEmpty() }.forEach { (category, rows) ->
-                            item {
-                                val bought = rows.count { it.status == ItemStatus.PURCHASED }
-                                Row(Modifier.padding(top = 16.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    CategoryIcon(category)
-                                    Text(category, style = AlvaTheme.type.sectionLabel, color = AlvaTheme.colors.inkSoft,
-                                        modifier = Modifier.padding(start = 8.dp).weight(1f))
-                                    if (bought > 0) Text("$bought/${rows.size}", style = AlvaTheme.type.caption, color = AlvaTheme.colors.inkFaint)
-                                }
-                            }
-                            items(rows, key = { it.publicId }) { item ->
-                                Row(
-                                    Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag("item-${item.publicId}")
-                                        .toggleable(value = item.status == ItemStatus.PURCHASED,
-                                            enabled = item.publicId !in busyItems, role = Role.Checkbox, onValueChange = { mark(item) })
-                                        .then(if (item === rows.first()) Modifier else Modifier.rowDivider(AlvaTheme.colors.line))
-                                        .padding(vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    val bought = item.status == ItemStatus.PURCHASED
-                                    AlvaCheck(checked = bought)
-                                    Column(Modifier.padding(start = 12.dp).weight(1f)) {
-                                        Text(item.name, style = AlvaTheme.type.row,
-                                            color = if (bought) AlvaTheme.colors.inkFaint else AlvaTheme.colors.ink,
-                                            textDecoration = if (bought) TextDecoration.LineThrough else null)
-                                    }
-                                }
-                            }
-                        }
-                    }
                 }
             }
+        }
+        // `#toast`: above the bottom navigation, centered, only on the device that acted.
+        toast?.let { current ->
+            Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 76.dp),
+                contentAlignment = Alignment.Center) {
+                UndoToast(current.text, current.actionLabel, onAction = {
+                    toast = null
+                    scope.launch { current.onAction() }
+                })
+            }
+        }
+    }
+}
+
+/**
+ * The ⋯ button of the PWA headers. The menu itself (theme, color, PDF, sair) is #109; until then it only hosts the
+ * house connection actions the access screen provides.
+ */
+@Composable
+private fun HouseMenu(actions: (@Composable () -> Unit)?) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        MoreButton(onClick = { open = true }, modifier = Modifier.testTag("house-menu"))
+        if (actions != null) DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            Column(Modifier.widthIn(max = 280.dp).padding(12.dp)) { actions() }
         }
     }
 }

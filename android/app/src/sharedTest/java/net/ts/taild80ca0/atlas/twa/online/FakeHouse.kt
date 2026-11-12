@@ -20,7 +20,10 @@ import org.json.JSONObject
  * `duplicate`, never applied twice), and it fails on demand. Nothing here is the production code under test.
  */
 class FakeHouse : SnapshotTransport, CommandTransport {
-    class Row(val id: String, var name: String, var status: String, var lock: Int, var purchasedAt: String? = null)
+    class Row(
+        val id: String, var name: String, var status: String, var lock: Int, var purchasedAt: String? = null,
+        var category: String? = SnapshotFixtures.DAIRY,
+    )
 
     /** What the next request does instead of working. One step per request, in order. */
     sealed interface Step {
@@ -35,6 +38,9 @@ class FakeHouse : SnapshotTransport, CommandTransport {
     }
 
     val rows = ArrayList<Row>()
+
+    /** The categories the snapshot carries; null is the fixture's default (Laticínios and Outros). */
+    var categories: List<JSONObject>? = null
     var revision = 840L
     private val ledger = HashMap<String, CommandReceipt>()
 
@@ -47,8 +53,10 @@ class FakeHouse : SnapshotTransport, CommandTransport {
     val commandSteps = ArrayDeque<Step>()
     val snapshotSteps = ArrayDeque<Step>()
 
-    fun seed(name: String, status: String = "pending", lock: Int = 0, id: String = java.util.UUID.randomUUID().toString()): Row =
-        Row(id, name, status, lock, if (status == "purchased") "2026-11-10T12:00:00.000000Z" else null).also { rows += it }
+    fun seed(
+        name: String, status: String = "pending", lock: Int = 0, id: String = java.util.UUID.randomUUID().toString(),
+        category: String? = SnapshotFixtures.DAIRY,
+    ): Row = Row(id, name, status, lock, if (status == "purchased") "2026-11-10T12:00:00.000000Z" else null, category).also { rows += it }
 
     fun named(name: String) = rows.filter { it.name == name }
 
@@ -66,11 +74,11 @@ class FakeHouse : SnapshotTransport, CommandTransport {
         }
         val items = rows.map { row ->
             SnapshotFixtures.item(
-                row.id, row.name, status = row.status, lockVersion = row.lock, purchasedAt = row.purchasedAt,
+                row.id, row.name, status = row.status, category = row.category, lockVersion = row.lock, purchasedAt = row.purchasedAt,
                 normalizedName = row.name.lowercase(),
             )
         }
-        val parsed = SnapshotParser.parse(SnapshotFixtures.bytes(SnapshotFixtures.snapshot(revision = revision, items = items)))
+        val parsed = SnapshotParser.parse(SnapshotFixtures.bytes(SnapshotFixtures.snapshot(revision = revision, items = items, categories = categories)))
         return SnapshotOutcome.Received((parsed as SnapshotParse.Valid).snapshot)
     }
 
