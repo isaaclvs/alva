@@ -21,6 +21,8 @@ import net.ts.taild80ca0.atlas.twa.sync.CableSocket
 import net.ts.taild80ca0.atlas.twa.sync.CommandOutcome
 import net.ts.taild80ca0.atlas.twa.sync.CommandTransport
 import net.ts.taild80ca0.atlas.twa.sync.ForegroundInvalidation
+import net.ts.taild80ca0.atlas.twa.sync.SnapshotFixtures
+import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Rule
@@ -110,11 +112,11 @@ class ShoppingScreensTest {
         capture("shopping-add.png")
 
         compose.onNodeWithTag("nav-list").performClick()
-        waitForText("list-summary", "Pendentes: 3 · Comprados: 0")
+        waitForText("list-summary", "3 pendentes")
         val id = house.named("Leite").single().id
         compose.onNodeWithTag("item-$id").performClick()
         assertMarked(id, true)
-        waitForText("list-summary", "Pendentes: 2 · Comprados: 1")
+        waitForText("list-summary", "2 pendentes · 1 comprado")
         assertEquals("purchased", house.named("Leite").single().status)
         capture("shopping-list.png")
 
@@ -128,7 +130,7 @@ class ShoppingScreensTest {
         house.seed("Pão", status = "purchased")
         launch()
         compose.onNodeWithTag("nav-list").performClick()
-        waitForText("list-summary", "Pendentes: 1 · Comprados: 1")
+        waitForText("list-summary", "1 pendente · 1 comprado")
         compose.onNodeWithText("Laticínios", substring = true).assertIsDisplayed()
         compose.onNodeWithTag("item-${house.named("Pão").single().id}").assertIsOn()
         assertEquals("the list was read from the server, not from a copy", 1, house.fetches)
@@ -176,10 +178,11 @@ class ShoppingScreensTest {
         val leite = house.seed("Leite")
         launch()
         compose.onNodeWithTag("nav-list").performClick()
-        waitForText("list-summary", "Pendentes: 1")
+        waitForText("list-summary", "1 pendente")
         house.commandSteps += listOf(Step.NetworkDown, Step.NetworkDown, Step.NetworkDown)
         compose.onNodeWithTag("item-${leite.id}").performClick()
         waitForText("feedback", "Sem conexão com o servidor")
+        compose.onNodeWithTag("toast-undo").assertDoesNotExist()
         assertMarked(leite.id, false)
         assertEquals("pending", leite.status)
     }
@@ -192,32 +195,32 @@ class ShoppingScreensTest {
         compose.onNodeWithTag("reload").performClick()
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("nav-list").performClick()
-        waitForText("list-summary", "Pendentes: 1")
+        waitForText("list-summary", "1 pendente")
     }
 
     @Test fun aFailedReloadKeepsTheListAndFlagsItAsPossiblyOutOfDate() {
         house.seed("Leite")
         launch()
         compose.onNodeWithTag("nav-list").performClick()
-        waitForText("list-summary", "Pendentes: 1")
+        waitForText("list-summary", "1 pendente")
         house.snapshotSteps += Step.NetworkDown
         scenario!!.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
         scenario!!.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
         waitForText("connection-notice", "Sem conexão com o servidor")
-        waitForText("list-summary", "Pendentes: 1")
+        waitForText("list-summary", "1 pendente")
         compose.onNodeWithTag("reload").performClick()
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("connection-notice").fetchSemanticsNodes().isEmpty() }
-        waitForText("list-summary", "Pendentes: 1")
+        waitForText("list-summary", "1 pendente")
     }
 
     @Test fun resumingTheAppReadsTheListAgain() {
         launch()
         compose.onNodeWithTag("nav-list").performClick()
-        waitForText("list-summary", "Pendentes: 0")
+        waitForText("list-summary", "Nada na lista")
         scenario!!.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
         house.seed("Leite") // another phone added it while this app was in the background
         scenario!!.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
-        waitForText("list-summary", "Pendentes: 1")
+        waitForText("list-summary", "1 pendente")
     }
 
     @Test fun theLiveSignalReadsTheListAgain() {
@@ -230,11 +233,11 @@ class ShoppingScreensTest {
         })
         val receive = connections.poll(10, java.util.concurrent.TimeUnit.SECONDS)!!
         compose.onNodeWithTag("nav-list").performClick()
-        waitForText("list-summary", "Pendentes: 0")
+        waitForText("list-summary", "Nada na lista")
         receive(CableEvent.Subscribed)
         house.seed("Leite") // the other phone adds
         receive(CableEvent.Invalidated(900, 0))
-        waitForText("list-summary", "Pendentes: 1")
+        waitForText("list-summary", "1 pendente")
     }
 
     @Test fun liveSubscriptionClosesWhenPausedAndReopensOnResume() {
@@ -308,5 +311,144 @@ class ShoppingScreensTest {
         }
         compose.onNodeWithText("Aguardando", substring = true).assertDoesNotExist()
         compose.onNodeWithText("sem internet", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("Pronto para adicionar", substring = true).assertDoesNotExist()
+    }
+
+    // ---- Lista (#98) -------------------------------------------------------------------------------------
+
+    private val fruit = "c0000000-0000-4000-8000-000000000003"
+
+    private fun seedCategories() {
+        house.categories = listOf(
+            SnapshotFixtures.category(SnapshotFixtures.OTHERS, "Outros", 99),
+            SnapshotFixtures.category(SnapshotFixtures.DAIRY, "Laticínios", 2),
+            SnapshotFixtures.category(fruit, "Hortifruti", 1),
+        )
+    }
+
+    private fun top(tag: String) = compose.onNodeWithTag(tag).getBoundsInRoot().top
+
+    private fun openList() {
+        launch()
+        // The list is read before the first tap, so the tap is never lost to the screen still loading.
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
+        // The semantics action, not a tap at the pill's coordinates: the keyboard of the Add screen is still
+        // sliding in and moves the bar under a tap.
+        compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("list-summary").fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    private fun commandTypes() = house.sent.map { JSONObject(it.second).getString("type") }
+
+    @Test fun theListShowsSectionsInCategoryOrderWithXOfYCountsAndThePendingCounter() {
+        seedCategories()
+        val queijo = house.seed("Queijo")
+        val leite = house.seed("Leite", status = "purchased")
+        house.seed("Maçã", status = "purchased", category = fruit)
+        house.seed("Sabão", category = SnapshotFixtures.OTHERS)
+        house.seed("Antigo", category = null)
+        openList()
+        waitForText("list-summary", "3 pendentes · 2 comprados")
+
+        assertTrue("pending first inside a section", top("item-${queijo.id}") < top("item-${leite.id}"))
+        compose.onNodeWithTag("category-count-Hortifruti").assertTextEquals("1/1")
+        compose.onNodeWithTag("category-count-Laticínios").assertTextEquals("1/2")
+        assertTrue("no count until something is bought", compose.onAllNodesWithTag("category-count-Outros").fetchSemanticsNodes().isEmpty())
+        compose.onNodeWithTag("list-counter", useUnmergedTree = true).assertContentDescriptionEquals("3 pendentes")
+        compose.onNodeWithTag("nav-add").assertIsNotSelected()
+        compose.onNodeWithTag("nav-list").assertIsSelected()
+        compose.onNodeWithText("Alva").assertIsDisplayed()
+        compose.onNodeWithText("Nossa casa").assertIsDisplayed()
+        compose.onNodeWithText("Lista de compras").assertIsDisplayed()
+        // LazyColumn does not compose every section on a small viewport. Section ordering is
+        // covered by ListGroupsTest; here verify that every heading can actually be reached.
+        val list = compose.onNode(hasScrollToNodeAction())
+        listOf("Hortifruti", "Laticínios", "Outros", "Sem categoria").forEach { label ->
+            list.performScrollToNode(hasTestTag("category-$label"))
+            compose.onNodeWithTag("category-$label").assertIsDisplayed()
+        }
+    }
+
+    @Test fun anEmptyListSaysSoAndInvitesToAdd() {
+        openList()
+        waitForText("list-summary", "Nada na lista")
+        compose.onNodeWithText("Nada na lista por enquanto.").assertIsDisplayed()
+        compose.onNodeWithTag("empty-add").performClick()
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    @Test fun markingShowsTheUndoToastAndUndoPutsTheItemBackOnTheServer() {
+        val leite = house.seed("Leite")
+        openList()
+        compose.onNodeWithTag("item-${leite.id}").performClick()
+        assertMarked(leite.id, true)
+        waitForText("toast-message", "Leite marcado")
+        compose.onNodeWithTag("toast-undo").assertTextEquals("Desfazer")
+
+        compose.onNodeWithTag("toast-undo").performClick()
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("toast-undo").fetchSemanticsNodes().isEmpty() }
+        assertMarked(leite.id, false)
+        assertEquals("pending", leite.status)
+        assertEquals(listOf("set_item_state", "undo_item_state"), commandTypes())
+        waitForText("list-summary", "1 pendente")
+    }
+
+    @Test fun unmarkingAnItemCanBeUndoneToTheOriginalPurchase() {
+        val leite = house.seed("Leite", status = "purchased")
+        val bought = leite.purchasedAt
+        openList()
+        compose.onNodeWithTag("item-${leite.id}").performClick()
+        assertMarked(leite.id, false)
+        waitForText("toast-message", "Leite desmarcado")
+
+        compose.onNodeWithTag("toast-undo").performClick()
+        assertMarked(leite.id, true)
+        assertEquals("purchased", leite.status)
+        assertEquals(bought, leite.purchasedAt)
+    }
+
+    @Test fun theUndoToastGoesAwayByItselfAfterAboutFiveSeconds() {
+        val leite = house.seed("Leite")
+        openList()
+        compose.onNodeWithTag("item-${leite.id}").performClick()
+        waitForText("toast-message", "Leite marcado")
+        compose.waitUntil(UNDO_TOAST_MILLIS + 4_000) { compose.onAllNodesWithTag("toast-undo").fetchSemanticsNodes().isEmpty() }
+        assertEquals("marked", "purchased", leite.status)
+    }
+
+    @Test fun aMarkMadeOnAnotherPhoneShowsNoToastHere() {
+        val leite = house.seed("Leite")
+        openList()
+        waitForText("list-summary", "1 pendente")
+        leite.status = "purchased"; leite.lock++ // the other phone marked it
+        scenario!!.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
+        scenario!!.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
+        assertMarked(leite.id, true)
+        compose.onNodeWithTag("toast-undo").assertDoesNotExist()
+    }
+
+    @Test fun anUndoRefusedBecauseTheItemChangedElsewhereSaysSoAndKeepsTheServersState() {
+        val leite = house.seed("Leite")
+        openList()
+        compose.onNodeWithTag("item-${leite.id}").performClick()
+        waitForText("toast-message", "Leite marcado")
+        leite.lock += 2 // the other phone unmarked and marked it again before this one undid
+
+        compose.onNodeWithTag("toast-undo").performClick()
+
+        waitForText("feedback", "A lista mudou em outro aparelho")
+        assertEquals("the other phone's state stands", "purchased", leite.status)
+    }
+
+    @Test fun theBottomNavigationHasPlusAndListPillsAndSwitchesScreens() {
+        launchLoaded()
+        compose.onNodeWithTag("nav-add").assertIsSelected()
+        compose.onNodeWithText("Adicionar").assertIsDisplayed()
+        compose.onNodeWithText("Lista").assertIsDisplayed()
+        compose.onNodeWithTag("list-counter", useUnmergedTree = true).assertContentDescriptionEquals("0 pendentes")
+        compose.onNodeWithTag("nav-list").performClick()
+        compose.onNodeWithTag("nav-list").assertIsSelected()
+        compose.onNodeWithTag("nav-add").performClick()
+        compose.onNodeWithTag("nav-add").assertIsSelected()
     }
 }

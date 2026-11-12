@@ -40,6 +40,9 @@ object SnapshotFixtures {
         .put("lock_version", lockVersion)
         .apply { if (trip != null) put("shopping_trip_public_id", trip) }
 
+    fun category(publicId: String, name: String, position: Int): JSONObject =
+        JSONObject().put("public_id", publicId).put("name", name).put("position", position)
+
     fun trip(publicId: String = TRIP, finishedAt: String = "2026-11-09T18:00:00.000001Z", createdAt: String = finishedAt): JSONObject =
         JSONObject().put("public_id", publicId).put("finished_at", finishedAt).put("created_at", createdAt)
 
@@ -58,6 +61,8 @@ object SnapshotFixtures {
         trips: List<JSONObject> = emptyList(),
         habituals: List<JSONObject> = emptyList(),
         tombstones: List<JSONObject> = emptyList(),
+        /** The categories of the house; the default is Laticínios and Outros. */
+        categories: List<JSONObject>? = null,
     ): JSONObject = JSONObject()
         .put("schema_version", 1)
         .put("revision", revision)
@@ -65,9 +70,9 @@ object SnapshotFixtures {
         .put("household", JSONObject().put("public_id", house).put("name", "Casa"))
         .put(
             "categories",
-            JSONArray()
-                .put(JSONObject().put("public_id", DAIRY).put("name", "Laticínios").put("position", 1))
-                .put(JSONObject().put("public_id", OTHERS).put("name", "Outros").put("position", 99)),
+            JSONArray(
+                categories ?: listOf(category(DAIRY, "Laticínios", 1), category(OTHERS, "Outros", 99)),
+            ),
         )
         .put(
             "catalog_items",

@@ -228,6 +228,56 @@ class OnlineRepositoryTest {
         assertEquals("the screen now shows what the server holds", 1, ready().snapshot.listItems.single().status)
     }
 
+    @Test fun undoingAMarkRestoresWhatWasSeenBeforeAndNamesTheVersionTheMarkLeft() = runBlocking {
+        val leite = house.seed("Leite", lock = 2)
+        repository.refresh()
+        val before = ready().snapshot.listItems.single()
+        val mark = repository.execute(SetItemState(leite.id, ItemStatus.PURCHASED)) as ActionResult.Success
+        val marked = mark.receipt.markedItem()!!
+        assertEquals(MarkedItem(leite.id, 3), marked)
+
+        val result = repository.execute(UndoItemState(marked.publicId, ItemStatus.PENDING, before.purchasedAtMicros, marked.lockVersion))
+
+        assertTrue("$result", result is ActionResult.Success)
+        val document = JSONObject(house.sent.last().second)
+        assertEquals("undo_item_state", document.getString("type"))
+        assertEquals(3, document.getJSONObject("preconditions").getInt("lock_version"))
+        assertEquals("pending", document.getJSONObject("payload").getString("status"))
+        assertTrue(document.getJSONObject("payload").isNull("purchased_at"))
+        assertEquals(0, ready().snapshot.listItems.single().status)
+    }
+
+    @Test fun undoingAnUnmarkBringsBackTheOriginalPurchaseInstant() = runBlocking {
+        val leite = house.seed("Leite", status = "purchased", lock = 1)
+        repository.refresh()
+        val before = ready().snapshot.listItems.single()
+        val mark = repository.execute(SetItemState(leite.id, ItemStatus.PENDING)) as ActionResult.Success
+
+        repository.execute(UndoItemState(leite.id, ItemStatus.PURCHASED, before.purchasedAtMicros, mark.receipt.markedItem()!!.lockVersion))
+
+        assertEquals("2026-11-10T12:00:00.000000Z", JSONObject(house.sent.last().second).getJSONObject("payload").getString("purchased_at"))
+        assertEquals("purchased", house.named("Leite").single().status)
+    }
+
+    @Test fun anUndoAfterAnotherPhoneTouchedTheItemIsRefusedAndNothingIsOverwritten() = runBlocking {
+        val leite = house.seed("Leite")
+        repository.refresh()
+        val mark = repository.execute(SetItemState(leite.id, ItemStatus.PURCHASED)) as ActionResult.Success
+        leite.status = "pending"; leite.lock++ // the other phone unmarked, then someone else edited it further
+        leite.lock++
+
+        val result = repository.execute(UndoItemState(leite.id, ItemStatus.PENDING, null, mark.receipt.markedItem()!!.lockVersion))
+
+        assertEquals(ActionResult.Refused("precondition_failed"), result)
+        assertEquals(3, leite.lock)
+    }
+
+    @Test fun undoingAnItemThatLeftTheListSendsNothing() = runBlocking {
+        repository.refresh()
+        assertEquals(ActionResult.Invalid(InvalidAction.ITEM_NOT_FOUND), repository.execute(UndoItemState("nope", ItemStatus.PENDING, null, 1)))
+        assertTrue(house.sent.isEmpty())
+    }
+
     // ---- failures ------------------------------------------------------------------------------------------
 
     @Test fun aFailureToReachTheServerIsRetriedWithTheSameBodyAndSucceeds() = runBlocking {
