@@ -5,12 +5,14 @@ import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ActivityScenario
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.runBlocking
 import net.ts.taild80ca0.atlas.twa.MainActivity
 import net.ts.taild80ca0.atlas.twa.online.FakeHouse
 import net.ts.taild80ca0.atlas.twa.online.OnlineAccess
@@ -34,6 +36,7 @@ class MainActivityAccessTest {
     private val server = FakeAlvaServer()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var scenario: ActivityScenario<MainActivity>? = null
+    private lateinit var access: HouseAccess
 
     @Before
     fun freshProcess() = startProcess()
@@ -50,7 +53,7 @@ class MainActivityAccessTest {
     /** A new process: new objects over the same Keystore vault and database file. */
     private fun startProcess() {
         scenario?.close()
-        val access = HouseAccess(
+        access = HouseAccess(
             storage.newVault(),
             HttpHouseAccessApi(ServerEndpoint.parse(server.baseUrl), 3_000, 5_000),
             RoomHouseholdBinding(storage.openDatabase()),
@@ -72,12 +75,13 @@ class MainActivityAccessTest {
 
     private fun connectWith(password: String) {
         compose.onNodeWithTag("password").performTextInput(password)
-        compose.onNodeWithTag("connect").performClick()
+        // The keyboard opens with the field (autofocus) and can cover the button: scroll to it like a thumb would.
+        compose.onNodeWithTag("connect").performScrollTo().performClick()
     }
 
     @Test
     fun firstLaunchAsksForThePasswordOnceAndLaterLaunchesOpenDirectly() {
-        waitForText(AccessMessages.SETUP_TITLE)
+        waitForText(AccessMessages.TITLE)
         compose.onNodeWithTag("password").assertIsDisplayed()
 
         connectWith(server.password)
@@ -96,26 +100,25 @@ class MainActivityAccessTest {
 
     @Test
     fun aWrongPasswordShowsAHelpfulMessageAndKeepsAskingWithoutKeepingTheText() {
-        waitForText(AccessMessages.SETUP_TITLE)
+        waitForText(AccessMessages.TITLE)
 
         connectWith("errada")
 
-        waitForText("Senha incorreta. Confira e tente de novo.")
-        compose.onNodeWithText("Senha incorreta. Confira e tente de novo.").assertIsDisplayed()
+        waitForText("Senha incorreta. Tente novamente.")
+        compose.onNodeWithText("Senha incorreta. Tente novamente.").assertIsDisplayed()
         compose.onNodeWithTag("connect").assertIsDisplayed()
     }
 
     @Test
     fun aRevokedDeviceOffersToReconnectAndGoesBackToConnected() {
-        waitForText(AccessMessages.SETUP_TITLE)
+        waitForText(AccessMessages.TITLE)
         connectWith(server.password)
         waitForText("Nossa casa")
 
         server.revoke(server.devices.single().id)
         compose.onNodeWithTag("house-menu").performClick()
         compose.onNodeWithTag("check").performClick()
-        waitForText(AccessMessages.RECONNECT_TITLE)
-        compose.onNodeWithText(AccessMessages.RECONNECT_HELP).assertIsDisplayed()
+        waitForText(AccessMessages.TITLE)
 
         connectWith(server.password)
         waitForText("Nossa casa")
@@ -124,11 +127,29 @@ class MainActivityAccessTest {
 
     @Test
     fun noInternalDetailReachesTheScreenWhenTheServerIsDown() {
-        waitForText(AccessMessages.SETUP_TITLE)
+        waitForText(AccessMessages.TITLE)
         server.stop()
 
         connectWith(server.password)
 
         waitForText("Sem conexão com a casa. Confira a internet e tente de novo.")
+    }
+
+    @Test
+    fun signingOutGoesBackToTheEntryScreenAndStaysThereAfterReopening() {
+        waitForText(AccessMessages.TITLE)
+        connectWith(server.password)
+        waitForText("Nossa casa")
+
+        runBlocking { assertTrue(access.signOut()) }
+
+        waitForText(AccessMessages.TITLE)
+        compose.onNodeWithTag("password").assertIsDisplayed()
+        startProcess()
+        waitForText(AccessMessages.TITLE)
+        compose.onNodeWithTag("password").assertIsDisplayed()
+
+        connectWith(server.password)
+        waitForText("Nossa casa")
     }
 }

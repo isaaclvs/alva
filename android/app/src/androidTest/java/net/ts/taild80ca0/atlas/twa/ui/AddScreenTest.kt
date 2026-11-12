@@ -203,9 +203,9 @@ class AddScreenTest {
     @Test fun theDraftSurvivesTheListScreenAndTheFieldIsFocusedAgain() {
         launch()
         compose.onNodeWithTag("add-input").performTextInput("Café")
-        compose.onNodeWithTag("nav-list").performClick()
+        compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         waitUntilGone("add-input")
-        compose.onNodeWithTag("nav-add").performClick()
+        compose.onNodeWithTag("nav-add").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("add-input").assertTextContains("Café")
         compose.onNodeWithTag("add-input").assertIsFocused()

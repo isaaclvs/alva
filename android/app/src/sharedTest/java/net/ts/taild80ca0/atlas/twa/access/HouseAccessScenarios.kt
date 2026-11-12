@@ -84,6 +84,56 @@ abstract class HouseAccessScenarios {
         assertEquals(1, wakeups)
     }
 
+    // --- sign out ("Sair", called by the menu of #109) --------------------------------------
+
+    @Test
+    fun signingOutForgetsTheCredentialAndSendsTheDeviceBackToTheEntryScreen() = runBlocking {
+        var forgotten = 0
+        val access = HouseAccess(
+            vault, HttpHouseAccessApi(ServerEndpoint.parse(server.baseUrl), 3_000, 5_000), binding,
+            onSignedOut = { forgotten++ },
+        )
+        connected(access)
+        assertEquals(AccessState.Connected, access.state.value)
+
+        assertTrue(access.signOut())
+
+        // The entry screen is shown for every state but Connected; the secret is gone from the vault.
+        assertNotEquals(AccessState.Connected, access.state.value)
+        assertNoCredential("signing out keeps no secret")
+        assertNull(access.credentialForSync())
+        assertEquals(1, forgotten)
+        // Opening the app again (a new process) does not open the list.
+        assertNotEquals(AccessState.Connected, newAccess().refresh())
+    }
+
+    @Test
+    fun afterSigningOutThePasswordEntersAgainWithoutTheOldSecret() = runBlocking {
+        val access = newAccess()
+        val first = connected(access)
+        access.signOut()
+
+        assertTrue(access.connect(server.password) is ConnectResult.Connected)
+
+        assertEquals(AccessState.Connected, access.state.value)
+        assertEquals(2, server.pairingRequests().size)
+        assertFalse("the forgotten secret is not sent again", server.pairingRequests().last().body.contains(first.token))
+        assertNotEquals(first, (vault.read() as VaultRead.Found).access.active)
+    }
+
+    @Test
+    fun aSignOutThatCannotBeStoredKeepsTheDeviceConnected() = runBlocking {
+        val flaky = FlakyVault(vault)
+        val access = newAccess(usingVault = flaky)
+        connected(access)
+        flaky.failWrites = true
+
+        assertFalse(access.signOut())
+
+        assertEquals(AccessState.Connected, access.state.value)
+        assertNotNull(access.credentialForSync())
+    }
+
     // --- first setup -----------------------------------------------------------------------
 
     @Test

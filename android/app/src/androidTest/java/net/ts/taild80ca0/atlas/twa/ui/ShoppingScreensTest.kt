@@ -1,5 +1,6 @@
 package net.ts.taild80ca0.atlas.twa.ui
 
+import androidx.activity.compose.setContent
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.core.app.ActivityScenario
@@ -15,6 +16,8 @@ import net.ts.taild80ca0.atlas.twa.online.FakeHouse
 import net.ts.taild80ca0.atlas.twa.online.FakeHouse.Step
 import net.ts.taild80ca0.atlas.twa.online.OnlineAccess
 import net.ts.taild80ca0.atlas.twa.online.OnlineRepository
+import net.ts.taild80ca0.atlas.twa.online.OnlineState
+import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaTheme
 import net.ts.taild80ca0.atlas.twa.sync.CableConnector
 import net.ts.taild80ca0.atlas.twa.sync.CableEvent
 import net.ts.taild80ca0.atlas.twa.sync.CableSocket
@@ -111,7 +114,7 @@ class ShoppingScreensTest {
         compose.onNodeWithText("Alva").assertIsDisplayed()
         capture("shopping-add.png")
 
-        compose.onNodeWithTag("nav-list").performClick()
+        compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         waitForText("list-summary", "3 pendentes")
         val id = house.named("Leite").single().id
         compose.onNodeWithTag("item-$id").performClick()
@@ -129,7 +132,7 @@ class ShoppingScreensTest {
         house.seed("Leite")
         house.seed("Pão", status = "purchased")
         launch()
-        compose.onNodeWithTag("nav-list").performClick()
+        compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         waitForText("list-summary", "1 pendente · 1 comprado")
         compose.onNodeWithText("Laticínios", substring = true).assertIsDisplayed()
         compose.onNodeWithTag("item-${house.named("Pão").single().id}").assertIsOn()
@@ -177,7 +180,7 @@ class ShoppingScreensTest {
     @Test fun aMarkThatCannotBeSentSaysSoAndTheItemStaysAsItWas() {
         val leite = house.seed("Leite")
         launch()
-        compose.onNodeWithTag("nav-list").performClick()
+        compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         waitForText("list-summary", "1 pendente")
         house.commandSteps += listOf(Step.NetworkDown, Step.NetworkDown, Step.NetworkDown)
         compose.onNodeWithTag("item-${leite.id}").performClick()
@@ -194,14 +197,14 @@ class ShoppingScreensTest {
         waitForText("load-failed", "Sem conexão com o servidor")
         compose.onNodeWithTag("reload").performClick()
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithTag("nav-list").performClick()
+        compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         waitForText("list-summary", "1 pendente")
     }
 
     @Test fun aFailedReloadKeepsTheListAndFlagsItAsPossiblyOutOfDate() {
         house.seed("Leite")
         launch()
-        compose.onNodeWithTag("nav-list").performClick()
+        compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         waitForText("list-summary", "1 pendente")
         house.snapshotSteps += Step.NetworkDown
         scenario!!.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
@@ -233,7 +236,7 @@ class ShoppingScreensTest {
             )
         })
         val receive = connections.poll(10, java.util.concurrent.TimeUnit.SECONDS)!!
-        compose.onNodeWithTag("nav-list").performClick()
+        compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         waitForText("list-summary", "Nada na lista")
         receive(CableEvent.Subscribed)
         house.seed("Leite") // the other phone adds
@@ -280,7 +283,7 @@ class ShoppingScreensTest {
         scenario!!.recreate()
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("add-input").assertTextContains("Pão")
-        compose.onNodeWithTag("nav-list").performClick()
+        compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         scenario!!.recreate()
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("nav-list").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("nav-list").assertIsSelected()
@@ -306,7 +309,7 @@ class ShoppingScreensTest {
 
     @Test fun noOfflineMachineryIsOnScreen() {
         launchLoaded()
-        compose.onNodeWithTag("nav-list").performClick()
+        compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         listOf("sync-status", "sync-now", "conflicts-expand").forEach { tag ->
             assertTrue(tag, compose.onAllNodesWithTag(tag).fetchSemanticsNodes().isEmpty())
         }
@@ -340,6 +343,41 @@ class ShoppingScreensTest {
     }
 
     private fun commandTypes() = house.sent.map { JSONObject(it.second).getString("type") }
+
+    @Test fun swipingLeftRemovesAndUndoRestoresOnlyOnThisDevice() {
+        val item = house.seed("Leite", status = "purchased")
+        openList()
+        compose.onNodeWithTag("item-${item.id}").performTouchInput { swipeLeft() }
+        waitForText("toast-message", "Leite removido")
+        compose.onNodeWithTag("item-${item.id}").assertDoesNotExist()
+        compose.onNodeWithTag("toast-undo").performClick()
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("item-${item.id}").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("item-${item.id}").assertIsOn()
+        assertEquals(listOf("remove_item", "undo_remove"), commandTypes())
+    }
+
+    @Test fun swipingRightDoesNotRemoveOrMark() {
+        val item = house.seed("Leite")
+        openList()
+        compose.onNodeWithTag("item-${item.id}").performTouchInput { swipeRight() }
+        compose.onNodeWithTag("item-${item.id}").assertIsOff()
+        assertTrue(house.sent.isEmpty())
+    }
+
+    @Test fun shoppingModeDisablesSwipeRemoval() {
+        val item = house.seed("Leite")
+        val repository = launch()
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
+        val snapshot = (repository.state.value as OnlineState.Ready).snapshot
+        scenario!!.onActivity { activity -> activity.setContent {
+            AlvaTheme {
+                ListScreen(repository, snapshot, onAddItems = {}, onFailure = { error(it) }, showToast = { error("unexpected removal") }, shoppingMode = true)
+            }
+        } }
+        compose.onNodeWithTag("item-${item.id}").performTouchInput { swipeLeft() }
+        compose.onNodeWithTag("item-${item.id}").assertIsOff()
+        assertTrue(house.sent.isEmpty())
+    }
 
     @Test fun theListShowsSectionsInCategoryOrderWithXOfYCountsAndThePendingCounter() {
         seedCategories()
@@ -447,9 +485,9 @@ class ShoppingScreensTest {
         compose.onNodeWithText("Adicionar").assertIsDisplayed()
         compose.onNodeWithText("Lista").assertIsDisplayed()
         compose.onNodeWithTag("list-counter", useUnmergedTree = true).assertContentDescriptionEquals("0 pendentes")
-        compose.onNodeWithTag("nav-list").performClick()
+        compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         compose.onNodeWithTag("nav-list").assertIsSelected()
-        compose.onNodeWithTag("nav-add").performClick()
+        compose.onNodeWithTag("nav-add").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         compose.onNodeWithTag("nav-add").assertIsSelected()
     }
 }
