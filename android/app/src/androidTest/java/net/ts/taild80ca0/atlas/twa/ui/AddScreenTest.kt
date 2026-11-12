@@ -24,6 +24,10 @@ import org.json.JSONObject
 
 /** The Adicionar screen over the online repository, with a server in memory standing in for Rails. */
 class AddScreenTest {
+    @org.junit.Before fun resetDevicePreferences() = kotlinx.coroutines.runBlocking {
+        net.ts.taild80ca0.atlas.twa.preferences.DevicePreferencesStore(
+            androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext).reset()
+    }
     @get:Rule val compose = createEmptyComposeRule()
     private val house = FakeHouse()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)

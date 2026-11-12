@@ -140,6 +140,22 @@ fornece o UUID da viagem para `UndoShopping`; o servidor verifica que ela ainda
 somente com comprados. Durante o envio fica desabilitado; sucesso gera o toast
 local “Compra registrada” com Desfazer, sem mudar o modo compras.
 
+## Menu e preferências (#109)
+
+`DevicePreferencesStore` usa Preferences DataStore para tema, cor e última tela.
+`MainActivity` aguarda a primeira leitura antes de desenhar; a paleta também
+atualiza as barras do sistema. Navegar grava a tela escolhida, enquanto o modo
+compras apenas força a Lista e preserva essa escolha. Sair limpa o acesso local,
+sem apagar as preferências.
+
+`PdfClient` faz `GET /api/v1/list.pdf` com bearer de sync, sem redirecionamentos,
+com limite de 8 MiB e validação do cabeçalho PDF. 401/403 invalida o acesso;
+erros não expõem corpos do servidor. `PdfShare` grava um arquivo temporário em
+`cache/list_exports` e oferece compartilhar ou abrir com uma URI `content://`
+e permissão de leitura. A extensão do FileProvider fica só no debug, restrita a
+esse diretório; outros arquivos de cache não são compartilhados. Arquivos de
+exportação com mais de um dia são limpos ao preparar o próximo PDF.
+
 ## Validação
 
 - JVM: `OnlineRepositoryTest` (servidor falso: leitura, rede caindo, resposta

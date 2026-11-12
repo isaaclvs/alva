@@ -19,6 +19,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import java.io.IOException
+import net.ts.taild80ca0.atlas.twa.preferences.DevicePreferences
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import net.ts.taild80ca0.atlas.twa.data.list.ItemStatus
@@ -43,11 +45,17 @@ fun ShoppingScreens(
     modifier: Modifier = Modifier,
     accessActions: (@Composable () -> Unit)? = null,
     invalidation: ForegroundInvalidation? = null,
+    preferences: DevicePreferences = DevicePreferences(),
+    saveDark: suspend (Boolean) -> Unit = {},
+    saveColor: suspend (AlvaColor) -> Unit = {},
+    saveScreen: suspend (String) -> Unit = {},
+    signOut: (suspend () -> String?)? = null,
+    exportPdf: (suspend () -> String?)? = null,
 ) {
     val state by repository.state.collectAsState()
     val editState = rememberEditItemState()
     val listFilters = rememberListFilterState()
-    var screen by rememberSaveable { mutableStateOf("add") }
+    var screen by rememberSaveable { mutableStateOf(preferences.screen) }
     val addState = rememberAddScreenState(repository)
     var feedback by remember { mutableStateOf<String?>(null) }
     var toast by remember { mutableStateOf<ToastMessage?>(null) }
@@ -104,7 +112,23 @@ fun ShoppingScreens(
     val items = remember(ready?.snapshot) { ready?.snapshot?.liveItems().orEmpty() }
 
     val pending = items.count { it.status == ItemStatus.PENDING }
-    val menu: @Composable () -> Unit = { HouseMenu(accessActions) }
+    var menuWorking by remember { mutableStateOf(false) }
+    fun menuAction(action: suspend () -> String?) {
+        if (menuWorking) return
+        menuWorking = true
+        scope.launch {
+            try { feedback = action() }
+            catch (_: IOException) { feedback = "Não foi possível salvar a preferência. Tente de novo." }
+            finally { menuWorking = false }
+        }
+    }
+    val menu: @Composable () -> Unit = {
+        HouseMenu(preferences, shownScreen == "list", menuWorking,
+            toggleTheme = { menuAction { saveDark(!preferences.dark); null } },
+            selectColor = { color -> menuAction { saveColor(color); null } },
+            exportPdf = exportPdf?.let { { menuAction(it) } },
+            signOut = signOut?.let { { menuAction(it) } }, actions = accessActions)
+    }
     // The connection and feedback lines that sit under the header of either screen.
     val notices: @Composable (Dp) -> Unit = { gutter ->
         // The latest reload failed but a list is on screen: say it may be out of date, and offer to read again.
@@ -126,7 +150,10 @@ fun ShoppingScreens(
                 if (!shoppingMode)
                 BottomNavigation(
                     current = if (screen == "list") AppScreen.List else AppScreen.Add, pending = pending,
-                    onSelect = { screen = it.tag },
+                    onSelect = { selected ->
+                        screen = selected.tag
+                        scope.launch { try { saveScreen(selected.tag) } catch (_: IOException) { feedback = "Não foi possível lembrar a tela. Tente de novo." } }
+                    },
                 )
             },
         ) { padding ->
@@ -183,21 +210,6 @@ fun ShoppingScreens(
                     scope.launch { current.onAction() }
                 })
             }
-        }
-    }
-}
-
-/**
- * The ⋯ button of the PWA headers. The menu itself (theme, color, PDF, sair) is #109; until then it only hosts the
- * house connection actions the access screen provides.
- */
-@Composable
-private fun HouseMenu(actions: (@Composable () -> Unit)?) {
-    var open by remember { mutableStateOf(false) }
-    Box {
-        MoreButton(onClick = { open = true }, modifier = Modifier.testTag("house-menu"))
-        if (actions != null) DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            Column(Modifier.widthIn(max = 280.dp).padding(12.dp)) { actions() }
         }
     }
 }
