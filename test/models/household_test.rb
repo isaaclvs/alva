@@ -52,6 +52,19 @@ class HouseholdTest < ActiveSupport::TestCase
     assert_nil pending.reload.shopping_trip
   end
 
+  test "finish_shopping! with only: archives just those purchased items" do
+    household = households(:home)
+    later = household.list_items.create!(name: "Café").tap(&:toggle_purchased!)
+    detergent = list_items(:detergent)
+
+    trip = household.finish_shopping!(only: [ detergent.id, list_items(:milk).id ])
+
+    assert_equal [ detergent ], trip.list_items.to_a, "a pending item is never archived"
+    assert_nil later.reload.shopping_trip
+    assert_nil household.finish_shopping!(only: [ list_items(:milk).id ]), "nothing purchased among them"
+    assert_equal 1, household.shopping_trips.count
+  end
+
   test "finish_shopping! keeps the archived item's history intact" do
     item = list_items(:detergent)
     purchased_at = item.purchased_at
@@ -499,6 +512,18 @@ class HouseholdTest < ActiveSupport::TestCase
     assert_equal [ readded ], household.list_items.on_list.where(name: [ "Detergente", "detergente" ]).to_a
     assert readded.reload.pending?
     assert_not ListItem.exists?(archived_id)
+  end
+
+  test "undo_shopping! tells on_dropped which archived copies stay behind which items" do
+    household = households(:home)
+    archived = list_items(:detergent)
+    trip = household.finish_shopping!
+    readded = household.add_item("detergente").item
+    seen = nil
+
+    assert household.undo_shopping!(trip, on_dropped: ->(pairs) { seen = pairs.map { |dropped, kept| [ dropped.id, kept.id ] } })
+
+    assert_equal [ [ archived.id, readded.id ] ], seen
   end
 
   test "undo_shopping! only undoes the most recent trip" do
