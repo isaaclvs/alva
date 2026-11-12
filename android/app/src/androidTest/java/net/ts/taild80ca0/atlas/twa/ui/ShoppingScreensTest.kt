@@ -43,6 +43,101 @@ class ShoppingScreensTest {
         override suspend fun identifyHousehold(credential: AccessCredential): ApiResult<HouseholdIdentity> = error("UI must not use HTTP")
     }
 
+    @org.junit.Before fun clearShoppingMode() { context.getSharedPreferences(SHOPPING_PREFERENCES, 0).edit().clear().commit() }
+
+    private fun press(tag: String) = compose.onNodeWithTag(tag).performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
+
+    @Test fun shoppingModeHidesControlsKeepsTheScreenAwakeAndSurvivesRecreationAndRefresh() {
+        val item = house.seed("Leite")
+        val repository = launch()
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("nav-list").fetchSemanticsNodes().isNotEmpty() }
+        press("nav-list")
+        press("start-shopping")
+        compose.onNodeWithTag("list-title").assertTextEquals("Em compras")
+        compose.onNodeWithTag("nav-add").assertDoesNotExist()
+        compose.onNodeWithTag("house-menu").assertDoesNotExist()
+        compose.onNodeWithTag("edit-${item.id}").assertDoesNotExist()
+        compose.onNodeWithTag("pending-only").assertDoesNotExist()
+        compose.onNodeWithText("1 restantes").assertExists()
+        fun awake(view: android.view.View): Boolean = view.keepScreenOn || (view is android.view.ViewGroup && (0 until view.childCount).any { awake(view.getChildAt(it)) })
+        scenario!!.onActivity { assertTrue(awake(it.window.decorView)) }
+        assertTrue(context.getSharedPreferences(SHOPPING_PREFERENCES, 0).getLong("until", 0) > System.currentTimeMillis())
+        scenario!!.recreate()
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("exit-shopping").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("add-input").assertDoesNotExist()
+        kotlinx.coroutines.runBlocking { repository.refresh() }
+        compose.onNodeWithTag("edit-${item.id}").assertDoesNotExist()
+        compose.onNodeWithTag("item-${item.id}").performTouchInput { swipeLeft() }
+        assertEquals(1, house.rows.size)
+        press("item-${item.id}")
+        waitForText("toast-message", "Leite marcado")
+        compose.onNodeWithText("tudo pego").assertExists()
+        compose.onNodeWithTag("shopping-progress").assertExists()
+        press("exit-shopping")
+        compose.onNodeWithTag("nav-add").assertExists()
+        scenario!!.onActivity { assertFalse(awake(it.window.decorView)) }
+        assertEquals("purchased", house.rows.single().status)
+    }
+
+    @Test fun editingBlocksShoppingWithoutLosingTheDraftAndExitClearsSearch() {
+        val item = house.seed("Leite")
+        openList()
+        press("edit-${item.id}")
+        compose.onNodeWithTag("edit-name").performTextReplacement("Rascunho")
+        compose.onNodeWithTag("start-shopping").assertIsNotEnabled()
+        press("start-shopping")
+        compose.onNodeWithTag("edit-name").assertTextEquals("Rascunho").assertIsFocused()
+        compose.onNodeWithTag("exit-shopping").assertDoesNotExist()
+        press("edit-cancel")
+        compose.onNodeWithTag("list-search").performTextInput("Leite")
+        press("start-shopping")
+        press("exit-shopping")
+        compose.onNodeWithTag("list-search").assert(SemanticsMatcher("search cleared") {
+            it.config[androidx.compose.ui.semantics.SemanticsProperties.EditableText].text.isEmpty()
+        })
+    }
+
+    @Test fun aSavedModeStartsDirectlyOnTheListAndAnExpiredOneDoesNot() {
+        house.seed("Leite", status = "purchased")
+        context.getSharedPreferences(SHOPPING_PREFERENCES, 0).edit().putLong("until", System.currentTimeMillis() + 60_000).commit()
+        launch()
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("exit-shopping").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("add-input").assertDoesNotExist()
+        compose.onNodeWithText("tudo pego").assertExists()
+        press("exit-shopping")
+        context.getSharedPreferences(SHOPPING_PREFERENCES, 0).edit().putLong("until", System.currentTimeMillis() - 1).commit()
+        scenario!!.close()
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("exit-shopping").assertDoesNotExist()
+        press("nav-list")
+        compose.onNodeWithTag("start-shopping").assertExists()
+    }
+
+    @Test fun onlyASuccessfulShoppingTickRequestsHapticFeedback() {
+        val item = house.seed("Leite")
+        val repository = launch()
+        val ticks = java.util.concurrent.atomic.AtomicInteger()
+        val haptic = object : androidx.compose.ui.hapticfeedback.HapticFeedback {
+            override fun performHapticFeedback(hapticFeedbackType: androidx.compose.ui.hapticfeedback.HapticFeedbackType) { ticks.incrementAndGet() }
+        }
+        scenario!!.onActivity { activity -> activity.setContent {
+            androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalHapticFeedback provides haptic) {
+                AlvaTheme { ShoppingScreens(repository) }
+            }
+        } }
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("nav-list").fetchSemanticsNodes().isNotEmpty() }
+        press("nav-list")
+        press("start-shopping")
+        house.commandSteps += Step.ServerError
+        press("item-${item.id}")
+        waitForText("feedback", "O servidor não está disponível agora")
+        assertEquals(0, ticks.get())
+        press("item-${item.id}")
+        waitForText("toast-message", "Leite marcado")
+        assertEquals(1, ticks.get())
+    }
+
     private fun launch(
         commands: CommandTransport = house,
         foreground: ((HouseAccess, OnlineRepository) -> ForegroundInvalidation)? = null,
@@ -66,6 +161,7 @@ class ShoppingScreensTest {
 
     @After fun cleanup() {
         scenario?.close()
+        context.getSharedPreferences(SHOPPING_PREFERENCES, 0).edit().clear().commit()
         AccessGraph.install(null)
         scope.cancel()
     }
@@ -89,14 +185,6 @@ class ShoppingScreensTest {
         it.config[androidx.compose.ui.semantics.SemanticsProperties.EditableText].text.isEmpty()
     }
 
-    private fun capture(name: String) {
-        compose.waitForIdle()
-        // Public emulator output survives the runner uninstalling the test APK.
-        val descriptor = InstrumentationRegistry.getInstrumentation().uiAutomation
-            .executeShellCommand("screencap -p /sdcard/Download/$name")
-        android.os.ParcelFileDescriptor.AutoCloseInputStream(descriptor).use { it.readBytes() }
-    }
-
     private fun submit(text: String) {
         compose.onNodeWithTag("add-input").performTextInput(text)
         compose.onNodeWithTag("save-add").assertIsDisplayed()
@@ -112,7 +200,6 @@ class ShoppingScreensTest {
         compose.waitUntil(10_000) { compose.onAllNodes(hasTestTag("add-input") and emptyInput).fetchSemanticsNodes().isNotEmpty() }
         assertEquals(listOf("Leite", "Pão", "Ovos"), house.rows.map { it.name })
         compose.onNodeWithText("Alva").assertIsDisplayed()
-        capture("shopping-add.png")
 
         compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         waitForText("list-summary", "3 pendentes")
@@ -121,7 +208,6 @@ class ShoppingScreensTest {
         assertMarked(id, true)
         waitForText("list-summary", "2 pendentes · 1 comprado")
         assertEquals("purchased", house.named("Leite").single().status)
-        capture("shopping-list.png")
 
         compose.onNodeWithTag("item-$id").performClick()
         assertMarked(id, false)
@@ -436,6 +522,8 @@ class ShoppingScreensTest {
         openList()
         compose.onNodeWithTag("pending-only").performClick()
         compose.onNodeWithTag("list-search").performTextInput("arroz")
+        compose.onNodeWithTag("list-search").performImeAction()
+        compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasTestTag("filter-empty"))
         compose.onNodeWithTag("filter-empty").assertTextEquals("Nenhum item encontrado.")
         compose.onNodeWithTag("list-empty").assertDoesNotExist()
         compose.onNodeWithTag("clear-search").performClick()
@@ -521,6 +609,7 @@ class ShoppingScreensTest {
         compose.onNodeWithTag("list-counter", useUnmergedTree = true).assertContentDescriptionEquals("3 pendentes")
         compose.onNodeWithTag("nav-add").assertIsNotSelected()
         compose.onNodeWithTag("nav-list").assertIsSelected()
+        compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Alva"))
         compose.onNodeWithText("Alva").assertIsDisplayed()
         compose.onNodeWithText("Nossa casa").assertIsDisplayed()
         compose.onNodeWithText("Lista de compras").assertIsDisplayed()
