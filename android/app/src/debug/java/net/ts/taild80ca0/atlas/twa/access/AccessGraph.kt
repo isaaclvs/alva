@@ -19,6 +19,8 @@ import net.ts.taild80ca0.atlas.twa.data.list.WirePreparer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import net.ts.taild80ca0.atlas.twa.online.OnlineAccess
+import net.ts.taild80ca0.atlas.twa.online.OnlineRepository
 import net.ts.taild80ca0.atlas.twa.sync.CommandSender
 import net.ts.taild80ca0.atlas.twa.sync.HttpCommandTransport
 import net.ts.taild80ca0.atlas.twa.sync.HttpSnapshotTransport
@@ -39,6 +41,7 @@ object AccessGraph {
     private var syncController: SyncController? = null
     private var conflictResolver: ConflictResolver? = null
     @Volatile private var foregroundInvalidation: ForegroundInvalidation? = null
+    private var onlineRepository: OnlineRepository? = null
 
     /** True while a test installed its own graph: then nothing is built lazily (a test must never reach the real server). */
     private var overridden = false
@@ -83,11 +86,27 @@ object AccessGraph {
             SyncController(cycle, scope).also { syncController = it }
         }
 
+    /**
+     * The online client the screens use: the server's list and actions that wait for its answer. Holds nothing on
+     * disk. Null only while a test installed a graph without one.
+     */
+    @Synchronized
+    fun onlineRepository(context: Context): OnlineRepository? {
+        if (overridden) return onlineRepository
+        return onlineRepository ?: run {
+            val endpoint = ServerEndpoint.parse(BuildConfig.SERVER_URL)
+            OnlineRepository(
+                OnlineAccess.of(houseAccess(context)), HttpSnapshotTransport(endpoint), HttpCommandTransport(endpoint), scope,
+            )
+        }.also { onlineRepository = it }
+    }
+
+    /** The ActionCable signal, which asks the online repository to read the list again. */
     @Synchronized
     fun foregroundInvalidation(context: Context): ForegroundInvalidation? {
         if (overridden) return foregroundInvalidation
         return foregroundInvalidation ?: ForegroundInvalidation(
-            houseAccess(context), ServerEndpoint.parse(BuildConfig.SERVER_URL), syncController(context)!!, scope,
+            houseAccess(context), ServerEndpoint.parse(BuildConfig.SERVER_URL), onlineRepository(context)!!, scope,
         ).also { foregroundInvalidation = it }
     }
 
@@ -109,7 +128,14 @@ object AccessGraph {
     }
 
     /** Test hook: replaces (or, with null, drops) the instance, like a new process would. */
-    fun install(access: HouseAccess?, store: ShoppingListStore? = null, sync: SyncController? = null, foreground: ForegroundInvalidation? = null, conflicts: ConflictResolver? = null) {
+    fun install(
+        access: HouseAccess?,
+        store: ShoppingListStore? = null,
+        sync: SyncController? = null,
+        foreground: ForegroundInvalidation? = null,
+        conflicts: ConflictResolver? = null,
+        online: OnlineRepository? = null,
+    ) {
         synchronized(this) {
             foregroundInvalidation?.stop()
             foregroundInvalidation = foreground
@@ -117,6 +143,7 @@ object AccessGraph {
             listStore = store
             syncController = sync
             conflictResolver = conflicts
+            onlineRepository = online
             overridden = access != null
             recoveryStarted = false
             background = null
@@ -129,7 +156,8 @@ object AccessGraph {
             vault = KeystoreCredentialVault(KeystoreCredentialVault.defaultFile(context)),
             api = HttpHouseAccessApi(ServerEndpoint.parse(BuildConfig.SERVER_URL)),
             binding = RoomHouseholdBinding(database),
-            onConnected = { background(context).request() },
+            // The online client reads the list when the screen shows it; nothing is scheduled for later.
+            onConnected = {},
         )
     }
 }

@@ -4,67 +4,65 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
-import java.io.IOException
-import java.util.UUID
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.runBlocking
-import net.ts.taild80ca0.atlas.twa.MainActivity
-import net.ts.taild80ca0.atlas.twa.access.*
-import net.ts.taild80ca0.atlas.twa.data.db.*
-import net.ts.taild80ca0.atlas.twa.data.list.*
-import net.ts.taild80ca0.atlas.twa.sync.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import net.ts.taild80ca0.atlas.twa.MainActivity
+import net.ts.taild80ca0.atlas.twa.access.*
+import net.ts.taild80ca0.atlas.twa.online.FakeHouse
+import net.ts.taild80ca0.atlas.twa.online.FakeHouse.Step
+import net.ts.taild80ca0.atlas.twa.online.OnlineAccess
+import net.ts.taild80ca0.atlas.twa.online.OnlineRepository
+import net.ts.taild80ca0.atlas.twa.sync.CableConnector
+import net.ts.taild80ca0.atlas.twa.sync.CableEvent
+import net.ts.taild80ca0.atlas.twa.sync.CableSocket
+import net.ts.taild80ca0.atlas.twa.sync.CommandOutcome
+import net.ts.taild80ca0.atlas.twa.sync.CommandTransport
+import net.ts.taild80ca0.atlas.twa.sync.ForegroundInvalidation
 import org.junit.After
 import org.junit.Assert.*
-import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 
-/** Real Room + installed Compose app, with a transport that must never be called. */
+/** The installed Compose app over the online repository, with a server in memory standing in for Rails. */
 class ShoppingScreensTest {
     @get:Rule val compose = createEmptyComposeRule()
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
-    private val file = "screens-${UUID.randomUUID()}.db"
-    private lateinit var db: AlvaDatabase
-    private lateinit var store: RoomShoppingListStore
+    private val house = FakeHouse()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var scenario: ActivityScenario<MainActivity>? = null
     private val noNetwork = object : HouseAccessApi {
         override suspend fun pair(password: String, deviceName: String, previousToken: String?): ApiResult<AccessCredential> = error("UI must not pair")
         override suspend fun identifyHousehold(credential: AccessCredential): ApiResult<HouseholdIdentity> = error("UI must not use HTTP")
     }
 
-    @Before fun prepare() {
-        db = AlvaDatabaseFactory.create(context, file)
-        store = RoomShoppingListStore(db)
-        runBlocking {
-            db.categories().upsert(listOf(CategoryEntity("produce", "Hortifruti", 1), CategoryEntity("other", "Outros", 2)))
-        }
-    }
-
     private fun launch(
-        using: ShoppingListStore = store,
-        sync: SyncController? = null,
-        foreground: ((HouseAccess) -> ForegroundInvalidation)? = null,
-        conflicts: ConflictResolver? = null,
-    ) {
+        commands: CommandTransport = house,
+        foreground: ((HouseAccess, OnlineRepository) -> ForegroundInvalidation)? = null,
+    ): OnlineRepository {
         val vault = object : CredentialVault {
             override fun read() = VaultRead.Found(StoredAccess(AccessCredential(1, "test-only")))
             override fun write(access: StoredAccess) = error("opening must not write credentials")
         }
-        val access = HouseAccess(vault, noNetwork, RoomHouseholdBinding(db))
-        AccessGraph.install(access, using, sync, foreground = foreground?.invoke(access), conflicts = conflicts)
+        val access = HouseAccess(vault, noNetwork, InMemoryHouseholdBinding())
+        val repository = OnlineRepository(OnlineAccess.of(access), house, commands, scope, pause = {})
+        AccessGraph.install(access, online = repository, foreground = foreground?.invoke(access, repository))
         scenario = ActivityScenario.launch(MainActivity::class.java)
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("shopping-home").fetchSemanticsNodes().isNotEmpty() }
+        return repository
+    }
+
+    private fun launchLoaded() {
+        launch()
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
     }
 
     @After fun cleanup() {
         scenario?.close()
         AccessGraph.install(null)
-        db.close()
-        context.deleteDatabase(file)
+        scope.cancel()
     }
 
     private fun waitForText(tag: String, text: String) {
@@ -82,6 +80,10 @@ class ShoppingScreensTest {
         }
     }
 
+    private val emptyInput = SemanticsMatcher("editable text is empty") {
+        it.config[androidx.compose.ui.semantics.SemanticsProperties.EditableText].text.isEmpty()
+    }
+
     private fun capture(name: String) {
         compose.waitForIdle()
         // Public emulator output survives the runner uninstalling the test APK.
@@ -90,319 +92,221 @@ class ShoppingScreensTest {
         android.os.ParcelFileDescriptor.AutoCloseInputStream(descriptor).use { it.readBytes() }
     }
 
-    private fun add(text: String) {
+    private fun submit(text: String) {
         compose.onNodeWithTag("add-input").performTextInput(text)
         compose.onNodeWithTag("save-add").assertIsDisplayed()
         // Exercise the real Done action without racing IME/layout animation coordinates.
         compose.onNodeWithTag("add-input").performImeAction()
-        compose.waitUntil(10_000) {
-            compose.onAllNodes(hasTestTag("feedback") and hasText("Salvo neste aparelho", substring = true)).fetchSemanticsNodes().isNotEmpty()
-        }
     }
 
-    @Test fun addsMultipleNamesMarksAndReopensFromDiskWithoutNetwork() {
-        launch()
+    @Test fun addsMultipleNamesThroughTheServerThenMarksAndUnmarks() {
+        launchLoaded()
         compose.onNodeWithTag("add-input").assertIsFocused()
-        add("Leite, Pão; Ovos\nLeite")
-        val emptyInput = SemanticsMatcher("editable text is empty") {
-            it.config[androidx.compose.ui.semantics.SemanticsProperties.EditableText].text.isEmpty()
-        }
-        compose.waitUntil(10_000) {
-            compose.onAllNodes(hasTestTag("add-input") and emptyInput).fetchSemanticsNodes().isNotEmpty()
-        }
-        compose.onNodeWithTag("add-input").assert(emptyInput)
+        submit("Leite, Pão; Ovos\nLeite")
+        waitForText("feedback", "3 itens adicionados")
+        compose.waitUntil(10_000) { compose.onAllNodes(hasTestTag("add-input") and emptyInput).fetchSemanticsNodes().isNotEmpty() }
+        assertEquals(listOf("Leite", "Pão", "Ovos"), house.rows.map { it.name })
         compose.onNodeWithText("Alva").assertIsDisplayed()
-        compose.onNodeWithTag("save-add").assertIsDisplayed()
         capture("shopping-add.png")
+
         compose.onNodeWithTag("nav-list").performClick()
         waitForText("list-summary", "Pendentes: 3 · Comprados: 0")
-        val id = runBlocking { db.listItems().live().first { it.name == "Leite" }.publicId }
+        val id = house.named("Leite").single().id
         compose.onNodeWithTag("item-$id").performClick()
         assertMarked(id, true)
         waitForText("list-summary", "Pendentes: 2 · Comprados: 1")
+        assertEquals("purchased", house.named("Leite").single().status)
         capture("shopping-list.png")
 
-        scenario!!.close()
-        db.close()
-        db = AlvaDatabaseFactory.create(context, file)
-        store = RoomShoppingListStore(db)
-        launch()
-        compose.onNodeWithTag("nav-list").performClick()
-        assertMarked(id, true)
-        assertEquals(2, runBlocking { db.commands().inOrder().size })
         compose.onNodeWithTag("item-$id").performClick()
         assertMarked(id, false)
+        assertEquals("pending", house.named("Leite").single().status)
     }
 
-    @Test fun warnsAboutDuplicatesAndPreservesInputWhenNothingIsAdded() {
-        runBlocking { store.execute(ListIntent.AddText("Leite")) }
+    @Test fun openingReadsTheServersListGroupedByCategory() {
+        house.seed("Leite")
+        house.seed("Pão", status = "purchased")
         launch()
+        compose.onNodeWithTag("nav-list").performClick()
+        waitForText("list-summary", "Pendentes: 1 · Comprados: 1")
+        compose.onNodeWithText("Laticínios", substring = true).assertIsDisplayed()
+        compose.onNodeWithTag("item-${house.named("Pão").single().id}").assertIsOn()
+        assertEquals("the list was read from the server, not from a copy", 1, house.fetches)
+    }
+
+    @Test fun warnsAboutDuplicatesWhileTypingAndReportsWhatTheServerSaid() {
+        house.seed("Leite")
+        launch()
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("add-input").performTextInput("leite")
         waitForText("duplicate-hint", "Já na lista: Leite")
-        compose.onNodeWithTag("duplicate-hint").assertTextContains("Já na lista: Leite")
         compose.onNodeWithTag("save-add").performClick()
-        waitForText("feedback", "Já está na lista")
-        compose.onNodeWithTag("feedback").assertTextContains("Já está na lista: leite")
-        compose.onNodeWithTag("add-input").assertTextContains("leite")
-        assertEquals(1, runBlocking { db.commands().inOrder().size })
+        waitForText("feedback", "Nada adicionado · Leite já estava na lista")
+        assertEquals(1, house.rows.size)
     }
 
-    @Test fun storageFailureKeepsDraftAndNeverReportsSuccess() {
-        val failing = object : ShoppingListStore by store {
-            override suspend fun execute(intent: ListIntent) = IntentResult.Failed(IOException("test failure"))
-        }
-        launch(failing)
+    @Test fun withoutNetworkTheTextStaysAndNothingIsStoredForLater() {
+        launchLoaded()
+        house.commandSteps += listOf(Step.NetworkDown, Step.NetworkDown, Step.NetworkDown)
         compose.onNodeWithTag("add-input").performTextInput("Café")
         compose.onNodeWithTag("save-add").performClick()
-        waitForText("feedback", "Não foi possível salvar")
-        compose.onNodeWithTag("feedback").assertTextContains("Não foi possível salvar", substring = true)
+        waitForText("feedback", "Sem conexão com o servidor")
+        compose.onNodeWithTag("feedback").assertTextContains("Seu texto foi mantido", substring = true)
         compose.onNodeWithTag("add-input").assertTextContains("Café")
-        assertTrue(runBlocking { db.commands().inOrder().isEmpty() })
-        assertTrue(runBlocking { db.listItems().live().isEmpty() })
+        assertTrue(house.rows.isEmpty())
+
+        // Nothing was queued: only repeating the action adds it, once.
+        compose.onNodeWithTag("save-add").performClick()
+        waitForText("feedback", "1 item adicionado")
+        assertEquals(listOf("Café"), house.rows.map { it.name })
+        assertEquals(4, house.sent.size)
     }
 
-    @Test fun typingDuringCommitIsPreservedAndRotationKeepsDraftAndScreen() {
+    @Test fun aServerErrorKeepsTheTextToo() {
+        launchLoaded()
+        house.commandSteps += Step.ServerError
+        compose.onNodeWithTag("add-input").performTextInput("Café")
+        compose.onNodeWithTag("save-add").performClick()
+        waitForText("feedback", "O servidor não está disponível agora")
+        compose.onNodeWithTag("add-input").assertTextContains("Café")
+        assertTrue(house.rows.isEmpty())
+    }
+
+    @Test fun aMarkThatCannotBeSentSaysSoAndTheItemStaysAsItWas() {
+        val leite = house.seed("Leite")
+        launch()
+        compose.onNodeWithTag("nav-list").performClick()
+        waitForText("list-summary", "Pendentes: 1")
+        house.commandSteps += listOf(Step.NetworkDown, Step.NetworkDown, Step.NetworkDown)
+        compose.onNodeWithTag("item-${leite.id}").performClick()
+        waitForText("feedback", "Sem conexão com o servidor")
+        assertMarked(leite.id, false)
+        assertEquals("pending", leite.status)
+    }
+
+    @Test fun whenTheListCannotBeReadItSaysWhyAndReadsAgainOnRequest() {
+        house.seed("Leite")
+        house.snapshotSteps += Step.NetworkDown
+        launch()
+        waitForText("load-failed", "Sem conexão com o servidor")
+        compose.onNodeWithTag("reload").performClick()
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("nav-list").performClick()
+        waitForText("list-summary", "Pendentes: 1")
+    }
+
+    @Test fun aFailedReloadKeepsTheListAndFlagsItAsPossiblyOutOfDate() {
+        house.seed("Leite")
+        launch()
+        compose.onNodeWithTag("nav-list").performClick()
+        waitForText("list-summary", "Pendentes: 1")
+        house.snapshotSteps += Step.NetworkDown
+        scenario!!.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
+        scenario!!.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
+        waitForText("connection-notice", "Sem conexão com o servidor")
+        waitForText("list-summary", "Pendentes: 1")
+        compose.onNodeWithTag("reload").performClick()
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("connection-notice").fetchSemanticsNodes().isEmpty() }
+        waitForText("list-summary", "Pendentes: 1")
+    }
+
+    @Test fun resumingTheAppReadsTheListAgain() {
+        launch()
+        compose.onNodeWithTag("nav-list").performClick()
+        waitForText("list-summary", "Pendentes: 0")
+        scenario!!.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
+        house.seed("Leite") // another phone added it while this app was in the background
+        scenario!!.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
+        waitForText("list-summary", "Pendentes: 1")
+    }
+
+    @Test fun theLiveSignalReadsTheListAgain() {
+        val connections = java.util.concurrent.LinkedBlockingQueue<(CableEvent) -> Unit>()
+        launch(foreground = { access, repository ->
+            ForegroundInvalidation(
+                access, ServerEndpoint.parse("http://127.0.0.1:3010"), repository, scope,
+                CableConnector { _, _, receive -> connections.add(receive); CableSocket { } },
+            )
+        })
+        val receive = connections.poll(10, java.util.concurrent.TimeUnit.SECONDS)!!
+        compose.onNodeWithTag("nav-list").performClick()
+        waitForText("list-summary", "Pendentes: 0")
+        receive(CableEvent.Subscribed)
+        house.seed("Leite") // the other phone adds
+        receive(CableEvent.Invalidated(900, 0))
+        waitForText("list-summary", "Pendentes: 1")
+    }
+
+    @Test fun liveSubscriptionClosesWhenPausedAndReopensOnResume() {
+        val opened = java.util.concurrent.atomic.AtomicInteger()
+        val closed = java.util.concurrent.atomic.AtomicInteger()
+        launch(foreground = { access, repository ->
+            ForegroundInvalidation(
+                access, ServerEndpoint.parse("http://127.0.0.1:3010"), repository, scope,
+                CableConnector { _, _, _ -> opened.incrementAndGet(); CableSocket { closed.incrementAndGet() } },
+            )
+        })
+        compose.waitUntil(10_000) { opened.get() == 1 }
+        scenario!!.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
+        compose.waitUntil(10_000) { closed.get() == 1 }
+        scenario!!.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
+        compose.waitUntil(10_000) { opened.get() == 2 }
+        assertEquals(1, closed.get())
+    }
+
+    @Test fun typingDuringTheRequestIsPreservedAndRotationKeepsDraftAndScreen() {
         val release = CompletableDeferred<Unit>()
         val entered = CompletableDeferred<Unit>()
-        val delayed = object : ShoppingListStore by store {
-            override suspend fun execute(intent: ListIntent): IntentResult {
+        val slow = object : CommandTransport {
+            override suspend fun send(credential: AccessCredential, commandId: String, document: String): CommandOutcome {
                 entered.complete(Unit)
                 release.await()
-                return store.execute(intent)
+                return house.send(credential, commandId, document)
             }
         }
-        launch(delayed)
+        launch(commands = slow)
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("add-input").performTextInput("Leite")
         compose.onNodeWithTag("save-add").performClick()
         compose.waitUntil(10_000) { entered.isCompleted }
         compose.onNodeWithTag("add-input").performTextReplacement("Pão")
         release.complete(Unit)
-        waitForText("feedback", "Salvo neste aparelho")
-        compose.onNodeWithTag("feedback").assertTextContains("Salvo neste aparelho", substring = true)
+        waitForText("feedback", "1 item adicionado")
         compose.onNodeWithTag("add-input").assertTextContains("Pão")
         scenario!!.recreate()
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("add-input").assertTextContains("Pão")
         compose.onNodeWithTag("nav-list").performClick()
         scenario!!.recreate()
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("nav-list").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("nav-list").assertIsSelected()
         compose.onNodeWithText("Leite").assertIsDisplayed()
         compose.onNodeWithTag("add-input").assertDoesNotExist()
     }
 
     @Test fun repeatedNavigationOnlyFocusesTheAttachedAddField() {
-        launch()
+        launchLoaded()
         repeat(10) {
-            // Exercise attachment, not touch coordinates moving with IME animation.
-            // The main end-to-end flow above still navigates with real taps.
-            compose.onNodeWithTag("nav-list").performSemanticsAction(
-                androidx.compose.ui.semantics.SemanticsActions.OnClick,
-            ) { it() }
-            compose.waitUntil(10_000) {
-                compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isEmpty()
-            }
+            compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
+            compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isEmpty() }
             compose.onNodeWithTag("nav-list").assertIsSelected()
-            compose.onNodeWithTag("add-input").assertDoesNotExist()
-            compose.onNodeWithTag("nav-add").performSemanticsAction(
-                androidx.compose.ui.semantics.SemanticsActions.OnClick,
-            ) { it() }
+            compose.onNodeWithTag("nav-add").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
             compose.waitUntil(10_000) {
                 compose.onAllNodes(hasTestTag("add-input") and SemanticsMatcher.expectValue(
                     androidx.compose.ui.semantics.SemanticsProperties.Focused, true,
                 )).fetchSemanticsNodes().isNotEmpty()
             }
         }
-        assertTrue(runBlocking { db.commands().inOrder().isEmpty() })
+        assertTrue(house.sent.isEmpty())
     }
 
-    @Test fun observesChangesFromAnotherStoreAndGroupsByCategory() {
-        runBlocking {
-            db.listItems().upsert(listOf(ListItemEntity("fruit", "Banana", "produce", 0, null, null, 1, null, null)))
+    @Test fun noOfflineMachineryIsOnScreen() {
+        launchLoaded()
+        compose.onNodeWithTag("nav-list").performClick()
+        listOf("sync-status", "sync-now", "conflicts-expand").forEach { tag ->
+            assertTrue(tag, compose.onAllNodesWithTag(tag).fetchSemanticsNodes().isEmpty())
         }
-        launch()
-        compose.onNodeWithTag("nav-list").performClick()
-        waitForText("list-summary", "Pendentes: 1")
-        compose.onNodeWithText("Hortifruti").assertIsDisplayed()
-        compose.onNodeWithTag("item-fruit").assertIsOff()
-        runBlocking { RoomShoppingListStore(db).execute(ListIntent.AddText("Café")) }
-        waitForText("list-summary", "Pendentes: 2 · Comprados: 0")
-        compose.onNodeWithText("Outros").assertIsDisplayed()
-        compose.onNodeWithText("Café").assertIsDisplayed()
+        compose.onNodeWithText("Aguardando", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("sem internet", substring = true).assertDoesNotExist()
     }
-
-    @Test fun opensWithOneSyncAndTheButtonAsksAgainShowingWhatHappened() {
-        val results = java.util.concurrent.LinkedBlockingQueue(
-            listOf(
-                SyncReport(SyncOutcome.Offline(net.ts.taild80ca0.atlas.twa.sync.TransientCause.NETWORK), needsAttention = 1),
-                SyncReport(SyncOutcome.Synced(7)),
-            ),
-        )
-        val runs = java.util.concurrent.atomic.AtomicInteger()
-        val sync = SyncController(
-            SyncRunner { runs.incrementAndGet(); results.take() },
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Job() + kotlinx.coroutines.Dispatchers.Default),
-        )
-
-        launch(sync = sync)
-
-        // Opening asked for a cycle by itself; it did not get through, and the screen says so in plain words.
-        waitForText("sync-status", "Sem conexão com o servidor")
-        compose.onNodeWithTag("sync-status").assertTextContains("1 alteração precisa de atenção", substring = true)
-        compose.onNodeWithTag("sync-now").assertTextEquals("Tentar novamente")
-        assertEquals(1, runs.get())
-        // Adding still works and never waits for the network.
-        compose.onNodeWithTag("save-add").assertIsDisplayed()
-        add("Leite")
-        runBlocking { assertEquals("Leite", db.listItems().live().single().name) }
-
-        compose.onNodeWithTag("sync-now").performScrollTo().assertIsDisplayed().performClick()
-        waitForText("sync-status", "Sincronizado.")
-        compose.onNodeWithTag("sync-now").assertTextEquals("Sincronizar agora")
-        assertEquals(2, runs.get())
-    }
-
-    @Test fun liveSubscriptionClosesWhenPausedAndReopensOnResume() {
-        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        val opened = java.util.concurrent.atomic.AtomicInteger()
-        val closed = java.util.concurrent.atomic.AtomicInteger()
-        try {
-            launch(foreground = { access ->
-                val controller = SyncController(
-                    SyncRunner {
-                        SyncReport(SyncOutcome.Synced(0))
-                    }, scope,
-                )
-                ForegroundInvalidation(
-                    access, ServerEndpoint.parse("http://127.0.0.1:3010"), controller, scope,
-                    CableConnector { _, _, _ ->
-                        opened.incrementAndGet()
-                        CableSocket { closed.incrementAndGet() }
-                    },
-                )
-            })
-            compose.waitUntil(10_000) { opened.get() == 1 }
-            scenario!!.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
-            compose.waitUntil(10_000) { closed.get() == 1 }
-            scenario!!.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
-            compose.waitUntil(10_000) { opened.get() == 2 }
-            assertEquals(1, closed.get())
-        } finally {
-            scope.cancel()
-        }
-    }
-
-
-    private fun refusedAddition(name: String, uncertain: Boolean = false): IntentResult.Saved = runBlocking {
-        val result = store.execute(ListIntent.AddText(name)) as IntentResult.Saved
-        assertTrue(WirePreparer(db).prepare(result.commandId) is PreparationResult.Prepared)
-        val attempt = WireOutbox(db).beginAttempt(result.commandId) as AttemptResult.Started
-        if (!uncertain) db.commands().recordAnswer(result.commandId, attempt.attempt)
-        db.commands().setStatus(result.commandId, "REJECTED", if (uncertain) "idempotency_conflict" else "not_found")
-        result
-    }
-
-    private fun resolver() = ConflictResolver(db, IdGenerator { UUID.randomUUID().toString() }, Clock { 123L })
-
-    private fun openReview(rootId: String) {
-        compose.waitUntil(10_000) { compose.onAllNodesWithTag("conflicts-expand").fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithTag("conflicts-expand").performClick()
-        compose.onNodeWithTag("conflict-review-$rootId").performClick()
-    }
-
-    @Test fun reviewsAndDiscardsOnlyTheRefusedGroupWhilePreservingTheAddDraft() {
-        val root = refusedAddition("Leite")
-        runBlocking {
-            store.execute(ListIntent.SetItemState(root.itemIds.single(), ItemStatus.PURCHASED))
-            store.execute(ListIntent.AddText("Pão"))
-        }
-        launch(conflicts = resolver())
-        compose.onNodeWithTag("add-input").performTextInput("Rascunho")
-        compose.onNodeWithTag("nav-list").performClick()
-        openReview(root.commandId)
-        compose.onNodeWithTag("conflict-discard").assertTextEquals("Descartar 2 alterações")
-        compose.onNodeWithTag("conflict-cancel").performClick()
-        assertEquals(3, runBlocking { db.commands().count() })
-        compose.onNodeWithTag("nav-add").performClick()
-        compose.onNodeWithTag("add-input").assertTextContains("Rascunho")
-        compose.onNodeWithTag("nav-list").performClick()
-        openReview(root.commandId)
-        compose.onNodeWithTag("conflict-discard").performClick()
-        compose.waitUntil(10_000) { runBlocking { db.commands().count() } == 1 }
-        waitForText("conflict-feedback", "Alterações locais descartadas.")
-        compose.onNodeWithTag("conflict-feedback").assertTextEquals("Alterações locais descartadas.")
-        assertEquals(1, runBlocking { db.resolutions().all().size })
-        assertEquals(listOf("Pão"), runBlocking { db.listItems().live().map { it.name } })
-        compose.onNodeWithTag("nav-add").performClick()
-        compose.onNodeWithTag("add-input").assertTextContains("Rascunho")
-    }
-
-    @Test fun aChangedGroupRequiresANewReviewAndNeverSilentlyUpdatesTheConfirmation() {
-        val root = refusedAddition("Leite")
-        launch(conflicts = resolver())
-        compose.onNodeWithTag("nav-list").performClick()
-        openReview(root.commandId)
-        runBlocking { store.execute(ListIntent.SetItemState(root.itemIds.single(), ItemStatus.PURCHASED)) }
-        compose.onNodeWithTag("conflict-discard").assertTextEquals("Descartar 1 alteração")
-        compose.onNodeWithTag("conflict-discard").performClick()
-        waitForText("conflict-feedback", "As alterações mudaram")
-        assertEquals(2, runBlocking { db.commands().count() })
-        assertTrue(runBlocking { db.resolutions().all().isEmpty() })
-        compose.onNodeWithTag("conflict-review-${root.commandId}").performClick()
-        compose.onNodeWithTag("conflict-discard").assertTextEquals("Descartar 2 alterações")
-    }
-
-    @Test fun anUnansweredIdempotencyConflictOffersTheServerListAndAsksForASync() {
-        val root = refusedAddition("Leite", uncertain = true)
-        val runs = java.util.concurrent.atomic.AtomicInteger()
-        val hold = CompletableDeferred<Unit>()
-        val sync = SyncController(
-            SyncRunner {
-                // The second cycle stays running while the person decides.
-                if (runs.incrementAndGet() == 2) hold.await()
-                SyncReport(SyncOutcome.SnapshotHeld(emptyList()))
-            },
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Job() + kotlinx.coroutines.Dispatchers.Default),
-        )
-        launch(sync = sync, conflicts = resolver())
-        compose.waitUntil(10_000) { runs.get() == 1 && sync.status.value is SyncStatus.Idle }
-        compose.onNodeWithTag("nav-list").performClick()
-        openReview(root.commandId)
-        compose.onNodeWithTag("conflict-details").assertExists()
-        compose.onNodeWithTag("conflict-discard").assertTextEquals("Usar a lista do servidor")
-        assertEquals(listOf(root.commandId), runBlocking { db.commands().unresolvedAttemptIds() })
-        assertTrue(sync.request(manual = true))
-        compose.waitUntil(10_000) { runs.get() == 2 }
-
-        compose.onNodeWithTag("conflict-discard").performClick()
-        waitForText("conflict-feedback", "Confira a lista e adicione de novo o que faltar.")
-        assertEquals(0, runBlocking { db.commands().count() })
-        assertTrue(runBlocking { db.commands().unresolvedAttemptIds().isEmpty() })
-        assertEquals(1, runBlocking { db.resolutions().all().size })
-        // The uncertain change held the server's list back: leaving the queue asks for a cycle, and one already
-        // running does not swallow that request — it gets a successor.
-        hold.complete(Unit)
-        compose.waitUntil(10_000) { runs.get() == 3 }
-    }
-
-
-    @Test fun storageFailureKeepsTheGroupAndAllowsAnExplicitRetry() {
-        val root = refusedAddition("Leite")
-        runBlocking { store.execute(ListIntent.AddText("Pão")) }
-        launch(conflicts = resolver())
-        compose.onNodeWithTag("nav-list").performClick()
-        openReview(root.commandId)
-        db.openHelper.writableDatabase.execSQL("CREATE TRIGGER fail_conflict_ui BEFORE INSERT ON list_items BEGIN SELECT RAISE(ABORT, 'storage failed'); END")
-        try {
-            compose.onNodeWithTag("conflict-discard").performClick()
-            waitForText("conflict-feedback", "Não foi possível descartar")
-            assertEquals(2, runBlocking { db.commands().count() })
-            assertTrue(runBlocking { db.resolutions().all().isEmpty() })
-        } finally {
-            db.openHelper.writableDatabase.execSQL("DROP TRIGGER fail_conflict_ui")
-        }
-        compose.onNodeWithTag("conflict-discard").performClick()
-        waitForText("conflict-feedback", "Alterações locais descartadas.")
-        assertEquals(1, runBlocking { db.commands().count() })
-        assertEquals(1, runBlocking { db.resolutions().all().size })
-    }
-
 }

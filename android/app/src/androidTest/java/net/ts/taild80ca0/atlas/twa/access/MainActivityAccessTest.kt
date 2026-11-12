@@ -7,7 +7,14 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ActivityScenario
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import net.ts.taild80ca0.atlas.twa.MainActivity
+import net.ts.taild80ca0.atlas.twa.online.FakeHouse
+import net.ts.taild80ca0.atlas.twa.online.OnlineAccess
+import net.ts.taild80ca0.atlas.twa.online.OnlineRepository
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -25,6 +32,7 @@ class MainActivityAccessTest {
 
     private val storage = RealAccessStorage()
     private val server = FakeAlvaServer()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var scenario: ActivityScenario<MainActivity>? = null
 
     @Before
@@ -34,6 +42,7 @@ class MainActivityAccessTest {
     fun tearDown() {
         scenario?.close()
         AccessGraph.install(null)
+        scope.cancel()
         server.close()
         storage.cleanup()
     }
@@ -41,13 +50,14 @@ class MainActivityAccessTest {
     /** A new process: new objects over the same Keystore vault and database file. */
     private fun startProcess() {
         scenario?.close()
-        AccessGraph.install(
-            HouseAccess(
-                storage.newVault(),
-                HttpHouseAccessApi(ServerEndpoint.parse(server.baseUrl), 3_000, 5_000),
-                RoomHouseholdBinding(storage.openDatabase()),
-            ),
+        val access = HouseAccess(
+            storage.newVault(),
+            HttpHouseAccessApi(ServerEndpoint.parse(server.baseUrl), 3_000, 5_000),
+            RoomHouseholdBinding(storage.openDatabase()),
         )
+        // The list is the online repository's business (ShoppingScreensTest); here it reads an empty house in memory.
+        val house = FakeHouse()
+        AccessGraph.install(access, online = OnlineRepository(OnlineAccess.of(access), house, house, scope))
         scenario = ActivityScenario.launch(MainActivity::class.java)
     }
 
