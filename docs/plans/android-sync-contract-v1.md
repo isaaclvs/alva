@@ -10,7 +10,8 @@ comandos (ledger, linhagem do aparelho, ordem e retenção) foi implementada na
 issue #38 (migração `CreateSyncCommands`). O snapshot está implementado na
 issue #37. O endpoint de comandos, os executores `add_items` e
 `set_item_state` e os aliases foram implementados na issue #39 (migração
-`CreateSyncAliases`); os demais comandos e o cliente seguem propostos. O contrato dá um alvo versionado às tasks
+`CreateSyncAliases`); `undo_item_state` foi implementado na issue #96 para o app
+nativo online; os demais comandos e o cliente seguem propostos. O contrato dá um alvo versionado às tasks
 do GitHub
 ([Alva nativo offline — #33](https://github.com/isaaclvs/alva/issues/33)), que
 podem refiná-lo com evidência de implementação.
@@ -186,8 +187,9 @@ Regras do envelope:
 
 ## Comandos v1
 
-`add_items` e `set_item_state` estão implementados (#39); os demais são o alvo
-das tasks seguintes. As lacunas de UUIDs e versões que a base Room registrou em
+`add_items` e `set_item_state` estão implementados (#39), assim como
+`correct_item`, `remove_item`, `undo_remove` e `undo_item_state` (#96); os demais
+são o alvo das tasks seguintes. As lacunas de UUIDs e versões que a base Room registrou em
 [android-local-persistence.md](android-local-persistence.md#lacunas-observadas-no-contrato-v1-para-37383945)
 estão fechadas abaixo: o comando leva os UUIDs dos itens criados offline, um item
 ainda não visto é alcançado por `depends_on`, e a versão de cada passo da fila é
@@ -198,7 +200,7 @@ um comando já enviado.
 | --- | --- | --- | --- |
 | `add_items` | `items: [{ public_id, name, revives? }]` (já separados no aparelho, de 1 a 30) | `revives` por item, só para trazer de volta uma compra | `Household#add_items` (`#add_item_for_sync`) |
 | `set_item_state` | `public_id`, `desired: "pending"\|"purchased"` | `lock_version` (herdado de `depends_on` quando este tocou o item) | `ListItem#toggle_purchased!` (estado desejado, nunca toggle) |
-| `undo_item_state` | `public_id`, `status`, `purchased_at` | `lock_version` | `PurchaseUndo` / `#undo_purchase!` |
+| `undo_item_state` | `public_id`, `status`, `purchased_at` (estado a restaurar) | `lock_version` deixado pela marcação (herdado de `depends_on` quando este tocou o item) | `PurchaseUndo` / `ListItem#undo_purchase!` |
 | `correct_item` | `public_id`, `name`, `category_id?` (UUID público) | `lock_version` herdado de `depends_on` ou observado; `dictionary_revision` obrigatória com categoria manual | executor transacional + `ItemCategorizer.learn` condicional |
 | `remove_item` | `public_id` | `lock_version` (herdado de `depends_on` quando este tocou o item) | `Household#remove_item` |
 | `undo_remove` | vazio; `depends_on` referencia o comando de remoção | remoção original ainda vigente; sem pendente homônimo | compensação pelos atributos do ledger, sem token web |
@@ -462,6 +464,59 @@ Observações:
 - Esta rota é exclusiva de sync. A remoção e o desfazer web existentes mantêm
   suas rotas, tokens e comportamento.
 
+### Desfazer marcação (`undo_item_state`, issue #96)
+
+O equivalente de sync do "Desfazer" do toast da PWA (`PurchaseUndo`,
+`POST /list_items/:id/undo_purchase`). O token assinado de um minuto é substituído
+por dados explícitos; também serve ao app nativo online (janela de ~5 s só na
+interface, sem prazo no servidor).
+
+```json
+{
+  "id": "<novo UUID do comando>",
+  "type": "undo_item_state",
+  "depends_on": "<UUID do set_item_state, opcional>",
+  "preconditions": { "lock_version": 1 },
+  "payload": {
+    "public_id": "<uuid do item ou alias>",
+    "status": "pending",
+    "purchased_at": null
+  }
+}
+```
+
+- `status` (`pending` ou `purchased`) e `purchased_at` (ISO 8601 ou `null`) são o
+  **estado a restaurar**, isto é, o que o aparelho viu antes de marcar ou
+  desmarcar. `pending` exige `purchased_at` nulo; `purchased` aceita a data
+  original (ou nula, para registros legados). Valor inválido é `rejected` /
+  `malformed_command` com `data.field` (`payload.public_id`, `payload.status`,
+  `payload.purchased_at`).
+- A precondição é a **versão que a marcação deixou** (`lock_version` do
+  `data.item` do `set_item_state`), que identifica também o estado marcado: o
+  desfazer só vale enquanto nada mexeu no item depois dela. Segue a regra de
+  `set_item_state`: herdada de `depends_on` quando este tocou o item, maior entre a
+  herdada e `preconditions.lock_version`; sem nenhuma das duas, ou inválida,
+  `rejected` / `malformed_command` (`data.field`: `preconditions.lock_version`).
+- Versão diferente da atual é `conflict` / `precondition_failed` com
+  `data.reason` `version_changed`, `data.expected_lock_version` e `data.current`;
+  nada é sobrescrito (uma edição, outra marcação ou compra posteriores vencem).
+  Restaurar `pending` ao lado de outro pendente homônimo é `conflict` com
+  `data.reason` `duplicate_pending`, a mesma regra da PWA.
+- Item já no estado a restaurar (mesmo `status` e mesmo `purchased_at`, a
+  precisão de microssegundos) é `noop`, qualquer que seja a versão enviada: o
+  resultado que o aparelho queria já existe, sem revisão nova. Item arquivado ou
+  removido é `rejected` / `gone`; UUID desconhecido ou de outra casa,
+  `rejected` / `not_found`.
+- Efetivo: `applied`, uma revisão (`record_shared_change!`) e `lock_version` mais
+  um; o resultado traz `data.item` (formato de `ItemData`) com o estado e a versão
+  **depois** do comando, que o próximo comando da fila herda. Reenviar o mesmo UUID
+  devolve `duplicate` com o recibo original, mesmo se o item mudou depois; outro
+  UUID de desfazer passa de novo pelas precondições e não restaura duas vezes.
+- Os dois resultados que consomem o UUID (`applied`, `noop`) entram no ledger na
+  mesma transação do efeito; conflito e rejeição não deixam registro.
+- A rota é exclusiva de sync: `POST /list_items/:id/undo_purchase` e o token
+  assinado da PWA continuam como estão.
+
 ### Corrigir item (`correct_item`, issue #47)
 
 ```json
@@ -513,8 +568,8 @@ mesmo se outro aparelho já tiver alterado o item/dicionário depois.
 Implementado na issue #38 (`SyncCommand`, `SyncCommandProcessor`) e ligado ao
 endpoint `POST /api/v1/commands` na #39. Os comandos de negócio registram seu
 executor em `SyncCommandProcessor::EXECUTORS` nas tasks que os introduzem; hoje
-são `add_items`, `set_item_state`, `correct_item`, `remove_item` e
-`undo_remove` (`app/services/sync_commands/`). Um tipo ainda
+são `add_items`, `set_item_state`, `undo_item_state`, `correct_item`,
+`remove_item` e `undo_remove` (`app/services/sync_commands/`). Um tipo ainda
 não implementado responde `rejected` / `unsupported_command`.
 
 ### O que é gravado, e quando
