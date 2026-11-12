@@ -144,9 +144,9 @@ class ShoppingScreensTest {
         launch()
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("add-input").performTextInput("leite")
-        waitForText("duplicate-hint", "Já na lista: Leite")
+        waitForText("duplicate-hint", "Leite já está na lista")
         compose.onNodeWithTag("save-add").performClick()
-        waitForText("feedback", "Nada adicionado · Leite já estava na lista")
+        waitForText("feedback", "Leite já está na lista")
         assertEquals(1, house.rows.size)
     }
 
@@ -162,7 +162,7 @@ class ShoppingScreensTest {
 
         // Nothing was queued: only repeating the action adds it, once.
         compose.onNodeWithTag("save-add").performClick()
-        waitForText("feedback", "1 item adicionado")
+        waitForText("feedback", "Café adicionado em Outros")
         assertEquals(listOf("Café"), house.rows.map { it.name })
         assertEquals(4, house.sent.size)
     }
@@ -218,6 +218,7 @@ class ShoppingScreensTest {
 
     @Test fun resumingTheAppReadsTheListAgain() {
         launch()
+        // The keyboard is still moving the navigation bar after the Add field takes focus.
         compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         waitForText("list-summary", "Nada na lista")
         scenario!!.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
@@ -277,7 +278,7 @@ class ShoppingScreensTest {
         compose.waitUntil(10_000) { entered.isCompleted }
         compose.onNodeWithTag("add-input").performTextReplacement("Pão")
         release.complete(Unit)
-        waitForText("feedback", "1 item adicionado")
+        waitForText("feedback", "Leite adicionado em Laticínios")
         compose.onNodeWithTag("add-input").assertTextContains("Pão")
         scenario!!.recreate()
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
@@ -361,14 +362,14 @@ class ShoppingScreensTest {
         openList()
         compose.onNodeWithTag("edit-${item.id}").performClick()
         compose.onNodeWithTag("edit-name").performTextReplacement("Café")
-        compose.onNodeWithTag("edit-cancel").performScrollTo().performClick()
+        compose.onNodeWithTag("edit-cancel").performScrollTo().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         compose.onNodeWithText("Leite").assertIsDisplayed()
         assertTrue(house.sent.isEmpty())
         compose.onNodeWithTag("edit-${item.id}").performClick()
         compose.onNodeWithTag("edit-name").performTextReplacement("Café")
-        compose.onNodeWithTag("edit-category").performClick()
-        compose.onNodeWithTag("edit-category-Mercearia").performClick()
-        compose.onNodeWithTag("edit-save").performScrollTo().performClick()
+        compose.onNodeWithTag("edit-category").performScrollTo().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
+        compose.onNodeWithTag("edit-category-Mercearia").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
+        compose.onNodeWithTag("edit-save").performScrollTo().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         compose.waitUntil(10_000) { house.rows.single().name == "Café" }
         assertEquals(FakeHouse.PANTRY, house.learned["café"])
         compose.onNodeWithTag("edit-name").assertDoesNotExist()
@@ -384,14 +385,14 @@ class ShoppingScreensTest {
         compose.onNodeWithTag("edit-name").performTextReplacement("Café")
         item.lock++
         kotlinx.coroutines.runBlocking { repository.refresh() }
-        compose.onNodeWithTag("edit-save").performScrollTo().performClick()
+        compose.onNodeWithTag("edit-save").performScrollTo().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         waitForText("edit-error", "A lista mudou")
         compose.onNodeWithTag("edit-name").assertTextContains("Café")
         assertEquals("Leite", item.name)
         scenario!!.recreate()
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("edit-name").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("edit-name").assertTextContains("Café")
-        compose.onNodeWithTag("edit-save").performScrollTo().performClick()
+        compose.onNodeWithTag("edit-save").performScrollTo().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         compose.waitUntil(10_000) { item.name == "Café" }
     }
 
@@ -400,12 +401,12 @@ class ShoppingScreensTest {
         openList()
         compose.onNodeWithTag("edit-${item.id}").performClick()
         compose.onNodeWithTag("edit-name").performTextReplacement("")
-        compose.onNodeWithTag("edit-save").performScrollTo().performClick()
+        compose.onNodeWithTag("edit-save").performScrollTo().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         waitForText("edit-error", "Digite um nome")
         assertTrue(house.sent.isEmpty())
         compose.onNodeWithTag("edit-name").performTextReplacement("Café")
         house.commandSteps += Step.ServerError
-        compose.onNodeWithTag("edit-save").performScrollTo().performClick()
+        compose.onNodeWithTag("edit-save").performScrollTo().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         waitForText("edit-error", "Seu texto foi mantido")
         compose.onNodeWithTag("edit-name").assertTextContains("Café")
         assertEquals("Leite", item.name)

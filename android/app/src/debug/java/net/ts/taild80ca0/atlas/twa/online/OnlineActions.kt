@@ -83,22 +83,22 @@ class SetItemState(private val publicId: String, private val desired: ItemStatus
 /** `correct_item`: save the edited name and optional manually selected category against the shown versions. */
 class CorrectItem(
     private val publicId: String,
-    private val name: String,
-    private val categoryPublicId: String?,
+    private val categoryPublicId: String? = null,
+    private val name: String? = null,
     private val observedLockVersion: Int? = null,
     private val observedDictionaryRevision: Long? = null,
 ) : OnlineAction {
     override fun plan(context: PlanContext): ActionPlan {
         val item = context.snapshot.listItems.firstOrNull { it.publicId.equals(publicId, ignoreCase = true) }
             ?: return ActionPlan.Invalid(InvalidAction.ITEM_NOT_FOUND)
-        if (name.trim().isEmpty()) return ActionPlan.Invalid(InvalidAction.INVALID_NAME)
+        val cleaned = ItemNameSplitter.clean(name ?: item.name) ?: return ActionPlan.Invalid(InvalidAction.INVALID_NAME)
         if (categoryPublicId != null && context.snapshot.categories.none { it.publicId.equals(categoryPublicId, true) }) {
             return ActionPlan.Invalid(InvalidAction.CATEGORY_NOT_FOUND)
         }
         val category = categoryPublicId?.let(JSONObject::quote) ?: "null"
         return ActionPlan.Send(context.document(
             "correct_item",
-            """{"public_id":${JSONObject.quote(item.publicId)},"name":${JSONObject.quote(name)},"category_id":$category}""",
+            """{"public_id":${JSONObject.quote(item.publicId)},"name":${JSONObject.quote(cleaned)},"category_id":$category}""",
             """{"lock_version":${observedLockVersion ?: item.lockVersion},"dictionary_revision":${observedDictionaryRevision ?: context.snapshot.dictionaryRevision}}""",
         ))
     }

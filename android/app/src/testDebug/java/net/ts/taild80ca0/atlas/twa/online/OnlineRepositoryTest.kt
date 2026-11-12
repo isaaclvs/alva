@@ -14,6 +14,7 @@ import net.ts.taild80ca0.atlas.twa.data.list.ItemStatus
 import net.ts.taild80ca0.atlas.twa.data.list.WireDocument
 import net.ts.taild80ca0.atlas.twa.online.FakeHouse.Step
 import net.ts.taild80ca0.atlas.twa.sync.ReceiptStatus
+import net.ts.taild80ca0.atlas.twa.sync.SnapshotFixtures
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -405,4 +406,66 @@ class OnlineRepositoryTest {
             assertTrue(text, text.isNotBlank() && !text.contains('_') && text.first().isUpperCase())
         }
     }
+
+    // ---- correct_item and the add messages of the PWA ------------------------------------------------------
+
+    @Test fun correctingACategorySendsTheItemVersionAndTheDictionaryRevisionSeen() = runBlocking {
+        val cafe = house.seed("Café", category = SnapshotFixtures.OTHERS, lock = 2)
+        repository.refresh()
+
+        val result = repository.execute(CorrectItem(cafe.id, categoryPublicId = FakeHouse.PANTRY))
+
+        assertTrue("$result", result is ActionResult.Success)
+        val command = JSONObject(house.sent.single().second)
+        assertEquals("correct_item", command.getString("type"))
+        assertEquals(cafe.id, command.getJSONObject("payload").getString("public_id"))
+        assertEquals("the name stays as the list shows it", "Café", command.getJSONObject("payload").getString("name"))
+        assertEquals(FakeHouse.PANTRY, command.getJSONObject("payload").getString("category_id"))
+        assertEquals(2, command.getJSONObject("preconditions").getInt("lock_version"))
+        assertEquals(12, command.getJSONObject("preconditions").getInt("dictionary_revision"))
+        assertEquals("the list was read again with the new category", FakeHouse.PANTRY, ready().snapshot.listItems.single().categoryPublicId)
+        assertEquals(FakeHouse.PANTRY, house.learned["café"])
+    }
+
+    @Test fun correctingAnItemThatLeftTheListSendsNothing() = runBlocking {
+        repository.refresh()
+        assertEquals(ActionResult.Invalid(InvalidAction.ITEM_NOT_FOUND), repository.execute(CorrectItem("nope", FakeHouse.PANTRY)))
+        assertTrue(house.sent.isEmpty())
+    }
+
+    @Test fun aCorrectionOnAStaleVersionIsRefusedAndTheListIsReloaded() = runBlocking {
+        val cafe = house.seed("Café", category = SnapshotFixtures.OTHERS)
+        repository.refresh()
+        cafe.lock++ // another phone changed it meanwhile
+
+        val result = repository.execute(CorrectItem(cafe.id, FakeHouse.PANTRY))
+
+        assertEquals(ActionResult.Refused("precondition_failed"), result)
+        assertEquals(SnapshotFixtures.OTHERS, cafe.category)
+        assertEquals(cafe.lock, ready().snapshot.listItems.single().lockVersion)
+    }
+
+    private fun added(name: String, outcome: AddOutcome) = AddedItem(name, "id-$name", outcome)
+
+    @Test fun oneNameGetsItsOwnSentenceLikeThePwa() {
+        val label = { _: AddedItem -> "Laticínios" }
+        assertEquals("Leite adicionado em Laticínios", OnlineMessages.addFeedback(listOf(added("Leite", AddOutcome.CREATED)), label))
+        assertEquals("Leite voltou para a lista", OnlineMessages.addFeedback(listOf(added("Leite", AddOutcome.REVIVED)), label))
+        assertEquals("Leite já está na lista", OnlineMessages.addFeedback(listOf(added("Leite", AddOutcome.DUPLICATE)), label))
+    }
+
+    @Test fun severalNamesGetTheSummary() {
+        val label = { _: AddedItem -> "Laticínios" }
+        assertEquals("2 itens adicionados · Leite já estava na lista", OnlineMessages.addFeedback(
+            listOf(added("Pão", AddOutcome.CREATED), added("Café", AddOutcome.REVIVED), added("Leite", AddOutcome.DUPLICATE)), label))
+        assertEquals("Nada adicionado · Leite e Pão já estavam na lista", OnlineMessages.addFeedback(
+            listOf(added("Leite", AddOutcome.DUPLICATE), added("Pão", AddOutcome.DUPLICATE)), label))
+    }
+
+    @Test fun theDuplicateHintReadsLikeThePwa() {
+        assertEquals("Leite já está na lista", OnlineMessages.alreadyOnList(listOf("Leite")))
+        assertEquals("Leite e Pão já estão na lista", OnlineMessages.alreadyOnList(listOf("Leite", "Pão")))
+        assertEquals("Leite, Pão e Café já estão na lista", OnlineMessages.alreadyOnList(listOf("Leite", "Pão", "Café")))
+    }
 }
+

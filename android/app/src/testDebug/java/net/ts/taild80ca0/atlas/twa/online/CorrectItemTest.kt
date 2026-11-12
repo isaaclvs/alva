@@ -47,8 +47,8 @@ class CorrectItemTest {
     @Test fun blankNameAndUnknownCategorySendNothing() = runBlocking {
         val item = house.seed("Leite")
         repository.refresh()
-        assertEquals(ActionResult.Invalid(InvalidAction.INVALID_NAME), repository.execute(CorrectItem(item.id, " ", null)))
-        assertEquals(ActionResult.Invalid(InvalidAction.CATEGORY_NOT_FOUND), repository.execute(CorrectItem(item.id, "Café", "gone")))
+        assertEquals(ActionResult.Invalid(InvalidAction.INVALID_NAME), repository.execute(CorrectItem(item.id, name = " ", categoryPublicId = null)))
+        assertEquals(ActionResult.Invalid(InvalidAction.CATEGORY_NOT_FOUND), repository.execute(CorrectItem(item.id, name = "Café", categoryPublicId = "gone")))
         assertTrue(house.sent.isEmpty())
     }
 }

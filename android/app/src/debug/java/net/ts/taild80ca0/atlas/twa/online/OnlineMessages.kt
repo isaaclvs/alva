@@ -48,6 +48,24 @@ object OnlineMessages {
         return parts.joinToString(" · ")
     }
 
+    /**
+     * What the add field says after an add, as the PWA does: one name gets its own sentence ("Leite adicionado em
+     * Laticínios", "Leite voltou para a lista", "Leite já está na lista"), several get the summary of [added].
+     * [categoryOf] is the label of the category the item landed in.
+     */
+    fun addFeedback(items: List<AddedItem>, categoryOf: (AddedItem) -> String): String {
+        val only = items.singleOrNull() ?: return added(items)
+        return when (only.outcome) {
+            AddOutcome.CREATED -> "${only.name} adicionado em ${categoryOf(only)}"
+            AddOutcome.REVIVED -> "${only.name} voltou para a lista"
+            AddOutcome.DUPLICATE -> "${only.name} já está na lista"
+        }
+    }
+
+    /** `duplicate_hint_controller.js`: "Leite já está na lista", "Leite e Pão já estão na lista". */
+    fun alreadyOnList(names: List<String>): String =
+        if (names.size == 1) "${names.single()} já está na lista" else "${sentence(names)} já estão na lista"
+
     private fun sentence(names: List<String>): String =
         if (names.size <= 1) names.joinToString() else names.dropLast(1).joinToString(", ") + " e " + names.last()
 }
