@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -28,6 +27,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaTheme
+import net.ts.taild80ca0.atlas.twa.ui.theme.alvaTextFieldColors
 
 /**
  * Setup, reconnect and "already connected" in one small screen. The password
@@ -74,18 +75,18 @@ fun AccessScreen(access: HouseAccess, connected: @Composable (@Composable () -> 
             null -> Text(AccessMessages.WORKING)
             AccessState.Connected -> Unit
             AccessState.StorageUnavailable -> {
-                Text(AccessMessages.STORAGE_UNAVAILABLE, style = MaterialTheme.typography.bodyLarge)
+                Text(AccessMessages.STORAGE_UNAVAILABLE, style = AlvaTheme.type.body)
                 Button(onClick = { scope.launch { access.refresh() } }) { Text("Tentar de novo") }
             }
             AccessState.NotConfigured, AccessState.NeedsReconnect -> {
                 val reconnect = state == AccessState.NeedsReconnect
                 Text(
                     if (reconnect) AccessMessages.RECONNECT_TITLE else AccessMessages.SETUP_TITLE,
-                    style = MaterialTheme.typography.headlineSmall,
+                    style = AlvaTheme.type.heading,
                 )
                 Text(
                     if (reconnect) AccessMessages.RECONNECT_HELP else AccessMessages.SETUP_HELP,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = AlvaTheme.type.bodySmall, color = AlvaTheme.colors.inkSoft,
                 )
                 OutlinedTextField(
                     value = password,
@@ -97,6 +98,7 @@ fun AccessScreen(access: HouseAccess, connected: @Composable (@Composable () -> 
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Password,
                     ),
+                    colors = alvaTextFieldColors(),
                     modifier = Modifier.fillMaxWidth().testTag("password"),
                 )
                 Button(
@@ -122,7 +124,7 @@ fun AccessScreen(access: HouseAccess, connected: @Composable (@Composable () -> 
                         },
                     )
                 }
-                message?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.testTag("message")) }
+                message?.let { Text(it, color = AlvaTheme.colors.danger, modifier = Modifier.testTag("message")) }
             }
         }
     }

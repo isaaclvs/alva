@@ -9,10 +9,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -41,21 +41,7 @@ import net.ts.taild80ca0.atlas.twa.online.SetItemState
 import net.ts.taild80ca0.atlas.twa.online.addedItems
 import net.ts.taild80ca0.atlas.twa.online.liveItems
 import net.ts.taild80ca0.atlas.twa.sync.ForegroundInvalidation
-
-/** The same dark canvas and teal accent as the current Alva. Preferences arrive in #55. */
-@Composable
-fun AlvaTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = darkColorScheme(
-            primary = Color(0xFF2DD4BF), onPrimary = Color(0xFF09090B),
-            background = Color(0xFF09090B), surface = Color(0xFF18181B),
-            onBackground = Color(0xFFF4F4F5), onSurface = Color(0xFFF4F4F5),
-            onSurfaceVariant = Color(0xFFB4B4BC), error = Color(0xFFF87171),
-            secondaryContainer = Color(0xFF14332F), onSecondaryContainer = Color(0xFFF4F4F5),
-        ),
-        content = content,
-    )
-}
+import net.ts.taild80ca0.atlas.twa.ui.theme.*
 
 /**
  * Screens depend only on the [OnlineRepository]: the server's list, and actions that wait for its answer.
@@ -141,17 +127,17 @@ fun ShoppingScreens(
     Scaffold(
         modifier = modifier.imePadding(),
         bottomBar = {
-            NavigationBar {
-                NavigationBarItem(selected = screen == "add", onClick = { screen = "add" },
-                    icon = { Text("+") }, label = { Text("Adicionar") }, modifier = Modifier.testTag("nav-add"))
-                NavigationBarItem(selected = screen == "list", onClick = { screen = "list" },
-                    icon = { Text("☷") }, label = { Text("Lista ($pending)") }, modifier = Modifier.testTag("nav-list"))
+            NavigationBar(containerColor = AlvaTheme.colors.canvas) {
+                NavigationBarItem(selected = screen == "add", onClick = { screen = "add" }, colors = alvaNavigationItemColors(),
+                    icon = { Text("+") }, label = { Text("Adicionar", style = AlvaTheme.type.navigation) }, modifier = Modifier.testTag("nav-add"))
+                NavigationBarItem(selected = screen == "list", onClick = { screen = "list" }, colors = alvaNavigationItemColors(),
+                    icon = { Text("☷") }, label = { Text("Lista ($pending)", style = AlvaTheme.type.navigation) }, modifier = Modifier.testTag("nav-list"))
             }
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp).testTag("shopping-home")) {
             Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(if (screen == "add") "Alva" else "Lista de compras", style = MaterialTheme.typography.headlineMedium,
+                Text(if (screen == "add") "Alva" else "Lista de compras", style = AlvaTheme.type.pageTitle,
                     modifier = Modifier.weight(1f))
                 if (accessActions != null) Box {
                     TextButton(onClick = { menuOpen = true }, modifier = Modifier.testTag("house-menu")
@@ -161,11 +147,11 @@ fun ShoppingScreens(
                     }
                 }
             }
-            Text("Nossa casa", style = MaterialTheme.typography.labelLarge)
+            Text("Nossa casa", style = AlvaTheme.type.caption, color = AlvaTheme.colors.inkFaint)
             // The latest reload failed but a list is on screen: say it may be out of date, and offer to read again.
             ready?.problem?.let { problem ->
                 Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                    Text(problem.message, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f)
+                    Text(problem.message, style = AlvaTheme.type.caption, color = AlvaTheme.colors.warn, modifier = Modifier.weight(1f)
                         .testTag("connection-notice").semantics { liveRegion = LiveRegionMode.Polite })
                     TextButton(onClick = { scope.launch { repository.refresh() } }, modifier = Modifier.testTag("reload")) { Text("Atualizar") }
                 }
@@ -184,21 +170,25 @@ fun ShoppingScreens(
                     val categories = ready.snapshot.categories
                     LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(vertical = 16.dp)) {
                         if (recent.isNotEmpty()) {
-                            item { Text("Acabou de adicionar", style = MaterialTheme.typography.titleMedium) }
+                            item { Text("Acabou de adicionar", style = AlvaTheme.type.caption, color = AlvaTheme.colors.inkFaint) }
                             items(recent, key = { it.itemPublicId }) { addition ->
                                 val item = items.firstOrNull { it.publicId == addition.itemPublicId }
                                 val category = categories.firstOrNull { it.publicId == item?.categoryPublicId }?.name ?: "Outros"
-                                Text("${addition.name} · $category", modifier = Modifier.padding(vertical = 8.dp))
+                                Row(Modifier.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    CategoryIcon(category)
+                                    Text("${addition.name} · $category", style = AlvaTheme.type.bodySmall, modifier = Modifier.padding(start = 8.dp))
+                                }
                             }
-                        } else item { Text("Acabou em casa? Adicione aqui.") }
+                        } else item { Text("Acabou em casa? Adicione aqui.", style = AlvaTheme.type.bodySmall, color = AlvaTheme.colors.inkSoft) }
                     }
                     val duplicates = DuplicateHint.alreadyPending(draft, items)
-                    if (duplicates.isNotEmpty()) Text("Já na lista: ${duplicates.joinToString()}", maxLines = 2, modifier = Modifier.testTag("duplicate-hint"))
+                    if (duplicates.isNotEmpty()) Text("Já na lista: ${duplicates.joinToString()}", maxLines = 2, style = AlvaTheme.type.caption, color = AlvaTheme.colors.warn, modifier = Modifier.testTag("duplicate-hint"))
                     OutlinedTextField(
                         value = draft, onValueChange = { draft = it }, label = { Text("O que acabou?") },
                         modifier = Modifier.fillMaxWidth().focusRequester(focus).testTag("add-input"),
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                         keyboardActions = KeyboardActions(onDone = { add() }), maxLines = 4,
+                        colors = alvaTextFieldColors(), textStyle = AlvaTheme.type.input,
                     )
                     // Scaffold subcomposes its content during layout. Request focus
                     // from this composition, after the field's node is attached.
@@ -206,13 +196,13 @@ fun ShoppingScreens(
                         focus.requestFocus()
                         keyboard?.show()
                     }
-                    Text("Separe por vírgula, ponto e vírgula ou quebra de linha.", style = MaterialTheme.typography.bodySmall)
-                    Button(onClick = { add() }, enabled = !saving, modifier = Modifier.fillMaxWidth().testTag("save-add")) {
+                    Text("Separe por vírgula, ponto e vírgula ou quebra de linha.", style = AlvaTheme.type.caption, color = AlvaTheme.colors.inkFaint)
+                    Button(onClick = { add() }, enabled = !saving, shape = AlvaShapes.Control, modifier = Modifier.fillMaxWidth().testTag("save-add")) {
                         Text(if (saving) "Adicionando…" else "Adicionar à lista")
                     }
                 }
                 else -> {
-                    Text("Pendentes: $pending · Comprados: ${items.size - pending}", modifier = Modifier.testTag("list-summary"))
+                    Text("Pendentes: $pending · Comprados: ${items.size - pending}", style = AlvaTheme.type.summary, color = AlvaTheme.colors.inkSoft, modifier = Modifier.testTag("list-summary"))
                     LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(vertical = 12.dp)) {
                         if (items.isEmpty()) item { Text("Sua lista está vazia. Adicione o que acabou em casa.") }
                         val known = ready.snapshot.categories.sortedBy { it.position }
@@ -224,20 +214,28 @@ fun ShoppingScreens(
                         groups.filter { it.second.isNotEmpty() }.forEach { (category, rows) ->
                             item {
                                 val bought = rows.count { it.status == ItemStatus.PURCHASED }
-                                Text(category + if (bought > 0) " · $bought/${rows.size}" else "",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    modifier = Modifier.padding(top = 16.dp, bottom = 8.dp))
+                                Row(Modifier.padding(top = 16.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    CategoryIcon(category)
+                                    Text(category, style = AlvaTheme.type.sectionLabel, color = AlvaTheme.colors.inkSoft,
+                                        modifier = Modifier.padding(start = 8.dp).weight(1f))
+                                    if (bought > 0) Text("$bought/${rows.size}", style = AlvaTheme.type.caption, color = AlvaTheme.colors.inkFaint)
+                                }
                             }
                             items(rows, key = { it.publicId }) { item ->
                                 Row(
                                     Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag("item-${item.publicId}")
                                         .toggleable(value = item.status == ItemStatus.PURCHASED,
                                             enabled = item.publicId !in busyItems, role = Role.Checkbox, onValueChange = { mark(item) })
+                                        .then(if (item === rows.first()) Modifier else Modifier.rowDivider(AlvaTheme.colors.line))
                                         .padding(vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
                                 ) {
-                                    Checkbox(checked = item.status == ItemStatus.PURCHASED, onCheckedChange = null)
+                                    val bought = item.status == ItemStatus.PURCHASED
+                                    AlvaCheck(checked = bought)
                                     Column(Modifier.padding(start = 12.dp).weight(1f)) {
-                                        Text(item.name, textDecoration = if (item.status == ItemStatus.PURCHASED) TextDecoration.LineThrough else null)
+                                        Text(item.name, style = AlvaTheme.type.row,
+                                            color = if (bought) AlvaTheme.colors.inkFaint else AlvaTheme.colors.ink,
+                                            textDecoration = if (bought) TextDecoration.LineThrough else null)
                                     }
                                 }
                             }
