@@ -38,6 +38,9 @@ import net.ts.taild80ca0.atlas.twa.online.CorrectItem
 import net.ts.taild80ca0.atlas.twa.online.UndoItemState
 import net.ts.taild80ca0.atlas.twa.online.liveItems
 import net.ts.taild80ca0.atlas.twa.online.markedItem
+import net.ts.taild80ca0.atlas.twa.online.FinishShopping
+import net.ts.taild80ca0.atlas.twa.online.UndoShopping
+import net.ts.taild80ca0.atlas.twa.online.shoppingTripPublicId
 import net.ts.taild80ca0.atlas.twa.sync.ReceiptStatus
 import net.ts.taild80ca0.atlas.twa.sync.ServerSnapshot
 import net.ts.taild80ca0.atlas.twa.ui.theme.*
@@ -78,9 +81,31 @@ fun ListScreen(
     }
     val busy = remember { mutableStateListOf<String>() }
     val pending = items.count { it.status == ItemStatus.PENDING }
+    val purchased = items.size - pending
+
+    var finishing by remember { mutableStateOf(false) }
+
+    fun finishShopping() {
+        if (finishing || busy.isNotEmpty()) return
+        val observed = snapshot.listItems
+        finishing = true
+        scope.launch {
+            try {
+                when (val result = repository.execute(FinishShopping(observed))) {
+                    is ActionResult.Success -> result.receipt.shoppingTripPublicId()?.let { tripId ->
+                        showToast(ToastMessage("Compra registrada", "Desfazer") {
+                            val undone = repository.execute(UndoShopping(tripId))
+                            if (undone !is ActionResult.Success) onFailure(OnlineMessages.failure(undone))
+                        })
+                    } ?: onFailure("A compra foi registrada, mas não foi possível preparar o desfazer. Atualize a lista.")
+                    else -> onFailure(OnlineMessages.failure(result))
+                }
+            } finally { finishing = false }
+        }
+    }
 
     fun remove(item: ListItem, observedVersion: Int? = null) {
-        if (item.publicId in busy || shoppingMode) return
+        if (item.publicId in busy || shoppingMode || finishing) return
         busy += item.publicId
         val editing = editState.itemId == item.publicId
         if (editing) editState.saving = true
@@ -107,7 +132,7 @@ fun ListScreen(
     }
 
     fun mark(item: ListItem) {
-        if (item.publicId in busy) return
+        if (item.publicId in busy || finishing) return
         busy += item.publicId
         scope.launch {
             try {
@@ -204,7 +229,7 @@ fun ListScreen(
                         }, remove = {
                             RemoveItemButton(enabled = !editState.saving && item.publicId !in busy) { remove(item, editState.version) }
                         })
-                    } else ListRow(item, first = index == 0, enabled = item.publicId !in busy, onToggle = { mark(item) }, shoppingMode = shoppingMode,
+                    } else ListRow(item, first = index == 0, enabled = item.publicId !in busy && !finishing, onToggle = { mark(item) }, shoppingMode = shoppingMode,
                         modifier = Modifier.swipeToRemove(!shoppingMode && item.publicId !in busy) { remove(item) }, trailing = {
                         if (!shoppingMode) rowActions(item) { remove(item) }
                         if (!shoppingMode) EditItemButton(item.name, Modifier.testTag("edit-${item.publicId}")) {
@@ -214,8 +239,12 @@ fun ListScreen(
                 }
                 item(key = "gap-$key") { Spacer(Modifier.height(25.6.dp)) }
             }
+            if (!shoppingMode && purchased > 0) item(key = "finish-shopping") {
+                FinishShoppingButton(purchased, enabled = !finishing && busy.isEmpty()) { finishShopping() }
+            }
         }
-        if (shoppingMode) Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp)) {
+        if (shoppingMode) Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+            if (purchased > 0) FinishShoppingButton(purchased, enabled = !finishing && busy.isEmpty()) { finishShopping() }
             ListSearchFilters(filterState, searchFocus, shoppingMode = true)
         }
     }

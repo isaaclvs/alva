@@ -90,6 +90,44 @@ class OnlineRailsConvergenceTest {
 
     private suspend fun Phone.mark(name: String, desired: ItemStatus) = repository.execute(SetItemState(item(name)!!.publicId, desired))
 
+    @Test fun finishAndUndoShareHistoryPreservePendingAndRefuseAStaleBatch() = runBlocking<Unit> {
+        val a = phone(tokenA)
+        val b = phone(tokenB)
+        val milk = newName()
+        val eggs = newName()
+        val bread = newName()
+        a.repository.refresh()
+        assertTrue(a.add(milk) is ActionResult.Success)
+        assertTrue(a.add(eggs) is ActionResult.Success)
+        assertTrue(a.add(bread) is ActionResult.Success)
+        assertTrue(a.mark(milk, ItemStatus.PURCHASED) is ActionResult.Success)
+        assertTrue(a.mark(eggs, ItemStatus.PURCHASED) is ActionResult.Success)
+        val observed = a.ready.snapshot.listItems.filter { it.name == milk || it.name == eggs }
+        b.repository.refresh()
+        assertTrue(b.mark(milk, ItemStatus.PENDING) is ActionResult.Success)
+        assertEquals(ActionResult.Refused("precondition_failed"), a.repository.execute(FinishShopping(observed)))
+        assertTrue(a.item(eggs) != null)
+        assertTrue(a.mark(milk, ItemStatus.PURCHASED) is ActionResult.Success)
+        val finished = a.repository.execute(FinishShopping(a.ready.snapshot.listItems.filter { it.name == milk || it.name == eggs })) as ActionResult.Success
+        val trip = finished.receipt.shoppingTripPublicId()!!
+        b.repository.refresh()
+        assertTrue(b.item(milk) == null && b.item(eggs) == null)
+        assertTrue(b.item(bread) != null)
+        val archived = b.ready.snapshot.archivedItems.single { it.name == milk }
+        assertTrue(b.repository.execute(UndoShopping(trip)) is ActionResult.Success)
+        a.repository.refresh()
+        val restored = a.item(milk)!!
+        assertEquals(archived.categoryPublicId, restored.categoryPublicId)
+        assertEquals(archived.purchasedAtMicros, restored.purchasedAtMicros)
+        assertEquals(1, restored.status)
+        assertTrue(a.item(bread) != null)
+        val older = (a.repository.execute(FinishShopping(listOf(restored))) as ActionResult.Success).receipt.shoppingTripPublicId()!!
+        b.repository.refresh()
+        assertTrue(b.mark(bread, ItemStatus.PURCHASED) is ActionResult.Success)
+        assertTrue(b.repository.execute(FinishShopping(listOf(b.item(bread)!!))) is ActionResult.Success)
+        assertEquals(ActionResult.Refused("precondition_failed"), a.repository.execute(UndoShopping(older)))
+    }
+
     @Test fun habitualsAreSharedAndRemovingOneDoesNotRemoveTheLiveItem() = runBlocking<Unit> {
         val a = phone(tokenA)
         val b = phone(tokenB)

@@ -129,6 +129,17 @@ marcações aceitas no aparelho pedem feedback háptico pela API do Android.
 A barra de progresso e os contadores vêm do snapshot inteiro, mesmo com busca.
 O modo não envia comandos nem finaliza uma compra; a finalização é a #103.
 
+## Finalizar e desfazer compra (#103)
+
+`FinishShopping` recebe os itens observados na tela e envia somente os comprados,
+com UUID e versão. Se qualquer um mudou, o Rails recusa o lote inteiro. O recibo
+fornece o UUID da viagem para `UndoShopping`; o servidor verifica que ela ainda
+é a mais recente. Pendentes e compras posteriores à observação são preservados.
+
+“Compra feita” aparece no fim da lista normal e acima da busca no modo compras,
+somente com comprados. Durante o envio fica desabilitado; sucesso gera o toast
+local “Compra registrada” com Desfazer, sem mudar o modo compras.
+
 ## Validação
 
 - JVM: `OnlineRepositoryTest` (servidor falso: leitura, rede caindo, resposta
