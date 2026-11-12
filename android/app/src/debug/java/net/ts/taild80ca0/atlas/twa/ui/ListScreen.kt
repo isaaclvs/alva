@@ -55,7 +55,9 @@ fun ListScreen(
 ) {
     val scope = rememberCoroutineScope()
     val items = remember(snapshot) { snapshot.liveItems() }
-    val groups = remember(snapshot) { ListGroups.of(snapshot.categories, items) }
+    var filters by remember { mutableStateOf(ListFilters()) }
+    val visibleItems = remember(items, filters) { filters.apply(items) }
+    val groups = remember(snapshot.categories, visibleItems) { ListGroups.of(snapshot.categories, visibleItems) }
     val busy = remember { mutableStateListOf<String>() }
     val pending = items.count { it.status == ItemStatus.PENDING }
 
@@ -102,6 +104,7 @@ fun ListScreen(
                 color = AlvaTheme.colors.inkSoft, modifier = Modifier.padding(top = 7.7.dp).testTag("list-summary"),
             )
             afterSummary()
+            ListSearchFilters(filters, onChange = { filters = it })
         }
         notice()
         LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp)) {
