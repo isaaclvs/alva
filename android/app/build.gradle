@@ -61,8 +61,8 @@ android {
         applicationId 'net.ts.taild80ca0.atlas.twa'
         minSdkVersion 24
         targetSdkVersion 36
-        versionCode 5
-        versionName '2.0.0'
+        versionCode 6
+        versionName '2.0.1'
 
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
 
