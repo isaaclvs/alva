@@ -207,6 +207,7 @@ class ShoppingScreensTest {
         waitForText("feedback", "3 itens adicionados")
         compose.waitUntil(10_000) { compose.onAllNodes(hasTestTag("add-input") and emptyInput).fetchSemanticsNodes().isNotEmpty() }
         assertEquals(listOf("Leite", "Pão", "Ovos"), house.rows.map { it.name })
+        compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Alva"))
         compose.onNodeWithText("Alva").assertIsDisplayed()
         capture("shopping-add.png")
 
@@ -619,6 +620,7 @@ class ShoppingScreensTest {
         compose.onNodeWithTag("list-counter", useUnmergedTree = true).assertContentDescriptionEquals("3 pendentes")
         compose.onNodeWithTag("nav-add").assertIsNotSelected()
         compose.onNodeWithTag("nav-list").assertIsSelected()
+        compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Alva"))
         compose.onNodeWithText("Alva").assertIsDisplayed()
         compose.onNodeWithText("Nossa casa").assertIsDisplayed()
         compose.onNodeWithText("Lista de compras").assertIsDisplayed()
