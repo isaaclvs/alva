@@ -57,7 +57,7 @@ class AddScreenTest {
         compose.onNodeWithTag("habitual-name").performScrollTo().performTextInput("Café")
         clickHabitual("habitual-save")
         waitForText("habitual-feedback", "Café salvo nos habituais")
-        compose.onNodeWithTag("habitual-name").assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, androidx.compose.ui.text.AnnotatedString("")))
+        compose.onNodeWithTag("habitual-name").assert(SemanticsMatcher("habitual input is empty") { it.config[SemanticsProperties.EditableText].text.isEmpty() })
         clickHabitual("habitual-select-Café")
         clickHabitual("habitual-add-selected")
         waitForText("habitual-feedback", "1 adicionados à lista")
