@@ -80,6 +80,28 @@ class SetItemState(private val publicId: String, private val desired: ItemStatus
     }
 }
 
+/** `correct_item`: save the edited name and optional manually selected category against the shown versions. */
+class CorrectItem(
+    private val publicId: String,
+    private val name: String,
+    private val categoryPublicId: String?,
+) : OnlineAction {
+    override fun plan(context: PlanContext): ActionPlan {
+        val item = context.snapshot.listItems.firstOrNull { it.publicId.equals(publicId, ignoreCase = true) }
+            ?: return ActionPlan.Invalid(InvalidAction.ITEM_NOT_FOUND)
+        if (name.trim().isEmpty()) return ActionPlan.Invalid(InvalidAction.INVALID_NAME)
+        if (categoryPublicId != null && context.snapshot.categories.none { it.publicId.equals(categoryPublicId, true) }) {
+            return ActionPlan.Invalid(InvalidAction.CATEGORY_NOT_FOUND)
+        }
+        val category = categoryPublicId?.let(JSONObject::quote) ?: "null"
+        return ActionPlan.Send(context.document(
+            "correct_item",
+            """{"public_id":${JSONObject.quote(item.publicId)},"name":${JSONObject.quote(name)},"category_id":$category}""",
+            """{"lock_version":${item.lockVersion},"dictionary_revision":${context.snapshot.dictionaryRevision}}""",
+        ))
+    }
+}
+
 /** The item as a `set_item_state` receipt reports it after the command: the version the next command must name. */
 data class MarkedItem(val publicId: String, val lockVersion: Int)
 

@@ -7,6 +7,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,6 +30,7 @@ import net.ts.taild80ca0.atlas.twa.online.ActionResult
 import net.ts.taild80ca0.atlas.twa.online.OnlineMessages
 import net.ts.taild80ca0.atlas.twa.online.OnlineRepository
 import net.ts.taild80ca0.atlas.twa.online.SetItemState
+import net.ts.taild80ca0.atlas.twa.online.CorrectItem
 import net.ts.taild80ca0.atlas.twa.online.UndoItemState
 import net.ts.taild80ca0.atlas.twa.online.liveItems
 import net.ts.taild80ca0.atlas.twa.online.markedItem
@@ -110,7 +115,37 @@ fun ListScreen(
                 val key = group.category?.publicId ?: "none"
                 item(key = "category-$key") { CategoryHeading(group) }
                 itemsIndexed(group.items, key = { _, item -> item.publicId }) { index, item ->
-                    ListRow(item, first = index == 0, enabled = item.publicId !in busy, onToggle = { mark(item) })
+                    var editing by remember(item.publicId) { mutableStateOf(false) }
+                    var draftName by remember(item.publicId) { mutableStateOf(item.name) }
+                    var draftCategory by remember(item.publicId) { mutableStateOf(item.categoryPublicId) }
+                    var categoryMenu by remember { mutableStateOf(false) }
+                    var editBusy by remember(item.publicId) { mutableStateOf(false) }
+                    if (!editing) ListRow(item, first = index == 0, enabled = item.publicId !in busy, onToggle = { mark(item) }, trailing = {
+                        TextButton(onClick = { draftName = item.name; draftCategory = item.categoryPublicId; editing = true }, modifier = Modifier.testTag("edit-${item.publicId}")) { Text("✎") }
+                    }) else Column(Modifier.fillMaxWidth().padding(vertical = 8.dp).testTag("edit-form-${item.publicId}")) {
+                        OutlinedTextField(value = draftName, onValueChange = { draftName = it }, label = { Text("Nome") }, singleLine = true, enabled = !editBusy, modifier = Modifier.fillMaxWidth().testTag("edit-name"))
+                        Box {
+                            TextButton(onClick = { categoryMenu = true }, enabled = !editBusy, modifier = Modifier.testTag("edit-category")) {
+                                Text(snapshot.categories.firstOrNull { it.publicId == draftCategory }?.name ?: "Categoria automática")
+                            }
+                            DropdownMenu(expanded = categoryMenu, onDismissRequest = { categoryMenu = false }) {
+                                DropdownMenuItem(text = { Text("Categoria automática") }, onClick = { draftCategory = null; categoryMenu = false })
+                                snapshot.categories.forEach { category -> DropdownMenuItem(text = { Text(category.name) }, onClick = { draftCategory = category.publicId; categoryMenu = false }) }
+                            }
+                        }
+                        Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                            TextButton(onClick = { editing = false }, enabled = !editBusy) { Text("Cancelar") }
+                            TextButton(enabled = !editBusy, modifier = Modifier.testTag("edit-save"), onClick = {
+                                editBusy = true
+                                scope.launch {
+                                    try {
+                                        val result = repository.execute(CorrectItem(item.publicId, draftCategory, draftName))
+                                        if (result is ActionResult.Success) editing = false else onFailure(OnlineMessages.failure(result, keepsText = true))
+                                    } finally { editBusy = false }
+                                }
+                            }) { Text("Salvar") }
+                        }
+                    }
                 }
                 item(key = "gap-$key") { Spacer(Modifier.height(25.6.dp)) }
             }
