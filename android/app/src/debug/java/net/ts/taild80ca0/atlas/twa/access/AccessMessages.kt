@@ -5,16 +5,15 @@ package net.ts.taild80ca0.atlas.twa.access
  * no status code, no field name, no exception, nothing about tokens or keys.
  */
 object AccessMessages {
-    const val SETUP_TITLE = "Conectar à casa"
-    const val SETUP_HELP = "Digite a senha da casa uma vez. Depois o Alva abre direto."
-    const val RECONNECT_TITLE = "Reconectar à casa"
-    const val RECONNECT_HELP = "Este aparelho perdeu o acesso à casa. O que você adicionou aqui foi mantido."
+    // `sessions/new.html.erb`, word for word.
+    const val BRAND = "Alva"
+    const val TITLE = "Entre na lista de casa"
+    const val HELP = "Use a senha da casa. Este aparelho ficará conectado por 30 dias."
     const val PASSWORD_LABEL = "Senha da casa"
-    const val CONNECT_BUTTON = "Conectar"
-    const val RECONNECT_BUTTON = "Reconectar"
-    const val WORKING = "Conectando…"
-    const val CONNECTED_TITLE = "Conectado à casa"
-    const val CONNECTED_HELP = "Este aparelho já está conectado."
+    const val LOGIN_BUTTON = "Entrar"
+    const val LOGGING_IN = "Entrando…"
+
+    // The house menu's check (temporary, until the menu of #109).
     const val CHECK_BUTTON = "Verificar conexão"
     const val CHECK_OK = "A conexão com a casa está funcionando."
     const val STORAGE_UNAVAILABLE = "Não foi possível acessar o armazenamento seguro agora. Tente de novo."
@@ -29,7 +28,7 @@ object AccessMessages {
     }
 
     private fun forServer(error: AccessError): String = when (error) {
-        AccessError.WrongPassword -> "Senha incorreta. Confira e tente de novo."
+        AccessError.WrongPassword -> "Senha incorreta. Tente novamente."
         AccessError.SyncUnavailable ->
             "A casa ainda não está pronta para conectar aparelhos. Fale com quem cuida do servidor."
         is AccessError.RateLimited -> "Muitas tentativas. Aguarde alguns minutos e tente de novo."
