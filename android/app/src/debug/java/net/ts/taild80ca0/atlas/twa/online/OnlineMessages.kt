@@ -21,6 +21,7 @@ object OnlineMessages {
                 InvalidAction.ITEM_NOT_FOUND -> "Este item não está mais na lista."
                 InvalidAction.INVALID_NAME -> "Digite um nome para o item."
                 InvalidAction.CATEGORY_NOT_FOUND -> "Escolha uma categoria válida."
+                InvalidAction.NO_HABITUALS -> "Selecione hábitos válidos desta casa"
             }
             is ActionResult.Success -> ""
         }

@@ -69,6 +69,18 @@ anterior: repetir a ação é o único reenvio.
   (`precondition_failed`) e a tela avisa que a lista mudou. O prazo de ~5 s é do
   toast, não do servidor.
 
+## Habituais (#105)
+
+`CreateHabitual`, `RemoveHabitual` e `AddHabituals` usam os comandos existentes do
+Rails. A seleção manda UUIDs, sem o limite de 30 do campo de texto; adicionar
+todos manda `all: true`, deixando o servidor decidir nomes, duplicados e revives.
+Remover um habitual nunca remove o item da lista.
+
+`HabitualPanelState`, mantido em `AddScreenState`, conserva rascunho, painel e
+seleções sobreviventes durante releituras e navegação. O saver conserva esses
+campos na recriação da Activity. Mensagens vêm somente do resultado local da
+ação; adicionar habituais não preenche “Acabou de adicionar”.
+
 ## Como estender (#97–#109)
 
 1. Crie uma classe que implemente `OnlineAction` (em `OnlineActions.kt` ou num

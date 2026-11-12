@@ -42,6 +42,29 @@ class OnlineRepositoryTest {
     private fun ready() = repository.state.value as OnlineState.Ready
     private fun names() = ready().snapshot.listItems.map { it.name }
 
+    @Test fun habitualSelectionHasNoThirtyItemLimitAndRemovalKeepsTheList() = runBlocking {
+        repeat(35) { house.habituals += SnapshotFixtures.habitual(java.util.UUID.randomUUID().toString(), "Produto $it") }
+        repository.refresh()
+        val ids = ready().snapshot.habitualItems.map { it.publicId }
+        assertTrue(repository.execute(AddHabituals(ids)) is ActionResult.Success)
+        assertEquals(35, JSONObject(house.sent.last().second).getJSONObject("payload").getJSONArray("public_ids").length())
+        assertEquals(35, names().size)
+        assertTrue(repository.execute(RemoveHabitual(ids.first())) is ActionResult.Success)
+        assertEquals(35, names().size)
+        assertEquals(34, ready().snapshot.habitualItems.size)
+    }
+
+    @Test fun habitualCreateLostAnswerIsIdempotentAndAllUsesTheServersSavedNames() = runBlocking {
+        repository.refresh()
+        house.commandSteps += Step.LostAnswer
+        assertTrue(repository.execute(CreateHabitual(" Café ")) is ActionResult.Success)
+        assertEquals(1, house.habituals.size)
+        assertTrue(repository.execute(AddHabituals()) is ActionResult.Success)
+        assertEquals(listOf("Café"), names())
+        val duplicate = repository.execute(AddHabituals()) as ActionResult.Success
+        assertEquals(AddOutcome.DUPLICATE, duplicate.receipt.addedItems().single().outcome)
+    }
+
     // ---- reading the list ----------------------------------------------------------------------------------
 
     @Test fun startsLoadingAndReadsTheServersList() = runBlocking {
