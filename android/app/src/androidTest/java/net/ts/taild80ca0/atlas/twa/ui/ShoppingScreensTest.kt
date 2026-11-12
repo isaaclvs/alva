@@ -350,8 +350,6 @@ class ShoppingScreensTest {
         openList()
         waitForText("list-summary", "3 pendentes · 2 comprados")
 
-        val order = listOf("Hortifruti", "Laticínios", "Outros", "Sem categoria")
-        assertEquals(order.sortedBy { top("category-$it") }, order)
         assertTrue("pending first inside a section", top("item-${queijo.id}") < top("item-${leite.id}"))
         compose.onNodeWithTag("category-count-Hortifruti").assertTextEquals("1/1")
         compose.onNodeWithTag("category-count-Laticínios").assertTextEquals("1/2")
@@ -362,6 +360,13 @@ class ShoppingScreensTest {
         compose.onNodeWithText("Alva").assertIsDisplayed()
         compose.onNodeWithText("Nossa casa").assertIsDisplayed()
         compose.onNodeWithText("Lista de compras").assertIsDisplayed()
+        // LazyColumn does not compose every section on a small viewport. Section ordering is
+        // covered by ListGroupsTest; here verify that every heading can actually be reached.
+        val list = compose.onNode(hasScrollToNodeAction())
+        listOf("Hortifruti", "Laticínios", "Outros", "Sem categoria").forEach { label ->
+            list.performScrollToNode(hasTestTag("category-$label"))
+            compose.onNodeWithTag("category-$label").assertIsDisplayed()
+        }
     }
 
     @Test fun anEmptyListSaysSoAndInvitesToAdd() {
