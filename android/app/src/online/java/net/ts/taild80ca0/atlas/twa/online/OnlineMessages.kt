@@ -14,7 +14,10 @@ object OnlineMessages {
             ActionResult.Offline -> "Sem conexão com o servidor. Nada foi salvo. $retry"
             ActionResult.ServerUnavailable -> "O servidor não está disponível agora. Nada foi salvo. $retry"
             ActionResult.NoAccess -> OnlineProblem.NO_ACCESS.message
-            is ActionResult.Refused -> refusal(result.code, retry)
+            is ActionResult.Refused ->
+                // A server that does not know the command answers the same way every time: retrying cannot help.
+                if (result.code == "unsupported_command") "O servidor da casa ainda não tem esta função. Nada foi alterado. Atualize o Alva no servidor."
+                else refusal(result.code, retry)
             is ActionResult.Invalid -> when (result.reason) {
                 InvalidAction.NO_NAMES -> "Digite pelo menos um item."
                 InvalidAction.TOO_MANY_NAMES -> "São itens demais de uma vez (no máximo ${AddItems.MAX_NAMES}). Adicione em partes."

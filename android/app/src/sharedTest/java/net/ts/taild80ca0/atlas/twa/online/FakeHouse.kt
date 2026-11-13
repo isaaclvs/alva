@@ -57,6 +57,12 @@ class FakeHouse : SnapshotTransport, CommandTransport {
     /** How long a read of the list takes, to let requests pile up behind it. */
     var fetchDelayMillis = 0L
     val commandSteps = ArrayDeque<Step>()
+
+    /**
+     * Command types this server does not know, answered `rejected`/`unsupported_command` like the Rails of the Atlas
+     * did on 2026-11-13 (its `EXECUTORS` held only `add_items` and `set_item_state`).
+     */
+    var unsupportedTypes: Set<String> = emptySet()
     val snapshotSteps = ArrayDeque<Step>()
 
     fun seed(
@@ -117,6 +123,7 @@ class FakeHouse : SnapshotTransport, CommandTransport {
     private fun answer(id: String, command: JSONObject): CommandReceipt {
         ledger[id]?.let { return it.copy(status = ReceiptStatus.DUPLICATE, originalStatus = it.status) }
         val receipt = when (command.getString("type")) {
+            in unsupportedTypes -> receipt(id, ReceiptStatus.REJECTED, error = "unsupported_command")
             "create_habitual" -> createHabitual(id, command.getJSONObject("payload").getString("name"))
             "remove_habitual" -> {
                 habituals.removeAll { it.getString("public_id") == command.getJSONObject("payload").getString("public_id") }
