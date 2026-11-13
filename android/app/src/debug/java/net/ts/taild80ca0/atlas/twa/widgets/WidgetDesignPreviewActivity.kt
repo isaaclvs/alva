@@ -84,9 +84,11 @@ class WidgetDesignPreviewActivity : ComponentActivity() {
                         } }, modifier = Modifier.fillMaxWidth().height(335.dp))
                         AndroidView(factory = { context -> HabitualWidgetProvider.render(context, PREVIEW_ID, 340, 160).apply(context, FrameLayout(context)) }, modifier = Modifier.fillMaxWidth().height(160.dp))
                         AndroidView(factory = { context -> QuickAddWidgetProvider.render(context, PREVIEW_ID).apply(context, FrameLayout(context)) }, modifier = Modifier.fillMaxWidth().height(96.dp))
-                        TextButton(onClick = {
-                            AppWidgetManager.getInstance(this@WidgetDesignPreviewActivity).requestPinAppWidget(ComponentName(this@WidgetDesignPreviewActivity, ShoppingListWidgetProvider::class.java), null, null)
-                        }) { Text("Fixar lista no launcher") }
+                        if (android.os.Build.VERSION.SDK_INT >= 26 && AppWidgetManager.getInstance(this@WidgetDesignPreviewActivity).isRequestPinAppWidgetSupported) {
+                            TextButton(onClick = {
+                                AppWidgetManager.getInstance(this@WidgetDesignPreviewActivity).requestPinAppWidget(ComponentName(this@WidgetDesignPreviewActivity, ShoppingListWidgetProvider::class.java), null, null)
+                            }) { Text("Fixar lista no launcher") }
+                        }
                     }
                 }
             }
