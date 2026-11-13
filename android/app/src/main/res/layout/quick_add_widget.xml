@@ -1,27 +1,11 @@
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/quick_add_widget"
-    android:layout_width="match_parent" android:layout_height="match_parent"
-    android:contentDescription="Adicionar item à lista de compras">
-    <ImageView android:id="@+id/quick_add_widget_background" android:layout_width="match_parent"
-        android:layout_height="match_parent" android:src="@drawable/quick_add_widget_bg"
-        android:scaleType="fitXY" android:importantForAccessibility="no"/>
-    <LinearLayout
-    android:layout_width="match_parent" android:layout_height="match_parent"
-    android:minHeight="64dp" android:gravity="center_vertical" android:orientation="horizontal"
-    android:padding="12dp">
-    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
-        android:layout_weight="1" android:orientation="vertical" android:importantForAccessibility="noHideDescendants">
-        <TextView android:id="@+id/quick_add_widget_brand" android:layout_width="match_parent"
-            android:layout_height="wrap_content" android:text="Alva" android:textColor="#2DD4BF"
-            android:textSize="12sp" android:fontFamily="@font/nunito_sans_semibold"/>
-        <TextView android:id="@+id/quick_add_widget_prompt" android:layout_width="match_parent"
-            android:layout_height="wrap_content" android:layout_marginTop="2dp"
-            android:text="O que acabou?" android:textColor="#F4F4F5" android:textSize="15sp"
-            android:fontFamily="@font/nunito_sans_semibold"/>
-    </LinearLayout>
-    <TextView android:id="@+id/quick_add_widget_plus" android:layout_width="48dp"
-        android:layout_height="48dp" android:layout_marginStart="8dp" android:gravity="center"
-        android:text="+" android:textColor="#2DD4BF" android:textSize="30sp"
-        android:importantForAccessibility="no"/>
-</LinearLayout>
-</FrameLayout>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/quick_add_widget" android:layout_width="match_parent" android:layout_height="match_parent" android:contentDescription="Adicionar item à lista de compras">
+<ImageView android:id="@+id/quick_add_widget_background" android:layout_width="match_parent" android:layout_height="match_parent" android:src="@drawable/quick_add_widget_bg" android:scaleType="fitXY" android:importantForAccessibility="no"/>
+<LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center_vertical" android:padding="18dp">
+ <FrameLayout android:layout_width="48dp" android:layout_height="48dp" android:layout_marginEnd="13dp">
+ <ImageView android:id="@+id/quick_add_widget_plus_background" android:layout_width="match_parent" android:layout_height="match_parent" android:src="@drawable/widget_circle" android:importantForAccessibility="no"/>
+ <TextView android:id="@+id/quick_add_widget_plus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:fontFamily="@font/nunito_sans_regular" android:text="+" android:textSize="28sp" android:minWidth="48dp" android:minHeight="48dp" android:gravity="center" android:importantForAccessibility="no"/>
+ </FrameLayout>
+ <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:importantForAccessibility="noHideDescendants">
+ <TextView android:id="@+id/quick_add_widget_brand" android:layout_width="wrap_content" android:layout_height="wrap_content" android:fontFamily="@font/nunito_sans_regular" android:text="ADICIONAR RÁPIDO" android:textSize="10sp" />
+ <TextView android:id="@+id/quick_add_widget_prompt" android:layout_width="wrap_content" android:layout_height="wrap_content" android:fontFamily="@font/nunito_sans_bold" android:text="O que acabou?" android:textSize="17sp" android:layout_marginTop="3dp"/>
+ </LinearLayout></LinearLayout></FrameLayout>

@@ -32,18 +32,21 @@ public class QuickAddWidgetProvider extends AppWidgetProvider {
   public static void refresh(Context context) {
     AppWidgetManager manager = AppWidgetManager.getInstance(context);
     int[] ids = manager.getAppWidgetIds(new ComponentName(context, QuickAddWidgetProvider.class));
+    for (int id : ids) manager.updateAppWidget(id, render(context, id));
+  }
+
+  public static RemoteViews render(Context context, int id) {
     WidgetPalette palette = WidgetRuntime.palette(context);
-    for (int id : ids) {
-      RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.quick_add_widget);
-      views.setInt(R.id.quick_add_widget_background, "setColorFilter", palette.getBackground());
-      views.setTextColor(R.id.quick_add_widget_brand, palette.getAccent());
-      views.setTextColor(R.id.quick_add_widget_prompt, palette.getInk());
-      views.setTextColor(R.id.quick_add_widget_plus, palette.getAccent());
-      Intent intent = new Intent(context, QuickAddActivity.class);
-      PendingIntent pending = PendingIntent.getActivity(context, id, intent,
-          PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-      views.setOnClickPendingIntent(R.id.quick_add_widget, pending);
-      manager.updateAppWidget(id, views);
-    }
+    RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.quick_add_widget);
+    views.setInt(R.id.quick_add_widget_background, "setColorFilter", palette.getBackground());
+    views.setTextColor(R.id.quick_add_widget_brand, palette.getSoft());
+    views.setTextColor(R.id.quick_add_widget_prompt, palette.getInk());
+    views.setTextColor(R.id.quick_add_widget_plus, palette.getAccentInk());
+    views.setInt(R.id.quick_add_widget_plus_background, "setColorFilter", palette.getAccent());
+    Intent intent = new Intent(context, QuickAddActivity.class);
+    PendingIntent pending = PendingIntent.getActivity(context, id, intent,
+        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+    views.setOnClickPendingIntent(R.id.quick_add_widget, pending);
+    return views;
   }
 }

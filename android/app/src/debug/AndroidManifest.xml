@@ -42,5 +42,13 @@
         <activity android:name=".widgets.HabitualWidgetConfigureActivity" android:exported="true" android:theme="@android:style/Theme.Material.Light.NoActionBar">
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" /></intent-filter>
         </activity>
+        <activity android:name=".widgets.WidgetDesignPreviewActivity" android:exported="true" android:theme="@style/Theme.AlvaDev">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="alva-dev" android:host="widget-design"/>
+            </intent-filter>
+        </activity>
     </application>
 </manifest>

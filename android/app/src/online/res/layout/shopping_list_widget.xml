@@ -1,16 +1,20 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/widget_list_root" android:layout_width="match_parent" android:layout_height="match_parent">
-<ImageView android:id="@+id/widget_list_background" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:src="@drawable/quick_add_widget_bg" android:importantForAccessibility="no" />
-<LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="12dp">
-    <LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:gravity="center_vertical">
-        <TextView android:fontFamily="@font/nunito_sans_regular" android:id="@+id/widget_list_title" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:gravity="center_vertical" android:text="Lista de compras" android:textSize="16sp" android:textStyle="bold" />
-        <TextView android:fontFamily="@font/nunito_sans_regular" android:id="@+id/widget_list_refresh" android:layout_width="48dp" android:layout_height="48dp" android:gravity="center" android:text="↻" android:textSize="26sp" android:contentDescription="Atualizar lista" />
-        <TextView android:fontFamily="@font/nunito_sans_regular" android:id="@+id/widget_list_add" android:layout_width="48dp" android:layout_height="48dp" android:gravity="center" android:text="+" android:textSize="26sp" android:contentDescription="Adicionar item" />
-    </LinearLayout>
-    <TextView android:fontFamily="@font/nunito_sans_regular" android:id="@+id/widget_list_summary" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="12sp" android:paddingBottom="6dp" />
-    <ListView android:id="@+id/widget_list_rows" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:divider="@null" />
-    <TextView android:fontFamily="@font/nunito_sans_regular" android:id="@+id/widget_list_empty" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:gravity="center" android:text="Carregando lista…" android:textSize="15sp" />
-    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical">
-        <TextView android:fontFamily="@font/nunito_sans_regular" android:id="@+id/widget_list_status" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textSize="12sp" android:maxLines="3" />
-        <TextView android:fontFamily="@font/nunito_sans_regular" android:id="@+id/widget_list_undo" android:layout_width="wrap_content" android:layout_height="48dp" android:paddingHorizontal="8dp" android:gravity="center" android:text="Desfazer" android:textSize="14sp" android:visibility="gone" />
-    </LinearLayout>
-</LinearLayout></FrameLayout>
+<ImageView android:id="@+id/widget_list_background" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:src="@drawable/quick_add_widget_bg" android:importantForAccessibility="no"/>
+<LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="18dp">
+ <LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:gravity="center_vertical">
+ <TextView android:id="@+id/widget_list_brand" android:layout_width="wrap_content" android:layout_height="wrap_content" android:fontFamily="@font/nunito_sans_bold" android:text="alva" android:textSize="18sp" android:layout_weight="1"/>
+ <TextView android:id="@+id/widget_list_refresh" android:layout_width="wrap_content" android:layout_height="wrap_content" android:fontFamily="@font/nunito_sans_regular" android:text="↻" android:textSize="25sp" android:layout_marginEnd="8dp" android:minWidth="48dp" android:minHeight="48dp" android:gravity="center" android:contentDescription="Atualizar lista"/>
+ <FrameLayout android:layout_width="48dp" android:layout_height="48dp">
+ <ImageView android:id="@+id/widget_list_add_background" android:layout_width="40dp" android:layout_height="40dp" android:layout_gravity="center" android:src="@drawable/widget_circle" android:importantForAccessibility="no"/>
+ <TextView android:id="@+id/widget_list_add" android:layout_width="wrap_content" android:layout_height="wrap_content" android:fontFamily="@font/nunito_sans_regular" android:text="+" android:textSize="27sp" android:minWidth="48dp" android:minHeight="48dp" android:gravity="center" android:contentDescription="Adicionar item"/>
+ </FrameLayout></LinearLayout>
+ <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:paddingBottom="10dp">
+ <TextView android:id="@+id/widget_list_title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:fontFamily="@font/nunito_sans_bold" android:text="Nossa lista" android:textSize="19sp" /><TextView android:id="@+id/widget_list_summary" android:layout_width="wrap_content" android:layout_height="wrap_content" android:fontFamily="@font/nunito_sans_regular" android:text="" android:textSize="12sp" android:layout_marginStart="7dp"/>
+ </LinearLayout>
+ <ListView android:id="@+id/widget_list_rows" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:divider="@null"/>
+ <TextView android:id="@+id/widget_list_empty" android:layout_width="wrap_content" android:layout_height="wrap_content" android:fontFamily="@font/nunito_sans_regular" android:text="Nada para comprar" android:textSize="15sp" android:minHeight="52dp" android:gravity="center_vertical"/>
+ <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical">
+ <TextView android:id="@+id/widget_list_status" android:layout_width="wrap_content" android:layout_height="wrap_content" android:fontFamily="@font/nunito_sans_regular" android:text="Atualizada agora" android:textSize="11sp" android:layout_weight="1" android:maxLines="2"/>
+ <TextView android:id="@+id/widget_list_open" android:layout_width="wrap_content" android:layout_height="wrap_content" android:fontFamily="@font/nunito_sans_bold" android:text="Ver lista →" android:textSize="12sp" android:minHeight="48dp" android:gravity="center" android:paddingStart="10dp"/>
+ <TextView android:id="@+id/widget_list_undo" android:layout_width="wrap_content" android:layout_height="wrap_content" android:fontFamily="@font/nunito_sans_bold" android:text="Desfazer" android:textSize="12sp" android:minHeight="48dp" android:gravity="center" android:paddingStart="10dp" android:visibility="gone"/>
+ </LinearLayout></LinearLayout></FrameLayout>
