@@ -61,13 +61,17 @@ class ShoppingListWidgetProvider : AppWidgetProvider() {
             val count = snapshot?.listItems?.count { it.status == 0 } ?: 0
             views.setInt(R.id.widget_list_background, "setColorFilter", p.background)
             for (view in listOf(R.id.widget_list_title, R.id.widget_list_summary, R.id.widget_list_empty)) views.setTextColor(view, p.ink)
-            for (view in listOf(R.id.widget_list_add, R.id.widget_list_refresh, R.id.widget_list_undo)) views.setTextColor(view, p.accent)
+            for (view in listOf(R.id.widget_list_brand, R.id.widget_list_refresh, R.id.widget_list_undo, R.id.widget_list_open)) views.setTextColor(view, p.accent)
             views.setTextColor(R.id.widget_list_status, p.soft)
+            views.setTextColor(R.id.widget_list_summary, p.soft)
+            views.setTextColor(R.id.widget_list_add, p.accentInk)
+            views.setInt(R.id.widget_list_add_background, "setColorFilter", p.accent)
             views.setTextViewText(R.id.widget_list_summary, if (snapshot == null) "Alva" else if (count == 1) "1 pendente" else "$count pendentes")
             views.setViewVisibility(R.id.widget_list_rows, if (count > 0) View.VISIBLE else View.GONE)
             views.setViewVisibility(R.id.widget_list_empty, if (count > 0) View.GONE else View.VISIBLE)
             views.setTextViewText(R.id.widget_list_empty, if (snapshot == null) "Abra o app para conectar a casa" else if (snapshot.listItems.isEmpty()) "Nada para comprar" else "Tudo pego · Abrir lista")
-            views.setTextViewText(R.id.widget_list_status, WidgetRuntime.status(context) ?: "Abrir lista")
+            views.setTextViewText(R.id.widget_list_status, WidgetRuntime.status(context) ?: "Atualizada agora")
+            views.setOnClickPendingIntent(R.id.widget_list_open, WidgetRuntime.openList(context))
             views.setOnClickPendingIntent(R.id.widget_list_title, WidgetRuntime.openList(context))
             views.setOnClickPendingIntent(R.id.widget_list_empty, WidgetRuntime.openList(context))
             views.setOnClickPendingIntent(R.id.widget_list_status, WidgetRuntime.openList(context))
@@ -115,20 +119,24 @@ internal class ListFactory(private val context: Context) : RemoteViewsService.Re
         return RemoteViews(context.packageName, R.layout.shopping_list_widget_row).apply {
             setTextViewText(R.id.widget_row_name, item.name)
             setTextColor(R.id.widget_row_name, p.ink)
-            setTextColor(R.id.widget_row_check, p.accent)
+            setInt(R.id.widget_row_check_icon, "setColorFilter", p.accent)
+            setTextColor(R.id.widget_row_progress, p.accent)
+            setInt(R.id.widget_row_divider, "setColorFilter", p.line)
             setTextColor(R.id.widget_row_category, p.soft)
-            setViewVisibility(R.id.widget_row_category, if (category == null) View.GONE else View.VISIBLE)
+            setViewVisibility(R.id.widget_row_category, View.VISIBLE)
             setTextViewText(R.id.widget_row_category, category ?: "")
-            setTextViewText(R.id.widget_row_check, if (WidgetRuntime.isBusy(item.publicId)) "…" else "□")
+            setViewVisibility(R.id.widget_row_check_icon, if (WidgetRuntime.isBusy(item.publicId)) View.GONE else View.VISIBLE)
+            setViewVisibility(R.id.widget_row_progress, if (WidgetRuntime.isBusy(item.publicId)) View.VISIBLE else View.GONE)
             setContentDescription(R.id.widget_row_check, "Marcar ${item.name} como comprado")
             setOnClickFillInIntent(R.id.widget_row_check, Intent().putExtra("operation", "mark")
                 .putExtra("item", item.publicId).putExtra("version", item.lockVersion).putExtra("house", house))
+            setOnClickFillInIntent(R.id.widget_row_text, Intent().putExtra("operation", "open"))
             setOnClickFillInIntent(R.id.widget_row_name, Intent().putExtra("operation", "open"))
         }
     }
 }
 
-/** Stable category/name order, with a heading only on the first pending item of a category. */
+/** Stable category/name order, with a secondary category label on each row. */
 object WidgetListRows {
     fun of(snapshot: net.ts.taild80ca0.atlas.twa.sync.ServerSnapshot?): List<Pair<String?, SnapshotItem>> {
         if (snapshot == null) return emptyList()
@@ -136,9 +144,8 @@ object WidgetListRows {
         val items = snapshot.listItems.filter { it.status == 0 }.sortedWith(compareBy<SnapshotItem> {
             categories[it.categoryPublicId]?.position ?: Int.MAX_VALUE
         }.thenBy { TextNormalizer.plain(it.name) }.thenBy { it.publicId })
-        return items.mapIndexed { index, item ->
-            val heading = index == 0 || items[index - 1].categoryPublicId != item.categoryPublicId
-            (if (heading) categories[item.categoryPublicId]?.name ?: "Sem categoria" else null) to item
+        return items.map { item ->
+            (categories[item.categoryPublicId]?.name ?: "Sem categoria") to item
         }
     }
 }

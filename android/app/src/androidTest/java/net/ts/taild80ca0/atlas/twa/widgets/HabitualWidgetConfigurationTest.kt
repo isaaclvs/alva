@@ -2,6 +2,9 @@ package net.ts.taild80ca0.atlas.twa.widgets
 
 import android.appwidget.AppWidgetManager
 import android.content.Intent
+import androidx.compose.ui.test.*
+import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import org.junit.Rule
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
@@ -19,12 +22,13 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class HabitualWidgetConfigurationTest {
+    @get:Rule val compose = createEmptyComposeRule()
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var scenario: ActivityScenario<HabitualWidgetConfigureActivity>? = null
     private val widgetId = 867530
     @After fun cleanup() {
-        scenario?.close(); AccessGraph.install(null); scope.cancel()
+        scenario?.close(); WidgetRuntime.resetForTests(context); AccessGraph.install(null); scope.cancel()
         HabitualWidgetSettings.delete(context, widgetId)
         HabitualWidgetSettings.delete(context, widgetId + 1)
     }
@@ -51,35 +55,21 @@ class HabitualWidgetConfigurationTest {
         HabitualWidgetSettings.save(context, widgetId + 1, HabitualWidgetSettings("Outro", listOf(coffee)))
         scenario = ActivityScenario.launch(Intent(context, HabitualWidgetConfigureActivity::class.java)
             .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId))
-        await { views(it.window.decorView).filterIsInstance<CheckBox>().size == 2 }
-        scenario!!.onActivity { activity ->
-            val views = views(activity.window.decorView)
-            views.filterIsInstance<EditText>().single().setText("Cozinha")
-            views.filterIsInstance<CheckBox>().first { it.text == "Leite" }.performClick()
-        }
-        scenario!!.onActivity { activity -> views(activity.window.decorView).filterIsInstance<CheckBox>().first { it.text == "Café" }.performClick() }
-        // First selected is Leite; moving Café up gives an explicit order unrelated to selection order.
-        scenario!!.onActivity { activity -> views(activity.window.decorView).first { it.contentDescription == "Mover Café para cima" }.performClick() }
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("habit-$milk").fetchSemanticsNodes().size == 1 }
+        compose.onNodeWithText("2 × 2").performClick()
+        compose.onNodeWithTag("widget-preview").assertExists()
+        compose.onNodeWithTag("widget-name").performTextReplacement("Cozinha")
+        compose.onNodeWithTag("habit-$milk").performScrollTo().performClick()
+        compose.onNodeWithTag("habit-$coffee").performScrollTo().performClick()
+        compose.onNodeWithText("Reordenar atalhos", substring = true).performScrollTo().performClick()
+        compose.onNodeWithContentDescription("Mover Café para cima").performScrollTo().performClick()
         scenario!!.recreate()
-        await { views(it.window.decorView).filterIsInstance<CheckBox>().count { it.isChecked } == 2 }
-        scenario!!.onActivity { activity ->
-            assertEquals("Cozinha", views(activity.window.decorView).filterIsInstance<EditText>().single().text.toString())
-            assertTrue(views(activity.window.decorView).filterIsInstance<TextView>().any { it.text.toString() == "Prévia · Café  + Leite" })
-            views(activity.window.decorView).filterIsInstance<Button>().first { it.text == "Salvar widget" }.performClick()
-        }
+        compose.onNodeWithTag("widget-name").assertTextContains("Cozinha")
+        compose.onNodeWithTag("habit-$milk").assertIsSelected()
+        compose.onNodeWithTag("habit-$coffee").assertIsSelected()
+        compose.onNodeWithText("Salvar widget").performClick()
         assertEquals(HabitualWidgetSettings("Cozinha", listOf(coffee, milk)), HabitualWidgetSettings.read(context, widgetId))
         assertEquals(HabitualWidgetSettings("Outro", listOf(coffee)), HabitualWidgetSettings.read(context, widgetId + 1))
         assertTrue(house.rows.isEmpty())
-    }
-    private fun views(root: View): List<View> = listOf(root) + if (root is ViewGroup) (0 until root.childCount).flatMap { views(root.getChildAt(it)) } else emptyList()
-    private fun await(condition: (HabitualWidgetConfigureActivity) -> Boolean) {
-        val deadline = System.currentTimeMillis() + 10_000
-        while (System.currentTimeMillis() < deadline) {
-            var done = false
-            scenario!!.onActivity { done = condition(it) }
-            if (done) return
-            Thread.sleep(50)
-        }
-        fail("Configuração não terminou de carregar")
     }
 }

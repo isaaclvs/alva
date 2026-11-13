@@ -1,6 +1,6 @@
 # APK nativo do Alva
 
-A versão 2.0.1 (código 6) é o cliente Android nativo online, em Kotlin/Compose.
+A versão 2.0.2 (código 7) é o cliente Android nativo online, em Kotlin/Compose.
 Instala como atualização das versões TWA 1.x: mantém o identificador
 `net.ts.taild80ca0.atlas.twa` e a chave original de assinatura. Na primeira
 abertura do cliente nativo, informe a senha da casa uma vez; o app e o widget

@@ -95,7 +95,8 @@ class WidgetInteractionTest {
             factory.onDataSetChanged()
             assertEquals(1, factory.count)
             val row = factory.getViewAt(0)!!.apply(context, FrameLayout(context))
-            assertTrue(texts(row).any { it.contentDescription == "Marcar Leite como comprado" })
+            assertEquals("Marcar Leite como comprado", row.findViewById<View>(R.id.widget_row_check).contentDescription)
+            assertTrue(texts(row).any { it.text == "Laticínios" })
         }
         runBlocking { WidgetRuntime.mark(context, milk.id, 4, snapshot.householdPublicId) }
         assertEquals("purchased", milk.status)

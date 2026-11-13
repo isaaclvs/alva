@@ -3,150 +3,194 @@ package net.ts.taild80ca0.atlas.twa.widgets
 import android.appwidget.AppWidgetManager
 import android.content.Intent
 import android.os.Bundle
-import android.widget.*
-import androidx.core.content.res.ResourcesCompat
-import net.ts.taild80ca0.atlas.twa.R
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
-import net.ts.taild80ca0.atlas.twa.preferences.DevicePreferencesStore
-import net.ts.taild80ca0.atlas.twa.ui.theme.*
-import androidx.compose.ui.graphics.toArgb
+import kotlinx.coroutines.launch
 import net.ts.taild80ca0.atlas.twa.MainActivity
 import net.ts.taild80ca0.atlas.twa.access.AccessGraph
 import net.ts.taild80ca0.atlas.twa.online.OnlineState
+import net.ts.taild80ca0.atlas.twa.online.OnlineProblem
+import net.ts.taild80ca0.atlas.twa.preferences.DevicePreferencesStore
 import net.ts.taild80ca0.atlas.twa.sync.SnapshotHabitual
+import net.ts.taild80ca0.atlas.twa.ui.theme.*
 
-/** Configuration is local to this widget instance and never changes the household's habituals. */
+/** Device-local choices; the preview does not save settings or send commands. */
 class HabitualWidgetConfigureActivity : ComponentActivity() {
-    private var widgetId = AppWidgetManager.INVALID_APPWIDGET_ID
-    private val selected = mutableListOf<String>()
-    private var habits: List<SnapshotHabitual> = emptyList()
-    private lateinit var title: EditText
-    private lateinit var choices: LinearLayout
-    private lateinit var message: TextView
-    private lateinit var preview: TextView
-    private var ink = android.graphics.Color.WHITE
-    private var accent = android.graphics.Color.WHITE
-    private var accentInk = android.graphics.Color.BLACK
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setResult(RESULT_CANCELED)
-        widgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
-        if (widgetId == AppWidgetManager.INVALID_APPWIDGET_ID) { finish(); return }
-        lifecycleScope.launch {
-            val prefs = DevicePreferencesStore(this@HabitualWidgetConfigureActivity).values.first()
-            val colors = AlvaPalettes.of(prefs.dark, prefs.color)
-            applyAlvaSystemBars(colors)
-            ink = colors.ink.toArgb()
-            accent = colors.accent.toArgb()
-            accentInk = colors.accentInk.toArgb()
-            build(savedInstanceState, colors.canvas.toArgb(), colors.inkSoft.toArgb())
-        }
-    }
-    private fun build(savedInstanceState: Bundle?, background: Int, soft: Int) {
-        val settings = HabitualWidgetSettings.read(this, widgetId)
-        selected.addAll(savedInstanceState?.getStringArrayList("selected") ?: settings.ids)
-        val content = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(20), dp(20), dp(20)); setBackgroundColor(background)
-        }
-        fun label(text: String) = TextView(this).apply { this.text = text; textSize = 16f; setTextColor(ink); setPadding(0, dp(8), 0, dp(8)) }
-        content.addView(label("Atalhos de casa").apply { textSize = 24f })
-        content.addView(label("Escolha seus habituais e a ordem dos botões. Esta seleção vale só para este widget."))
-        title = EditText(this).apply {
-            hint = "Nome do widget"; setSingleLine(); setTextColor(ink); setHintTextColor(soft)
-            backgroundTintList = android.content.res.ColorStateList.valueOf(accent)
-            setText(savedInstanceState?.getString("title") ?: settings.title)
-        }
-        content.addView(title)
-        message = label("Carregando habituais…")
-        content.addView(message)
-        preview = label("").apply { contentDescription = "Prévia dos atalhos" }
-        content.addView(preview)
-        choices = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        content.addView(ScrollView(this).apply { addView(choices) }, LinearLayout.LayoutParams(-1, 0, 1f))
-        content.addView(Button(this).apply {
-            text = "Gerenciar habituais no Alva"
-            setOnClickListener { startActivity(Intent(this@HabitualWidgetConfigureActivity, MainActivity::class.java)) }
-        })
-        content.addView(Button(this).apply {
-            text = "Salvar widget"
-            setOnClickListener {
-                if (selected.isEmpty()) { message.text = "Escolha pelo menos um habitual."; return@setOnClickListener }
-                HabitualWidgetSettings.save(this@HabitualWidgetConfigureActivity, widgetId, HabitualWidgetSettings(title.text.toString(), selected.toList()))
-                HabitualWidgetProvider.update(this@HabitualWidgetConfigureActivity)
-                setResult(RESULT_OK, Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId))
-                finish()
-            }
-        })
-        fun applyFont(view: android.view.View) {
-            if (view is TextView) view.typeface = ResourcesCompat.getFont(this, R.font.nunito_sans_regular)
-            if (view is Button) styleButton(view)
-            if (view is android.view.ViewGroup) for (index in 0 until view.childCount) applyFont(view.getChildAt(index))
-        }
-        applyFont(content)
-        setContentView(content)
-        habits = WidgetRuntime.snapshot(this)?.habitualItems.orEmpty()
-        render()
+        val id = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
+        if (id == AppWidgetManager.INVALID_APPWIDGET_ID) { finish(); return }
+        val preferences = DevicePreferencesStore(this)
         val repository = AccessGraph.onlineRepository(this)
-        if (repository == null) message.text = "Abra o Alva para conectar sua casa." else lifecycleScope.launch {
-            launch { repository.refresh() }
-            repository.state.collect { state ->
-                when (state) {
-                    is OnlineState.Ready -> {
-                        habits = state.snapshot.habitualItems
-                        selected.retainAll(habits.map { it.publicId }.toSet())
-                        render()
-                        state.problem?.let { message.text = it.message }
+        val settings = HabitualWidgetSettings.read(this, id)
+        lifecycleScope.launch {
+            val initial = preferences.values.first()
+            setContent {
+                val prefs by preferences.values.collectAsState(initial)
+                val state = repository?.state?.collectAsState()?.value
+                val ready = (state as? OnlineState.Ready)?.takeUnless { it.problem == OnlineProblem.NO_ACCESS }
+                AlvaTheme(prefs.dark, prefs.color) {
+                    SideEffect { applyAlvaSystemBars(AlvaPalettes.of(prefs.dark, prefs.color)) }
+                    WidgetConfiguration(
+                        settings = settings,
+                        habituals = ready?.snapshot?.habitualItems.orEmpty(),
+                        loaded = ready != null,
+                        problem = (state as? OnlineState.Ready)?.problem?.message ?: (state as? OnlineState.Failed)?.problem?.message,
+                        back = ::finish,
+                        manage = { startActivity(Intent(this@HabitualWidgetConfigureActivity, MainActivity::class.java).putExtra("widget_screen", "add")) },
+                        save = { chosen ->
+                            HabitualWidgetSettings.save(this@HabitualWidgetConfigureActivity, id, chosen)
+                            HabitualWidgetProvider.update(this@HabitualWidgetConfigureActivity)
+                            setResult(RESULT_OK, Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id))
+                            finish()
+                        },
+                    )
+                }
+            }
+        }
+    }
+    override fun onResume() { super.onResume(); WidgetRuntime.refresh(this) }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun WidgetConfiguration(
+    settings: HabitualWidgetSettings,
+    habituals: List<SnapshotHabitual>,
+    loaded: Boolean,
+    problem: String?,
+    back: () -> Unit,
+    manage: () -> Unit,
+    save: (HabitualWidgetSettings) -> Unit,
+) {
+    val c = AlvaTheme.colors
+    var name by rememberSaveable { mutableStateOf(settings.title) }
+    var selected by rememberSaveable { mutableStateOf(ArrayList(settings.ids)) }
+    var compact by rememberSaveable { mutableStateOf(false) }
+    var reorder by rememberSaveable { mutableStateOf(false) }
+    var error by rememberSaveable { mutableStateOf<String?>(null) }
+    LaunchedEffect(habituals, loaded) {
+        if (loaded) selected = ArrayList(selected.filter { id -> habituals.any { it.publicId == id } })
+    }
+    val chosen = selected.mapNotNull { id -> habituals.find { it.publicId == id } }
+    Column(Modifier.fillMaxSize().background(c.canvas).windowInsetsPadding(WindowInsets.safeDrawing).imePadding()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp).heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = back, modifier = Modifier.semantics { contentDescription = "Voltar" }) { Text("‹", fontSize = 28.sp, lineHeight = 36.sp) }
+            Text("Configurar atalhos", fontSize = 16.sp, lineHeight = 21.sp, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.weight(1f))
+            Text("alva", color = c.accent, fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(end = 10.dp))
+        }
+        HorizontalDivider(color = c.line)
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("PRÉVIA NA TELA INICIAL", color = c.inkSoft, fontSize = 10.sp, lineHeight = 13.sp, modifier = Modifier.weight(1f))
+                Row(Modifier.background(c.surface, CircleShape).padding(3.dp)) {
+                    listOf(true to "2 × 2", false to "4 × 2").forEach { (small, label) ->
+                        Text(label, fontSize = 11.sp, lineHeight = 14.sp, color = if (compact == small) c.accent else c.inkSoft,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.background(if (compact == small) c.accentSoft else c.surface, CircleShape)
+                                .clickable { compact = small }.padding(horizontal = 12.dp, vertical = 9.dp))
                     }
-                    is OnlineState.Failed -> { message.text = state.problem.message }
-                    else -> Unit
+                }
+            }
+            Box(Modifier.fillMaxWidth().background(c.surface2.copy(alpha = .5f), RoundedCornerShape(24.dp)).padding(14.dp), contentAlignment = Alignment.Center) {
+                Column(Modifier.width(if (compact) 190.dp else 340.dp).background(c.canvas, RoundedCornerShape(22.dp))
+                    .border(1.dp, c.line, RoundedCornerShape(22.dp)).padding(13.dp).testTag("widget-preview")) {
+                    Text(name.ifBlank { "Atalhos de casa" }, fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold, color = c.ink)
+                    Spacer(Modifier.height(9.dp))
+                    if (chosen.isEmpty()) Text("Escolha os atalhos abaixo", color = c.inkSoft, fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.padding(vertical = 18.dp))
+                    chosen.take(if (compact) 4 else 8).chunked(if (compact) 2 else 4).forEach { row ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
+                            row.forEach { habit ->
+                                Column(Modifier.weight(1f).background(c.accentSoft, RoundedCornerShape(14.dp)).padding(horizontal = 4.dp, vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text("+", fontSize = 22.sp, lineHeight = 29.sp, color = c.accent)
+                                    Text(habit.name, fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight.Bold, color = c.ink, maxLines = 2)
+                                }
+                            }
+                            repeat((if (compact) 2 else 4) - row.size) { Spacer(Modifier.weight(1f)) }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(2.dp))
+            Text("Nome do widget", color = c.ink, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold)
+            OutlinedTextField(value = name, onValueChange = { name = it.take(40) }, singleLine = true,
+                modifier = Modifier.fillMaxWidth().testTag("widget-name").semantics { contentDescription = "Nome do widget" }, shape = RoundedCornerShape(14.dp),
+                textStyle = LocalTextStyle.current.copy(fontSize = 15.sp, lineHeight = 20.sp),
+                colors = OutlinedTextFieldDefaults.colors(unfocusedContainerColor = c.surface, focusedContainerColor = c.surface, unfocusedBorderColor = c.line))
+            Spacer(Modifier.height(2.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Escolha os atalhos", color = c.ink, fontWeight = FontWeight.Bold, fontSize = 15.sp, lineHeight = 20.sp, modifier = Modifier.weight(1f))
+                Text("${selected.size} selecionados", color = c.accent, fontSize = 12.sp, lineHeight = 16.sp)
+            }
+            Text("Toque nos itens que você quer ter à mão.", color = c.inkSoft, fontSize = 12.sp, lineHeight = 16.sp)
+            problem?.let { Text(it, color = c.danger, fontSize = 12.sp, lineHeight = 16.sp) }
+            error?.let { Text(it, color = c.danger, fontSize = 12.sp, lineHeight = 16.sp) }
+            if (!loaded && problem == null) Text("Carregando habituais…", color = c.inkSoft, fontSize = 13.sp, lineHeight = 17.sp)
+            if (loaded && habituals.isEmpty()) Text("Salve seus itens frequentes nos habituais do Alva.", color = c.inkSoft, fontSize = 13.sp, lineHeight = 17.sp)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                habituals.sortedBy { it.normalizedName }.forEach { habit ->
+                    val active = habit.publicId in selected
+                    FilterChip(selected = active, onClick = {
+                        if (active) selected = ArrayList(selected - habit.publicId)
+                        else if (selected.size < 8) selected = ArrayList(selected + habit.publicId)
+                        else error = "Escolha até 8 atalhos por widget."
+                        if (selected.size < 8) error = null
+                    }, label = { Text("${if (active) "✓" else "+"} ${habit.name}", fontSize = 12.sp, lineHeight = 16.sp) },
+                        border = FilterChipDefaults.filterChipBorder(enabled = true, selected = active, borderColor = c.line, selectedBorderColor = c.accent),
+                        shape = CircleShape, modifier = Modifier.testTag("habit-${habit.publicId}"),
+                        colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.accentSoft, selectedLabelColor = c.accent))
+                }
+            }
+            HorizontalDivider(color = c.line)
+            TextButton(onClick = { reorder = !reorder }, contentPadding = PaddingValues(0.dp)) {
+                Text("Reordenar atalhos ${if (reorder) "⌃" else "⌄"}", fontWeight = FontWeight.Bold, color = c.ink)
+            }
+            if (reorder) {
+                Text("Mova os itens para ajustar a ordem da prévia.", fontSize = 12.sp, lineHeight = 16.sp, color = c.inkSoft)
+                chosen.forEachIndexed { index, habit ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("${index + 1}.  ${habit.name}", modifier = Modifier.weight(1f), color = c.ink, fontSize = 13.sp, lineHeight = 17.sp)
+                        listOf(-1 to "↑", 1 to "↓").forEach { (step, arrow) ->
+                            TextButton(onClick = {
+                                selected = ArrayList(selected).apply { removeAt(index); add(index + step, habit.publicId) }
+                            }, enabled = index + step in chosen.indices,
+                                modifier = Modifier.semantics { contentDescription = "Mover ${habit.name} ${if (step < 0) "para cima" else "para baixo"}" }) { Text(arrow) }
+                        }
+                    }
                 }
             }
         }
-    }
-    override fun onResume() {
-        super.onResume()
-        WidgetRuntime.refresh(this)
-    }
-    override fun onSaveInstanceState(outState: Bundle) {
-        outState.putStringArrayList("selected", ArrayList(selected))
-        if (::title.isInitialized) outState.putString("title", title.text.toString())
-        super.onSaveInstanceState(outState)
-    }
-    private fun render() {
-        choices.removeAllViews()
-        message.text = if (habits.isEmpty()) "Ainda não há habituais. Salve seus itens frequentes no Alva." else "${selected.size} selecionados · use ↑ e ↓ para ordenar"
-        preview.text = "Prévia · " + selected.mapNotNull { id -> habits.find { it.publicId == id }?.name }.joinToString("  + ").ifBlank { "Nenhum atalho selecionado" }
-        val ordered = selected.mapNotNull { id -> habits.find { it.publicId == id } } + habits.filter { it.publicId !in selected }.sortedBy { it.normalizedName }
-        ordered.forEach { habit ->
-            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
-            row.addView(CheckBox(this).apply {
-                text = habit.name; typeface = ResourcesCompat.getFont(this@HabitualWidgetConfigureActivity, R.font.nunito_sans_regular); setTextColor(ink); isChecked = habit.publicId in selected; minHeight = dp(48)
-                buttonTintList = android.content.res.ColorStateList.valueOf(accent)
-                setOnCheckedChangeListener { _, checked ->
-                    if (checked) selected.add(habit.publicId) else selected.remove(habit.publicId)
-                    render()
-                }
-            }, LinearLayout.LayoutParams(0, -2, 1f))
-            if (habit.publicId in selected) {
-                val index = selected.indexOf(habit.publicId)
-                listOf(-1 to "↑", 1 to "↓").forEach { (offset, symbol) ->
-                    row.addView(Button(this).apply {
-                        styleButton(this)
-                        text = symbol; contentDescription = "Mover ${habit.name} ${if (offset < 0) "para cima" else "para baixo"}"
-                        isEnabled = index + offset in selected.indices
-                        setOnClickListener { selected.removeAt(index); selected.add(index + offset, habit.publicId); render() }
-                    }, LinearLayout.LayoutParams(dp(52), dp(48)))
-                }
+        HorizontalDivider(color = c.line)
+        Column(Modifier.padding(horizontal = 20.dp, vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Button(onClick = {
+                if (selected.isEmpty()) error = "Escolha pelo menos um habitual."
+                else save(HabitualWidgetSettings(name, selected.toList()))
+            }, enabled = loaded && selected.isNotEmpty(), shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp)) {
+                Text("Salvar widget", fontWeight = FontWeight.Bold)
             }
-            choices.addView(row)
+            TextButton(onClick = manage, modifier = Modifier.fillMaxWidth()) { Text("Gerenciar habituais no Alva →", color = c.inkSoft, fontSize = 12.sp, lineHeight = 16.sp) }
         }
     }
-    private fun styleButton(button: Button) {
-        button.backgroundTintList = android.content.res.ColorStateList.valueOf(accent)
-        button.setTextColor(accentInk)
-    }
-    private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
 }

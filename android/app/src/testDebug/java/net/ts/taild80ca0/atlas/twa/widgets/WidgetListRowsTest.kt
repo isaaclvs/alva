@@ -5,7 +5,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class WidgetListRowsTest {
-    @Test fun onlyPendingItemsGetRowsAndHeadingsFollowTheAppsOrder() {
+    @Test fun onlyPendingItemsGetRowsAndEachHasASecondaryCategory() {
         val document = SnapshotFixtures.snapshot(items = listOf(
             SnapshotFixtures.item(publicId = "queijo", name = "Queijo", status = "purchased", purchasedAt = SnapshotFixtures.EARLY),
             SnapshotFixtures.item(publicId = "leite", name = "Leite"),
@@ -15,7 +15,7 @@ class WidgetListRowsTest {
         val rows = WidgetListRows.of(snapshot)
         assertEquals(listOf("Água", "Leite"), rows.map { it.second.name })
         assertNotNull(rows.first().first)
-        assertNull(rows.last().first)
+        assertEquals(rows.first().first, rows.last().first)
     }
     @Test fun absentSnapshotHasNoRows() { assertTrue(WidgetListRows.of(null).isEmpty()) }
 }
