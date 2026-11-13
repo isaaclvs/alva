@@ -19,6 +19,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -80,6 +82,10 @@ fun ListScreen(
         ListGroups.of(snapshot.categories, items).filter { group -> group.items.any { it.publicId in visibleIds } }
     }
     val busy = remember { mutableStateListOf<String>() }
+    // What the person just asked for, shown at once while the server has not answered: a "sending" hint, never a
+    // result. It is dropped when execute() returns, and by then the list is the server's again (the reload is part
+    // of execute), so a refusal, no connection or another phone winning put the row back by themselves.
+    val pendingMarks = remember { mutableStateMapOf<String, ItemStatus>() }
     val pending = items.count { it.status == ItemStatus.PENDING }
     val purchased = items.size - pending
 
@@ -134,10 +140,11 @@ fun ListScreen(
     fun mark(item: ListItem) {
         if (item.publicId in busy || finishing) return
         busy += item.publicId
+        val purchasing = item.status != ItemStatus.PURCHASED
+        val desired = if (purchasing) ItemStatus.PURCHASED else ItemStatus.PENDING
+        pendingMarks[item.publicId] = desired
         scope.launch {
             try {
-                val purchasing = item.status != ItemStatus.PURCHASED
-                val desired = if (purchasing) ItemStatus.PURCHASED else ItemStatus.PENDING
                 when (val result = repository.execute(SetItemState(item.publicId, desired))) {
                     is ActionResult.Success -> {
                         // Only a mark that took effect on this device's request can be undone; "already in that
@@ -157,7 +164,10 @@ fun ListScreen(
                     }
                     else -> onFailure(OnlineMessages.failure(result))
                 }
-            } finally { busy -= item.publicId }
+            } finally {
+                busy -= item.publicId
+                pendingMarks.remove(item.publicId)
+            }
         }
     }
 
@@ -230,6 +240,7 @@ fun ListScreen(
                             RemoveItemButton(enabled = !editState.saving && item.publicId !in busy) { remove(item, editState.version) }
                         })
                     } else ListRow(item, first = index == 0, enabled = item.publicId !in busy && !finishing, onToggle = { mark(item) }, shoppingMode = shoppingMode,
+                        pendingStatus = pendingMarks[item.publicId],
                         modifier = Modifier.swipeToRemove(!shoppingMode && item.publicId !in busy) { remove(item) }, trailing = {
                         if (!shoppingMode) rowActions(item) { remove(item) }
                         if (!shoppingMode) EditItemButton(item.name, Modifier.testTag("edit-${item.publicId}")) {
@@ -278,8 +289,10 @@ internal fun ListRow(
     modifier: Modifier = Modifier,
     trailing: @Composable RowScope.() -> Unit = {},
     shoppingMode: Boolean = false,
+    /** The state just asked for and not yet confirmed by the server: shown at once, dimmed, as "sending". */
+    pendingStatus: ItemStatus? = null,
 ) {
-    val bought = item.status == ItemStatus.PURCHASED
+    val bought = (pendingStatus ?: item.status) == ItemStatus.PURCHASED
     val source = remember { MutableInteractionSource() }
     // `divide-y`: a 1dp line on top of every row but the first, which takes room of its own.
     Row(
@@ -289,6 +302,7 @@ internal fun ListRow(
     ) {
         Row(
             Modifier.weight(1f).testTag("item-${item.publicId}")
+                .then(if (pendingStatus == null) Modifier else Modifier.alpha(0.6f).semantics { stateDescription = "Enviando" })
                 .pressedSurface(source, AlvaTheme.colors.surface2)
                 .toggleable(value = bought, enabled = enabled, role = Role.Checkbox, interactionSource = source, indication = null,
                     onValueChange = { onToggle() })
