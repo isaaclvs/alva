@@ -129,7 +129,7 @@ mais o `SyncWorker`; o `AccessGraph` ainda o monta para os testes do offline.
 
 `ShoppingScreens` é só a casca: estado do repositório, ciclo de vida (reler ao
 retomar, sinal ao vivo), cabeçalho da marca, a navegação inferior (`BottomNavigation`:
-pílulas Adicionar/Lista, contador de pendentes) e o host do toast (`ToastMessage`,
+cápsula flutuante, ver abaixo) e o host do toast (`ToastMessage`,
 ~5 s, só no aparelho que agiu porque nasce do resultado da própria ação, nunca do
 snapshot). A tela Lista vive em `ui/ListScreen.kt` (agrupamento e ordem da PWA em
 `ListGroups`); ela já deixa os pontos de extensão das próximas issues: `headerActions`
@@ -146,6 +146,28 @@ recibo e desfazer, e voltar à lista liberaria o mesmo comando de novo. Com o es
 resposta chega com qualquer aba aberta (toast, mensagem de erro, fechar ou manter o rascunho de
 edição) e a linha volta ocupada se a resposta ainda não veio. Fora de escopo: rotação e morte do
 processo (o estado é só em memória).
+
+## Navegação flutuante
+
+Decisão do usuário (14/11/2026), a partir de três protótipos descartáveis: a variante **A, cápsula
+única**. O Android deixa a barra retangular de largura total e passa a ter uma cápsula que flutua sobre o
+canvas, com as duas abas lado a lado (ícone e texto, contador de pendentes em Lista). A PWA não muda.
+
+- `BottomNavigation` (`ShellComponents.kt`) fica no `bottomBar` do `Scaffold` e **não pinta fundo**: a
+  cápsula (`surface`, borda `line` de 1dp, raio 26dp, padding interno 6dp, sombra discreta) tem 16dp de
+  canvas de cada lado e 8dp acima da área de gestos/3 botões; largura máxima de 448dp, centrada. Como está no
+  slot do Scaffold, o conteúdo (Adicionar, Lista, notices) e o toast terminam acima dela e acima do teclado
+  (`imePadding`); nada rola por baixo da cápsula. Geometria em `FloatingNavigation`.
+- A aba atual é uma pílula (raio 21dp) em `accentSoft`, com texto e ícone em `accent` (rosa) ou `accentStrong`
+  (verde-água), como antes; as outras ficam em `inkFaint`. Nunito Sans 14sp; funciona nas quatro paletas.
+- Cada aba tem no mínimo 48dp de altura e cresce com a fonte ampliada (`IntrinsicSize.Min` mantém as duas
+  iguais); o rótulo é de uma linha. A cápsula respeita as laterais de cutout e a barra de navegação.
+- Semântica preservada: `nav-add`/`nav-list` (`Role.Tab`, `selected`), `list-counter` com "N pendentes", e
+  o grupo `bottom-navigation` (`selectableGroup`). Escolher a aba grava a preferência como antes.
+- O toast de Desfazer nasce no host, dentro da área do conteúdo, 12dp acima da cápsula (76dp acima do rodapé
+  no modo compras). O modo compras continua sem navegação: a cápsula não é composta.
+- Testes: `FloatingNavigationTest` (semântica, contador, alvos de 48dp com fonte 1× e 2×, cápsula flutuando
+  com canvas nas laterais e abaixo, conteúdo e Desfazer acima dela, modo compras sem cápsula).
 
 ## Modo compras (#102)
 
@@ -211,7 +233,7 @@ e periódica complementam a leitura, sem prometer tempo real em segundo plano.
   conexão velha, resposta perdida, UUID idempotente) e `MarkLatencyTest`
   (latência **simulada** por proxy a RTT 100 ms: marcação com a conexão aberta
   634 → ~230 ms; primeira marcação ao abrir ~900 → ~530 ms; não é medição em aparelho).
-- Instrumentado: `ShoppingScreensTest` (tela sobre o repositório: texto mantido
+- Instrumentado: `FloatingNavigationTest` (cápsula de navegação) e `ShoppingScreensTest` (tela sobre o repositório: texto mantido
   sem rede, retomar e sinal ao vivo recarregam; a Lista: seções, "x/y", contador,
   marcar, toast e desfazer) e `MainActivityAccessTest`.
 - Rails real: `script/android_rails_online_check` — dois "aparelhos"; A adiciona
