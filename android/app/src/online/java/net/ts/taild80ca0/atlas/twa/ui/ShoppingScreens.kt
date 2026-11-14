@@ -163,7 +163,10 @@ fun ShoppingScreens(
                 )
             },
         ) { padding ->
-            Column(Modifier.fillMaxSize().padding(padding).testTag("shopping-home")) {
+            // The Scaffold's padding already ends above the floating capsule (and above the keyboard), so neither the
+            // content nor the toast below can sit under the navigation.
+            Box(Modifier.fillMaxSize().padding(padding)) {
+            Column(Modifier.fillMaxSize().testTag("shopping-home")) {
                 when {
                     state is OnlineState.Failed -> Column(Modifier.padding(horizontal = 20.dp, vertical = 20.dp)) {
                         BrandHeader(trailing = menu)
@@ -207,15 +210,18 @@ fun ShoppingScreens(
                 }
                 }
             }
-        }
-        // `#toast`: above the bottom navigation, centered, only on the device that acted.
-        toast?.let { current ->
-            Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 76.dp),
-                contentAlignment = Alignment.Center) {
-                UndoToast(current.text, current.actionLabel, onAction = {
-                    toast = null
-                    scope.launch { current.onAction() }
-                })
+            // `#toast`: just above the bottom navigation (above the footer controls in shopping mode, which has none),
+            // centered, only on the device that acted.
+            toast?.let { current ->
+                Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, bottom = if (shoppingMode) 76.dp else 12.dp),
+                    contentAlignment = Alignment.Center) {
+                    UndoToast(current.text, current.actionLabel, onAction = {
+                        toast = null
+                        scope.launch { current.onAction() }
+                    })
+                }
+            }
             }
         }
     }
