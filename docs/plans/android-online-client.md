@@ -51,6 +51,24 @@ Tela ──execute(ação)──▶ OnlineRepository ──POST /api/v1/commands
 Nos resultados que não são sucesso a tela mantém o texto digitado e o estado
 anterior: repetir a ação é o único reenvio.
 
+### Recibo confirmado e conexões reaproveitadas
+
+- **Recibo confirmado.** O recibo de `set_item_state` e `undo_item_state` traz o item
+  como o servidor o deixou (`status`, `purchased_at`, `lock_version`). O repositório o
+  guarda **só em memória** e o põe por cima de qualquer snapshot cujo `lock_version`
+  desse item seja mais antigo, então uma releitura que falha, ou que foi lida antes do
+  comando, não tira a marcação confirmada da tela. O primeiro snapshot com versão igual
+  ou maior a substitui; item que saiu da lista o descarta; resposta que não foi
+  sucesso nada confirma; `forget()` esquece tudo. Nada é persistido nem reenviado.
+- **Conexões.** `HttpExchange` não manda mais `Connection: close` nem faz
+  `disconnect()` depois de uma resposta lida por inteiro: comando e releitura usam a
+  mesma conexão (cada conexão nova ao Atlas custa TCP + TLS). Uma chamada continua
+  sendo uma requisição no fio (corpo de tamanho fixo); conexão que o servidor fechou
+  ou resposta perdida numa conexão reaproveitada é falha de rede, e o repositório
+  reenvia o **mesmo documento** com o mesmo UUID (o servidor responde `duplicate`).
+  Se a conexão ficou ociosa além do limite do servidor, a marcação seguinte paga um
+  handshake novo.
+
 ## Ações cobertas hoje
 
 - `AddItems` (`add_items`): nomes já separados (`AddItems.fromText` divide como o
@@ -178,6 +196,11 @@ e periódica complementam a leitura, sem prometer tempo real em segundo plano.
 
 - JVM: `OnlineRepositoryTest` (servidor falso: leitura, rede caindo, resposta
   perdida que não duplica, recusa, 5xx, sem acesso, revive).
+  `ConfirmedMarkTest` (recibo confirmado versus releitura que falha, velha ou
+  concorrente), `HttpExchangeReuseTest` e `ReusedConnectionMarkTest` (reuso real,
+  conexão velha, resposta perdida, UUID idempotente) e `MarkLatencyTest`
+  (latência **simulada** por proxy a RTT 100 ms: marcação com a conexão aberta
+  634 → ~230 ms; primeira marcação ao abrir ~900 → ~530 ms; não é medição em aparelho).
 - Instrumentado: `ShoppingScreensTest` (tela sobre o repositório: texto mantido
   sem rede, retomar e sinal ao vivo recarregam; a Lista: seções, "x/y", contador,
   marcar, toast e desfazer) e `MainActivityAccessTest`.
@@ -185,4 +208,6 @@ e periódica complementam a leitura, sem prometer tempo real em segundo plano.
   e marca, B vê; mesmo nome nos dois; marcação velha recusada; desfazer marcação
   (e desfazer recusado quando o outro aparelho mexeu); resposta perdida
   depois do commit retentada sem segundo efeito. Roda no CI junto do
-  `android_rails_sync_check`.
+  `android_rails_sync_check`.  Inclui resposta perdida numa conexão reaproveitada, contra o Rails real.
+- Instrumentado: `HttpExchangeReuseOnDeviceTest` confirma na pilha HTTP do Android que
+  três requisições compartilham uma conexão e que o cabeçalho antigo abria uma por requisição.
