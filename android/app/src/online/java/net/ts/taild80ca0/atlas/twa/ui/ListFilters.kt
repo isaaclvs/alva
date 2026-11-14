@@ -95,7 +95,7 @@ internal fun ListSearchFilters(state: ListFilterState, focus: FocusRequester, sh
                 Text("×", color = c.inkSoft)
             } else Spacer(Modifier.width(44.dp))
         }
-        if (!shoppingMode) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Row(Modifier.heightIn(min = 44.dp).toggleable(filters.pendingOnly, role = Role.Switch,
                 onValueChange = { state.value = filters.copy(pendingOnly = it) }).testTag("pending-only"),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -107,7 +107,8 @@ internal fun ListSearchFilters(state: ListFilterState, focus: FocusRequester, sh
                 }
                 Text("Só pendentes", style = AlvaTheme.type.bodySmall, color = c.inkSoft)
             }
-            Text("Seções · A–Z", style = AlvaTheme.type.caption, color = c.inkFaint)
+            // The A–Z hint describes the grouped list; the shopping checklist keeps only the switch.
+            if (!shoppingMode) Text("Seções · A–Z", style = AlvaTheme.type.caption, color = c.inkFaint)
         }
     }
 }
