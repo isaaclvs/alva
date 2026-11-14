@@ -15,6 +15,7 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.height
 import androidx.compose.ui.unit.width
@@ -174,17 +175,37 @@ class FloatingNavigationInAppTest {
 
     private fun press(tag: String) = compose.onNodeWithTag(tag).performSemanticsAction(SemanticsActions.OnClick) { it() }
 
+    /**
+     * The bounds of these nodes once the layout stopped moving. The Add tab focuses its field, so the keyboard
+     * slides in and out under the capsule (it rides above it) and a single read can catch either end of that.
+     * Every node comes from the same sample, so they are always compared to each other on the same screen.
+     */
+    private fun settledBounds(vararg tags: String): List<DpRect> {
+        fun sample() = tags.map { compose.onNodeWithTag(it).getUnclippedBoundsInRoot() }
+        var last = sample()
+        var steady = 0
+        val deadline = System.currentTimeMillis() + 10_000
+        while (steady < 4) {
+            check(System.currentTimeMillis() < deadline) { "the layout never settled: $last" }
+            Thread.sleep(50)
+            compose.waitForIdle()
+            val now = sample()
+            steady = if (now == last) steady + 1 else 0
+            last = now
+        }
+        return last
+    }
+
     @Test fun theCapsuleKeepsTheContentAndTheUndoToastAboveIt() {
         val leite = house.seed("Leite")
         launch()
-        val capsule = compose.onNodeWithTag(FloatingNavigation.CapsuleTag).getUnclippedBoundsInRoot()
-        val add = compose.onNodeWithTag("add-input").getUnclippedBoundsInRoot()
-        assertTrue("the add field ends above the capsule", add.bottom <= capsule.top)
+        val (capsuleOnAdd, add) = settledBounds(FloatingNavigation.CapsuleTag, "add-input")
+        assertTrue("the add field ends above the capsule: $add vs $capsuleOnAdd", add.bottom <= capsuleOnAdd.top)
 
         press("nav-list")
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("list-summary").fetchSemanticsNodes().isNotEmpty() }
-        val home = compose.onNodeWithTag("shopping-home").getUnclippedBoundsInRoot()
-        assertTrue("the list ends above the capsule", home.bottom <= capsule.top + 0.5.dp)
+        val (capsule, home) = settledBounds(FloatingNavigation.CapsuleTag, "shopping-home")
+        assertTrue("the list ends above the capsule: $home vs $capsule", home.bottom <= capsule.top + 0.5.dp)
 
         compose.onNodeWithTag("item-${leite.id}").performClick()
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("toast-undo").fetchSemanticsNodes().isNotEmpty() }
