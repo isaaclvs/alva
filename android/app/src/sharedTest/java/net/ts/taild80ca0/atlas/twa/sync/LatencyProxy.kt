@@ -14,10 +14,13 @@ import kotlin.concurrent.thread
  * internet, through Tailscale Funnel). It models, per connection:
  *
  * - setup: [setupRoundTrips] × [roundTripMillis] before the first byte is relayed (TCP handshake = 1, plus TLS 1.3 = 1),
- * - the request/response themselves: one [roundTripMillis] (half before reaching the server, half on the way back).
+ * - each request/response on it: one [roundTripMillis] (half before reaching the server, half on the way back).
  *
- * It relays exactly one request per connection, like `HttpExchange` (`Connection: close`), so each request costs
- * `(setupRoundTrips + 1) × roundTripMillis`. Bandwidth, packet loss and server time are not modeled.
+ * Connections are persistent, like the server's (HTTP/1.1 keep-alive): further requests on an open connection pay
+ * no setup, and the connection ends when the client closes it or asks for it with `Connection: close`, as Puma and
+ * the proxies in front of it do. A request therefore costs `(setupRoundTrips + 1) × roundTripMillis` on a new
+ * connection and `roundTripMillis` on a reused one. Bandwidth, packet loss, idle timeouts and server time are not
+ * modeled.
  */
 class LatencyProxy(
     private val upstreamPort: Int,
@@ -29,6 +32,9 @@ class LatencyProxy(
 
     /** TCP connections the client opened. */
     val connections = AtomicInteger()
+
+    /** Requests relayed, over all connections. */
+    val requests = AtomicInteger()
 
     init {
         thread(isDaemon = true, name = "latency-proxy") {
@@ -48,18 +54,22 @@ class LatencyProxy(
         try {
             Thread.sleep(setupRoundTrips * roundTripMillis)
             val input = client.getInputStream()
-            val head = readHead(input)
-            val body = readBody(input, head)
-            Thread.sleep(roundTripMillis / 2)
-            val response = Socket(InetAddress.getByName("127.0.0.1"), upstreamPort).use { upstream ->
-                upstream.getOutputStream().apply { write(head); write(body); flush() }
-                val answer = upstream.getInputStream()
-                // The upstream may keep the connection open: take exactly what its Content-Length says.
-                val answerHead = readHead(answer)
-                answerHead + readBody(answer, answerHead)
+            while (true) {
+                val head = readHead(input) ?: return
+                val body = readBody(input, head)
+                requests.incrementAndGet()
+                Thread.sleep(roundTripMillis / 2)
+                val response = Socket(InetAddress.getByName("127.0.0.1"), upstreamPort).use { upstream ->
+                    upstream.getOutputStream().apply { write(head); write(body); flush() }
+                    val answer = upstream.getInputStream()
+                    // The upstream may keep the connection open: take exactly what its Content-Length says.
+                    val answerHead = readHead(answer) ?: throw IOException("closed before the answer")
+                    answerHead + readBody(answer, answerHead)
+                }
+                Thread.sleep(roundTripMillis - roundTripMillis / 2)
+                client.getOutputStream().apply { write(response); flush() }
+                if (Regex("(?i)\r\nconnection:\\s*close").containsMatchIn(String(head, Charsets.ISO_8859_1))) return
             }
-            Thread.sleep(roundTripMillis - roundTripMillis / 2)
-            client.getOutputStream().apply { write(response); flush() }
         } catch (_: IOException) {
             // the client went away
         } catch (_: InterruptedException) {
@@ -80,13 +90,14 @@ class LatencyProxy(
         return body
     }
 
-    private fun readHead(input: InputStream): ByteArray {
+    /** The head of the next message, or null when the other side closed cleanly before sending any of it. */
+    private fun readHead(input: InputStream): ByteArray? {
         val out = ByteArrayOutputStream()
         val end = byteArrayOf('\r'.code.toByte(), '\n'.code.toByte(), '\r'.code.toByte(), '\n'.code.toByte())
         var matched = 0
         while (matched < end.size) {
             val next = input.read()
-            if (next < 0) throw IOException("closed before the end of the headers")
+            if (next < 0) { if (out.size() == 0) return null else throw IOException("closed before the end of the headers") }
             out.write(next)
             matched = if (next.toByte() == end[matched]) matched + 1 else if (next.toByte() == end[0]) 1 else 0
         }
