@@ -68,6 +68,12 @@ fun ShoppingScreens(
     val shownScreen = if (shoppingMode) "list" else screen
     val haptics = LocalHapticFeedback.current
     val view = LocalView.current
+    // Hosted here, with this scope and this state, so a mark, removal or correction sent from the Lista tab goes on
+    // (and keeps its "sending" hint and its undo) when the person switches to Adicionar before the server answers.
+    val listActions = rememberListActions(repository, editState,
+        showToast = { toast = it }, onFailure = { feedback = it },
+        onMarked = { if (shoppingMode) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove) },
+        shoppingMode = { shoppingMode })
     DisposableEffect(shoppingMode, view) {
         if (shoppingMode) view.keepScreenOn = true
         onDispose { view.keepScreenOn = false }
@@ -192,6 +198,7 @@ fun ShoppingScreens(
                             }
                         },
                         onMarked = { if (shoppingMode) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove) },
+                        actions = listActions,
                     )
                     else -> Column(Modifier.fillMaxSize().padding(horizontal = 20.dp).padding(top = 20.dp)) {
                         BrandHeader(markSize = 28.dp, gap = 9.6.dp, markBox = 36.dp, trailing = menu)
