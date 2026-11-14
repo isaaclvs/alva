@@ -302,7 +302,10 @@ internal fun ListRow(
     ) {
         Row(
             Modifier.weight(1f).testTag("item-${item.publicId}")
-                .then(if (pendingStatus == null) Modifier else Modifier.alpha(0.6f).semantics { stateDescription = "Enviando" })
+                .then(if (pendingStatus == null) Modifier else Modifier.alpha(0.6f).semantics {
+                    // Replaces the checkbox's own "marcado/desmarcado" for TalkBack, so it must still say which one.
+                    stateDescription = if (bought) "Marcado, enviando" else "Desmarcado, enviando"
+                })
                 .pressedSurface(source, AlvaTheme.colors.surface2)
                 .toggleable(value = bought, enabled = enabled, role = Role.Checkbox, interactionSource = source, indication = null,
                     onValueChange = { onToggle() })

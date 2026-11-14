@@ -781,7 +781,7 @@ class ShoppingScreensTest {
     private fun assertSending(id: String, sending: Boolean) {
         compose.onNodeWithTag("item-$id").let { node ->
             if (sending) node.assert(SemanticsMatcher("is shown as sending") {
-                it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.StateDescription) == "Enviando"
+                it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.StateDescription)?.endsWith("enviando") == true
             }) else node.assert(SemanticsMatcher("is not shown as sending") {
                 it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.StateDescription) == null
             })
@@ -870,6 +870,16 @@ class ShoppingScreensTest {
             assertMarked(leite.id, true) // the server said "already purchased" (noop): the list is the server's
             compose.onNodeWithTag("toast-message").assertDoesNotExist()
             compose.onNodeWithTag("feedback").assertDoesNotExist()
+        })
+    }
+
+    @Test fun aMarkTheServerConfirmedStaysMarkedWhenTheReloadAfterItFails() {
+        val leite = house.seed("Leite")
+        markWhileHeld(leite, otherPhone = { house.snapshotSteps += Step.NetworkDown }, afterAnswer = {
+            waitForText("toast-message", "Leite marcado")
+            assertMarked(leite.id, true) // the hint is gone and the row is still marked: the receipt said so
+            waitForText("list-summary", "1 comprado")
+            assertEquals("purchased", leite.status)
         })
     }
 
