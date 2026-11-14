@@ -16,6 +16,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -68,6 +69,8 @@ fun ShoppingScreens(
     val shownScreen = if (shoppingMode) "list" else screen
     val haptics = LocalHapticFeedback.current
     val view = LocalView.current
+    val density = LocalDensity.current
+    var shoppingFooterHeight by remember { mutableIntStateOf(0) }
     // Hosted here, with this scope and this state, so a mark, removal or correction sent from the Lista tab goes on
     // (and keeps its "sending" hint and its undo) when the person switches to Adicionar before the server answers.
     val listActions = rememberListActions(repository, editState,
@@ -202,6 +205,7 @@ fun ShoppingScreens(
                         },
                         onMarked = { if (shoppingMode) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove) },
                         actions = listActions,
+                        onShoppingFooterHeightChanged = { shoppingFooterHeight = it },
                     )
                     else -> Column(Modifier.fillMaxSize().padding(horizontal = 20.dp).padding(top = 20.dp)) {
                         BrandHeader(markSize = 28.dp, gap = 9.6.dp, markBox = 36.dp, trailing = menu)
@@ -210,11 +214,11 @@ fun ShoppingScreens(
                 }
                 }
             }
-            // `#toast`: just above the bottom navigation (above the footer controls in shopping mode, which has none),
+            // `#toast`: above the capsule, or above the measured shopping footer (including search and filters),
             // centered, only on the device that acted.
             toast?.let { current ->
                 Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                    .padding(start = 16.dp, end = 16.dp, bottom = if (shoppingMode) 76.dp else 12.dp),
+                    .padding(start = 16.dp, end = 16.dp, bottom = if (shoppingMode) with(density) { shoppingFooterHeight.toDp() } + 12.dp else 12.dp),
                     contentAlignment = Alignment.Center) {
                     UndoToast(current.text, current.actionLabel, onAction = {
                         toast = null

@@ -208,6 +208,24 @@ class FloatingNavigationInAppTest {
         assertTrue(compose.onNodeWithTag("toast-undo").getUnclippedBoundsInRoot().bottom <= capsule.top)
     }
 
+    @Test fun shoppingUndoStaysAboveTheWholeFooterWhenPurchasedItemsAddTheFinishButton() {
+        val leite = house.seed("Leite")
+        house.seed("Café")
+        launch()
+        press("nav-list")
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("start-shopping").fetchSemanticsNodes().isNotEmpty() }
+        press("start-shopping")
+        compose.onNodeWithTag("item-${leite.id}").performClick()
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("toast-undo").fetchSemanticsNodes().isNotEmpty() }
+        val footer = compose.onNodeWithTag("shopping-footer").getUnclippedBoundsInRoot()
+        val undo = compose.onNodeWithTag("toast-undo").getUnclippedBoundsInRoot()
+        assertTrue("undo must clear the entire shopping footer", undo.bottom <= footer.top)
+        compose.onNodeWithTag("finish-shopping").assertIsDisplayed()
+        compose.onNodeWithTag("list-search").assertIsDisplayed()
+        compose.onNodeWithTag("toast-undo").performClick()
+        compose.waitUntil(10_000) { leite.status == "pending" }
+    }
+
     @Test fun shoppingModeHidesTheCapsule() {
         house.seed("Leite")
         context.getSharedPreferences(SHOPPING_PREFERENCES, 0).edit().putLong("until", System.currentTimeMillis() + 60_000).commit()

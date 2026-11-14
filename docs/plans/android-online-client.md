@@ -164,8 +164,8 @@ canvas, com as duas abas lado a lado (ícone e texto, contador de pendentes em L
   iguais); o rótulo é de uma linha. A cápsula respeita as laterais de cutout e a barra de navegação.
 - Semântica preservada: `nav-add`/`nav-list` (`Role.Tab`, `selected`), `list-counter` com "N pendentes", e
   o grupo `bottom-navigation` (`selectableGroup`). Escolher a aba grava a preferência como antes.
-- O toast de Desfazer nasce no host, dentro da área do conteúdo, 12dp acima da cápsula (76dp acima do rodapé
-  no modo compras). O modo compras continua sem navegação: a cápsula não é composta.
+- O toast de Desfazer nasce no host, dentro da área do conteúdo, 12dp acima da cápsula; no modo compras, fica 12dp acima da altura medida do rodapé
+  (Compra feita, busca e filtros). O modo compras continua sem navegação: a cápsula não é composta.
 - Testes: `FloatingNavigationTest` (semântica, contador, alvos de 48dp com fonte 1× e 2×, cápsula flutuando
   com canvas nas laterais e abaixo, conteúdo e Desfazer acima dela, modo compras sem cápsula).
 
