@@ -137,6 +137,16 @@ snapshot). A tela Lista vive em `ui/ListScreen.kt` (agrupamento e ordem da PWA e
 `trailing` de `ListRow` (lápis #100, remover/swipe #99). Novos toasts (remover, compra
 feita) reutilizam `ToastMessage`.
 
+As operações da Lista (marcar, remover, corrigir, finalizar compra) e o que a tela mostra
+enquanto elas voam (`busy`, dica "enviando" de `pendingMarks`, `finishing`) ficam em
+`ListActions` (`ui/ListActions.kt`), hospedado em `ShoppingScreens` com o scope e o
+`EditItemState` do host, como `AddScreenState`. A aba Lista só compõe quando aberta; se as
+operações vivessem nela, trocar para Adicionar antes da resposta cancelaria o envio, perderia
+recibo e desfazer, e voltar à lista liberaria o mesmo comando de novo. Com o estado no host, a
+resposta chega com qualquer aba aberta (toast, mensagem de erro, fechar ou manter o rascunho de
+edição) e a linha volta ocupada se a resposta ainda não veio. Fora de escopo: rotação e morte do
+processo (o estado é só em memória).
+
 ## Modo compras (#102)
 
 `ShoppingMode` lê a preferência local de 24 horas antes de compor as telas e a
