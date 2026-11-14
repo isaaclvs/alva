@@ -30,9 +30,14 @@ import org.junit.Test
  *
  *     ./gradlew :app:testDebugUnitTest --tests '*MarkLatencyTest' -i | grep LATENCY
  *
- * The proxy charges 2 round trips per new connection (TCP + TLS 1.3) and 1 per request. `HttpExchange` opens a new
- * connection for every request (`Connection: close`), so a mark that needs the command *and* a reload pays that
- * price twice. Server time is not modeled (production answers a command in ~7 ms and a snapshot in ~11 ms).
+ * The proxy charges 2 round trips per new connection (TCP + TLS 1.3) and 1 per request, and ends a connection when
+ * the client asks with `Connection: close`, like Puma. It is a model of the path to the Atlas on loopback, **not a
+ * measurement on a phone**: server time is not modeled (production answers a command in ~7 ms and a snapshot in
+ * ~11 ms), nor are idle timeouts (a connection the server dropped costs a new handshake on the next mark).
+ *
+ * Before connections were reused (`HttpExchange` sent `Connection: close`), with RTT = 100 ms: a mark with the
+ * connection open took 634 ms (2 requests × 3 round trips), 894 ms with a live signal during it, and the first mark
+ * after opening the app ~900 ms (3 requests × 3). The numbers asserted below are the ones after.
  */
 class MarkLatencyTest {
     private val id = "20000000-0000-4000-8000-000000000001"
@@ -79,13 +84,17 @@ class MarkLatencyTest {
         """{"revision":841,"snapshot_required":false,"results":[{"id":"$commandId","status":"applied","revision":841,"data":{"item":""" +
             """{"public_id":"$id","canonical_public_id":"$id","name":"Leite","status":"purchased","lock_version":1}}}]}"""
 
-    @Test fun aMarkPaysTwoConnectionsAndTwoSequentialRequestsBeforeTheListChanges() = runBlocking {
+    private fun repository(scope: CoroutineScope = CoroutineScope(Dispatchers.Default)): OnlineRepository {
         val endpoint = ServerEndpoint.parse("http://127.0.0.1:${proxy.port}")
         val access = object : OnlineAccess {
             override suspend fun credential() = AccessCredential(1, "test-only")
             override suspend fun reportUnauthorized(credential: AccessCredential) = Unit
         }
-        val repository = OnlineRepository(access, HttpSnapshotTransport(endpoint), HttpCommandTransport(endpoint), CoroutineScope(Dispatchers.Default))
+        return OnlineRepository(access, HttpSnapshotTransport(endpoint), HttpCommandTransport(endpoint), scope)
+    }
+
+    @Test fun aMarkOnAnOpenConnectionPaysTwoRoundTripsNotSix() = runBlocking {
+        val repository = repository()
         repository.refresh()
         order.clear()
         val connectionsBefore = proxy.connections.get()
@@ -95,26 +104,38 @@ class MarkLatencyTest {
         val tapToConfirmedList = (System.nanoTime() - started) / 1_000_000
 
         assertTrue("result=$result order=$order", result is ActionResult.Success)
-        val shown = (repository.state.value as OnlineState.Ready).snapshot.liveItems().single()
-        assertEquals(ItemStatus.PURCHASED, shown.status)
-        println("LATENCY rtt=${RTT}ms setup=2rtt/connection: tap->confirmed-on-screen=${tapToConfirmedList}ms " +
-            "requests=$order connections=${proxy.connections.get() - connectionsBefore}")
+        assertEquals(ItemStatus.PURCHASED, (repository.state.value as OnlineState.Ready).snapshot.liveItems().single().status)
+        println("LATENCY rtt=${RTT}ms open connection: tap->confirmed-on-screen=${tapToConfirmedList}ms " +
+            "requests=$order new-connections=${proxy.connections.get() - connectionsBefore}")
 
-        // The command and the reload are sequential, each on its own connection.
         assertEquals(listOf("POST /api/v1/commands", "GET /api/v1/snapshot"), order)
-        assertEquals(2, proxy.connections.get() - connectionsBefore)
-        // 2 requests × (2 setup + 1 request) round trips.
-        assertTrue("took only ${tapToConfirmedList}ms", tapToConfirmedList >= 6 * RTT)
+        assertEquals("the command and the reload ride the connection the list was read on", 0, proxy.connections.get() - connectionsBefore)
+        assertTrue("took only ${tapToConfirmedList}ms", tapToConfirmedList >= 2 * RTT)
+        assertTrue("took ${tapToConfirmedList}ms, as much as with a connection per request", tapToConfirmedList < 4 * RTT)
+    }
+
+    @Test fun theFirstMarkAfterOpeningPaysOneHandshakeNotThree() = runBlocking {
+        val repository = repository()
+        val connectionsBefore = proxy.connections.get()
+
+        val started = System.nanoTime()
+        val result = repository.execute(SetItemState(id, ItemStatus.PURCHASED)) // reads the list first: nothing was read yet
+        val tapToConfirmedList = (System.nanoTime() - started) / 1_000_000
+
+        assertTrue("result=$result order=$order", result is ActionResult.Success)
+        println("LATENCY rtt=${RTT}ms first mark after opening: tap->confirmed-on-screen=${tapToConfirmedList}ms " +
+            "requests=$order new-connections=${proxy.connections.get() - connectionsBefore}")
+
+        assertEquals(listOf("GET /api/v1/snapshot", "POST /api/v1/commands", "GET /api/v1/snapshot"), order)
+        assertEquals(1, proxy.connections.get() - connectionsBefore)
+        // 2 setup + 3 requests = 5 round trips (a connection per request made it 9).
+        assertTrue("took only ${tapToConfirmedList}ms", tapToConfirmedList >= 4 * RTT)
+        assertTrue("took ${tapToConfirmedList}ms, as much as with a connection per request", tapToConfirmedList < 8 * RTT)
     }
 
     @Test fun aLiveSignalThatLandsDuringTheMarkAddsAThirdSequentialRequest() = runBlocking {
-        val endpoint = ServerEndpoint.parse("http://127.0.0.1:${proxy.port}")
-        val access = object : OnlineAccess {
-            override suspend fun credential() = AccessCredential(1, "test-only")
-            override suspend fun reportUnauthorized(credential: AccessCredential) = Unit
-        }
         val scope = CoroutineScope(Dispatchers.Default)
-        val repository = OnlineRepository(access, HttpSnapshotTransport(endpoint), HttpCommandTransport(endpoint), scope)
+        val repository = repository(scope)
         repository.refresh()
         order.clear()
         // The broadcast of the commit reaches the open cable a little before the answer of the POST reaches the app.
