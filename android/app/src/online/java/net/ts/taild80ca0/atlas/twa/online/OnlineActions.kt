@@ -66,6 +66,8 @@ class AddItems(private val names: List<String>) : OnlineAction {
 
 /** `set_item_state`: the state the person wants (never a toggle), with the `lock_version` the snapshot showed. */
 class SetItemState(private val publicId: String, private val desired: ItemStatus, private val observedLockVersion: Int? = null) : OnlineAction {
+    override val receiptConfirmsItemState get() = true
+
     override fun plan(context: PlanContext): ActionPlan {
         val item = context.snapshot.listItems.firstOrNull { it.publicId.equals(publicId, ignoreCase = true) }
             ?: return ActionPlan.Invalid(InvalidAction.ITEM_NOT_FOUND)
@@ -120,6 +122,35 @@ fun CommandReceipt.markedItem(): MarkedItem? {
 }
 
 /**
+ * The state of the item a `set_item_state` / `undo_item_state` receipt confirms: what the server holds after the
+ * command, with the `lock_version` that tells later snapshots apart (see [OnlineRepository]).
+ */
+internal data class ConfirmedItem(val publicId: String, val status: ItemStatus, val purchasedAtMicros: Long?, val lockVersion: Int)
+
+/** `data.item` as a confirmation; null when anything the screen would show is missing or unreadable (nothing is guessed). */
+internal fun CommandReceipt.confirmedItem(): ConfirmedItem? {
+    val data = dataJson ?: return null
+    return try {
+        val item = (JSONTokener(data).nextValue() as? JSONObject)?.optJSONObject("item") ?: return null
+        val id = item.optString("canonical_public_id").ifBlank { item.optString("public_id") }
+        val status = when (item.opt("status")) {
+            "purchased" -> ItemStatus.PURCHASED
+            "pending" -> ItemStatus.PENDING
+            else -> return null
+        }
+        val purchasedAt = when (val at = item.opt("purchased_at")) {
+            null, JSONObject.NULL -> null
+            is String -> ServerTime.parseMicros(at) ?: return null
+            else -> return null
+        }
+        if (id.isBlank() || item.opt("lock_version") !is Int || (status == ItemStatus.PURCHASED && purchasedAt == null)) null
+        else ConfirmedItem(id, status, purchasedAt.takeIf { status == ItemStatus.PURCHASED }, item.getInt("lock_version"))
+    } catch (_: JSONException) {
+        null
+    }
+}
+
+/**
  * `undo_item_state`: the toast's "Desfazer" after a mark. It carries the state to restore (what this device saw
  * before marking: [restoreStatus] and the original purchase instant) and the `lock_version` the mark left, so it
  * only applies while nothing touched the item since. There is no deadline on the server; the ~5 s window is the
@@ -131,6 +162,8 @@ class UndoItemState(
     private val restorePurchasedAtMicros: Long?,
     private val markedLockVersion: Int,
 ) : OnlineAction {
+    override val receiptConfirmsItemState get() = true
+
     override fun plan(context: PlanContext): ActionPlan {
         val item = context.snapshot.listItems.firstOrNull { it.publicId.equals(publicId, ignoreCase = true) }
             ?: return ActionPlan.Invalid(InvalidAction.ITEM_NOT_FOUND)

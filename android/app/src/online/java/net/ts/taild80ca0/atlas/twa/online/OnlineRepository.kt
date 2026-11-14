@@ -16,6 +16,7 @@ import net.ts.taild80ca0.atlas.twa.sync.CommandReceipt
 import net.ts.taild80ca0.atlas.twa.sync.CommandTransport
 import net.ts.taild80ca0.atlas.twa.sync.InvalidationSink
 import net.ts.taild80ca0.atlas.twa.sync.ReceiptStatus
+import net.ts.taild80ca0.atlas.twa.sync.ServerSnapshot
 import net.ts.taild80ca0.atlas.twa.sync.SnapshotOutcome
 import net.ts.taild80ca0.atlas.twa.sync.SnapshotTransport
 import net.ts.taild80ca0.atlas.twa.sync.TransientCause
@@ -32,6 +33,11 @@ import net.ts.taild80ca0.atlas.twa.sync.TransientCause
  *   retried, a few times, with **the same document**, so a lost answer can never apply the action twice: the
  *   server answers `duplicate` to a UUID it already holds. Whatever the server answers, the list is read again.
  * - Nothing is stored when the server cannot be reached: the result tells the screen, which keeps what was typed.
+ * - A receipt that says a mark or an undo took effect is the server's own word, with the `lock_version` it left on
+ *   the item. It is kept **in memory only** and laid over any snapshot whose version of that item is older, so a
+ *   reload that fails, or that was read before the command, cannot take the confirmed state off the screen. The
+ *   first snapshot that has caught up (same version or newer) replaces it, and an item that is gone from the list
+ *   drops it. Nothing is kept for an answer that was not a success, and nothing is ever sent again from it.
  */
 class OnlineRepository(
     private val access: OnlineAccess,
@@ -47,6 +53,10 @@ class OnlineRepository(
     val state: StateFlow<OnlineState> = _state.asStateFlow()
 
     private val loadLock = Mutex()
+
+    /** Guards [confirmed] and every write of [_state], so a snapshot never lands between a confirmation and its patch. */
+    private val stateLock = Any()
+    private val confirmed = HashMap<String, ConfirmedItem>()
     private val tickets = AtomicLong()
     private var coveredTickets = 0L
 
@@ -59,14 +69,15 @@ class OnlineRepository(
         loadLock.withLock {
             if (coveredTickets >= mine) return
             val coveredByThisRead = tickets.get()
-            if (_state.value is OnlineState.Failed) _state.value = OnlineState.Loading
+            synchronized(stateLock) { if (_state.value is OnlineState.Failed) _state.value = OnlineState.Loading }
             load()
             coveredTickets = coveredByThisRead
         }
     }
 
     /** Drops the list on screen (signing out): the next read starts from nothing, as on the first opening. */
-    fun forget() {
+    fun forget() = synchronized(stateLock) {
+        confirmed.clear()
         _state.value = OnlineState.Loading
     }
 
@@ -91,15 +102,19 @@ class OnlineRepository(
             is ActionPlan.Invalid -> return ActionResult.Invalid(plan.reason)
             is ActionPlan.Send -> plan.document
         }
-        return send(commandId, document)
+        return send(commandId, document, action.receiptConfirmsItemState)
     }
 
-    private suspend fun send(commandId: String, document: String): ActionResult {
+    private suspend fun send(commandId: String, document: String, confirmsItemState: Boolean): ActionResult {
         var attempt = 0
         while (true) {
             val credential = access.credential() ?: return ActionResult.NoAccess
             when (val outcome = commands.send(credential, commandId, document)) {
-                is CommandOutcome.Receipt -> return answered(interpret(outcome.receipt))
+                is CommandOutcome.Receipt -> {
+                    val result = interpret(outcome.receipt)
+                    if (confirmsItemState && result is ActionResult.Success) outcome.receipt.confirmedItem()?.let(::confirm)
+                    return answered(result)
+                }
                 is CommandOutcome.Transient -> {
                     if (outcome.cause.isNetworkFailure && attempt < retryDelaysMillis.size) {
                         pause(retryDelaysMillis[attempt++])
@@ -130,10 +145,32 @@ class OnlineRepository(
         ReceiptStatus.CONFLICT, ReceiptStatus.REJECTED, ReceiptStatus.BLOCKED -> ActionResult.Refused(receipt.error ?: UNKNOWN_CODE)
     }
 
+    /** Remembers what a receipt confirmed and lays it over the list on screen at once, before the reload. */
+    private fun confirm(item: ConfirmedItem) = synchronized(stateLock) {
+        val known = confirmed[item.publicId]
+        if (known == null || known.lockVersion <= item.lockVersion) confirmed[item.publicId] = item
+        val current = _state.value as? OnlineState.Ready ?: return@synchronized
+        _state.value = current.copy(snapshot = withConfirmations(current.snapshot))
+    }
+
+    /**
+     * [snapshot] with every confirmation its items have not caught up with laid over them; a confirmation that the
+     * snapshot has caught up with, or whose item is no longer on the list, is dropped for good. Call under [stateLock].
+     */
+    private fun withConfirmations(snapshot: ServerSnapshot): ServerSnapshot {
+        if (confirmed.isEmpty()) return snapshot
+        val onList = snapshot.listItems.associateBy { it.publicId }
+        confirmed.entries.removeAll { (id, item) -> (onList[id]?.lockVersion ?: Int.MAX_VALUE) >= item.lockVersion }
+        if (confirmed.isEmpty()) return snapshot
+        return snapshot.copy(listItems = snapshot.listItems.map { shown ->
+            confirmed[shown.publicId]?.let { shown.copy(status = it.status.code, purchasedAtMicros = it.purchasedAtMicros, lockVersion = it.lockVersion) } ?: shown
+        })
+    }
+
     private suspend fun load() {
         val credential = access.credential() ?: return fail(OnlineProblem.NO_ACCESS)
         when (val outcome = snapshots.fetch(credential)) {
-            is SnapshotOutcome.Received -> _state.value = OnlineState.Ready(outcome.snapshot)
+            is SnapshotOutcome.Received -> synchronized(stateLock) { _state.value = OnlineState.Ready(withConfirmations(outcome.snapshot)) }
             is SnapshotOutcome.Transient ->
                 fail(if (outcome.cause.isNetworkFailure) OnlineProblem.OFFLINE else OnlineProblem.SERVER)
             SnapshotOutcome.Unauthorized -> {
@@ -145,7 +182,7 @@ class OnlineRepository(
     }
 
     /** Keeps the list already on screen (flagged as possibly stale); without one, the read has failed. */
-    private fun fail(problem: OnlineProblem) {
+    private fun fail(problem: OnlineProblem) = synchronized(stateLock) {
         val current = _state.value
         _state.value = if (current is OnlineState.Ready) current.copy(problem = problem) else OnlineState.Failed(problem)
     }

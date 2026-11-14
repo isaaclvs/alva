@@ -39,12 +39,20 @@ internal fun retryAfterSeconds(header: String?): Int? =
 /**
  * One request over `HttpURLConnection`, with the rules every client of the server shares:
  * the endpoint's own scheme rules ([ServerEndpoint]: https, or loopback in debug), no
- * redirects (a redirect could carry a password or token to another host), no caches, one
- * request per connection, timeouts, a cap on the response body, and no logging. A secret
- * is never put in a URL or in anything this returns.
+ * redirects (a redirect could carry a password or token to another host), no caches,
+ * timeouts, a cap on the response body, and no logging. A secret is never put in a URL or
+ * in anything this returns, and the bearer travels with each request, never with a connection.
+ *
+ * Connections are kept alive and reused, as the platform stack does by itself: every new one
+ * to the server costs a TCP and a TLS handshake, and a mark is two requests in a row (the
+ * command, then the reload). A connection goes back to the pool only after its answer was read
+ * to the end and matched its declared length; after anything else it is closed here.
  *
  * A request body is sent with a fixed length. That also stops the JDK from silently
- * resending a POST whose answer was lost: one call here is one request on the wire.
+ * resending a POST whose answer was lost: one call here is one request on the wire. A pooled
+ * connection the server closed meanwhile, or an answer lost on a reused one, is a
+ * [HttpFailure.NETWORK] like any other: the caller may send the same document again, and its
+ * command UUID makes the server answer `duplicate` if the first one had been applied.
  */
 internal class HttpExchange(
     private val endpoint: ServerEndpoint,
@@ -55,6 +63,8 @@ internal class HttpExchange(
     suspend fun execute(method: String, path: String, bearer: String?, body: ByteArray?, accept: String = "application/json"): HttpResult =
         withContext(Dispatchers.IO) {
             var connection: HttpURLConnection? = null
+            // True only when the whole answer was read and checked: then the connection may stay in the pool.
+            var reusable = false
             try {
                 connection = (URL(endpoint.url(path)).openConnection() as HttpURLConnection).apply {
                     requestMethod = method
@@ -62,9 +72,6 @@ internal class HttpExchange(
                     readTimeout = readTimeoutMillis
                     instanceFollowRedirects = false
                     useCaches = false
-                    // One request per connection: a pooled connection that the server already
-                    // closed could make the stack silently resend a POST.
-                    setRequestProperty("Connection", "close")
                     setRequestProperty("Accept", accept)
                     if (bearer != null) setRequestProperty("Authorization", "Bearer $bearer")
                     if (body != null) {
@@ -81,6 +88,7 @@ internal class HttpExchange(
                 // mid-answer; an answer that is not the length the server declared was lost.
                 val declared = connection.contentLengthLong
                 if (stream != null && declared >= 0 && declared != received.size.toLong()) return@withContext HttpResult.Failed(HttpFailure.NETWORK)
+                reusable = stream != null
                 HttpResult.Received(status, received, connection.getHeaderField("Retry-After"))
             } catch (e: HttpRetryException) {
                 // The JDK (not Android) refuses to read a 401 or a redirect after a streamed body,
@@ -96,7 +104,9 @@ internal class HttpExchange(
             } catch (_: IOException) {
                 HttpResult.Failed(HttpFailure.NETWORK)
             } finally {
-                connection?.disconnect()
+                // `disconnect()` after a complete answer is harmless to the pool on Android but closes it on other
+                // stacks; after a failure or an answer left unread it is exactly what is wanted.
+                if (!reusable) connection?.disconnect()
             }
         }
 

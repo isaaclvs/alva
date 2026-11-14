@@ -1,6 +1,7 @@
 package net.ts.taild80ca0.atlas.twa.ui
 
 import androidx.activity.compose.setContent
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.core.app.ActivityScenario
@@ -766,6 +767,270 @@ class ShoppingScreensTest {
         assertEquals("pending", leite.status)
         assertEquals(listOf("set_item_state", "undo_item_state"), commandTypes())
         waitForText("list-summary", "1 pendente")
+    }
+
+    /** A server that answers only when the test lets it: what the screen shows while the answer is on its way. */
+    private class HeldCommands(private val real: CommandTransport) : CommandTransport {
+        val release = CompletableDeferred<Unit>()
+        override suspend fun send(credential: AccessCredential, commandId: String, document: String): CommandOutcome {
+            release.await()
+            return real.send(credential, commandId, document)
+        }
+    }
+
+    private fun assertSending(id: String, sending: Boolean) {
+        compose.onNodeWithTag("item-$id").let { node ->
+            if (sending) node.assert(SemanticsMatcher("is shown as sending") {
+                it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.StateDescription)?.endsWith("enviando") == true
+            }) else node.assert(SemanticsMatcher("is not shown as sending") {
+                it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.StateDescription) == null
+            })
+        }
+    }
+
+    @Test fun aRealTouchOnAnItemShowsTheNewStateAtOnceAsSendingAndConfirmsOnlyWhenTheServerAnswers() {
+        val leite = house.seed("Leite")
+        val held = HeldCommands(house)
+        launch(commands = held)
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
+        waitForText("list-summary", "1 pendente")
+
+        compose.onNodeWithTag("item-${leite.id}").performTouchInput { click() }
+
+        // Nothing has reached the server, yet the person already sees what they asked for, marked as "sending".
+        assertTrue(house.sent.isEmpty())
+        assertMarked(leite.id, true)
+        assertSending(leite.id, true)
+        compose.onNodeWithTag("toast-message").assertDoesNotExist()
+        compose.onNodeWithTag("list-summary").assertTextContains("1 pendente", substring = true)
+        assertEquals("pending", leite.status)
+
+        held.release.complete(Unit)
+        waitForText("toast-message", "Leite marcado")
+        assertSending(leite.id, false)
+        assertMarked(leite.id, true)
+        waitForText("list-summary", "1 comprado")
+        assertEquals("purchased", leite.status)
+    }
+
+    @Test fun aMarkTheServerCannotTakeGoesBackToWhatItWasAndSaysSo() {
+        val leite = house.seed("Leite")
+        val held = HeldCommands(house)
+        launch(commands = held)
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
+        waitForText("list-summary", "1 pendente")
+        house.commandSteps += listOf(Step.NetworkDown, Step.NetworkDown, Step.NetworkDown)
+
+        compose.onNodeWithTag("item-${leite.id}").performTouchInput { click() }
+        assertMarked(leite.id, true)
+        assertSending(leite.id, true)
+
+        held.release.complete(Unit)
+        waitForText("feedback", "Sem conexão com o servidor")
+        assertMarked(leite.id, false)
+        assertSending(leite.id, false)
+        compose.onNodeWithTag("toast-message").assertDoesNotExist()
+        assertEquals("pending", leite.status)
+    }
+
+    private fun markWhileHeld(leite: FakeHouse.Row, otherPhone: () -> Unit, afterAnswer: () -> Unit) {
+        val held = HeldCommands(house)
+        launch(commands = held)
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
+        waitForText("list-summary", "1 pendente")
+
+        compose.onNodeWithTag("item-${leite.id}").performTouchInput { click() }
+        assertMarked(leite.id, true)
+        assertSending(leite.id, true)
+        otherPhone()
+
+        held.release.complete(Unit)
+        afterAnswer()
+        assertSending(leite.id, false)
+        assertEquals(listOf("set_item_state"), commandTypes())
+    }
+
+    @Test fun whenAnotherPhoneEditedTheItemFirstTheServerRefusesAndTheRowGoesBackToWhatItWas() {
+        val leite = house.seed("Leite")
+        markWhileHeld(leite, otherPhone = { leite.lock++ }, afterAnswer = {
+            waitForText("feedback", "A lista mudou em outro aparelho")
+            assertMarked(leite.id, false) // what was shown as sending was never true on the server
+            compose.onNodeWithTag("toast-message").assertDoesNotExist()
+            assertEquals("pending", leite.status)
+        })
+    }
+
+    @Test fun whenAnotherPhoneMarkedTheItemFirstTheRowStaysMarkedWithNoToastHere() {
+        val leite = house.seed("Leite")
+        markWhileHeld(leite, otherPhone = { leite.status = "purchased"; leite.lock++ }, afterAnswer = {
+            waitForText("list-summary", "1 comprado")
+            assertMarked(leite.id, true) // the server said "already purchased" (noop): the list is the server's
+            compose.onNodeWithTag("toast-message").assertDoesNotExist()
+            compose.onNodeWithTag("feedback").assertDoesNotExist()
+        })
+    }
+
+    @Test fun aMarkTheServerConfirmedStaysMarkedWhenTheReloadAfterItFails() {
+        val leite = house.seed("Leite")
+        markWhileHeld(leite, otherPhone = { house.snapshotSteps += Step.NetworkDown }, afterAnswer = {
+            waitForText("toast-message", "Leite marcado")
+            assertMarked(leite.id, true) // the hint is gone and the row is still marked: the receipt said so
+            waitForText("list-summary", "1 comprado")
+            assertEquals("purchased", leite.status)
+        })
+    }
+
+    // The list's operations belong to the app's host, not to the Lista tab: they must outlive the tab being composed.
+
+    private fun openListHeld(vararg names: String): Pair<HeldCommands, List<FakeHouse.Row>> {
+        val rows = names.map { house.seed(it) }
+        val held = HeldCommands(house)
+        launch(commands = held)
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
+        press("nav-list")
+        waitForText("list-summary", "pendente")
+        return held to rows
+    }
+
+    private fun goToAddAndBack(beforeBack: () -> Unit = {}) {
+        press("nav-add")
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
+        beforeBack()
+        press("nav-list")
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("list-summary").fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    @Test fun aMarkAnsweredWhileTheAddTabIsOpenStillConfirmsToastsAndCanBeUndone() {
+        val (held, rows) = openListHeld("Leite")
+        val leite = rows.single()
+        compose.onNodeWithTag("item-${leite.id}").performTouchInput { click() }
+        assertSending(leite.id, true)
+        press("nav-add")
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
+
+        held.release.complete(Unit)
+        waitForText("toast-message", "Leite marcado") // the toast is the device's, so it shows on whichever tab is open
+        assertEquals("purchased", leite.status)
+        press("nav-list")
+        assertMarked(leite.id, true)
+        assertSending(leite.id, false)
+
+        compose.onNodeWithTag("toast-undo").performClick()
+        compose.waitUntil(10_000) { leite.status == "pending" }
+        assertMarked(leite.id, false)
+        assertEquals(listOf("set_item_state", "undo_item_state"), commandTypes())
+    }
+
+    @Test fun comingBackToTheListBeforeTheAnswerKeepsTheRowSendingAndAllowsNoSecondCommand() {
+        val (held, rows) = openListHeld("Leite")
+        val leite = rows.single()
+        compose.onNodeWithTag("item-${leite.id}").performTouchInput { click() }
+        goToAddAndBack()
+
+        assertMarked(leite.id, true)
+        assertSending(leite.id, true)
+        compose.onNodeWithTag("item-${leite.id}").assertIsNotEnabled()
+        compose.onNodeWithTag("item-${leite.id}").performTouchInput { click() }
+
+        held.release.complete(Unit)
+        waitForText("toast-message", "Leite marcado")
+        assertSending(leite.id, false)
+        assertMarked(leite.id, true)
+        assertEquals(listOf("set_item_state"), commandTypes())
+    }
+
+    @Test fun aMarkTheServerCannotTakeAnsweredOnTheAddTabSaysSoThereAndLeavesTheRowAsItWas() {
+        val (held, rows) = openListHeld("Leite")
+        val leite = rows.single()
+        house.commandSteps += listOf(Step.NetworkDown, Step.NetworkDown, Step.NetworkDown)
+        compose.onNodeWithTag("item-${leite.id}").performTouchInput { click() }
+        press("nav-add")
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
+
+        held.release.complete(Unit)
+        waitForText("feedback", "Sem conexão com o servidor")
+        press("nav-list")
+        assertMarked(leite.id, false)
+        assertSending(leite.id, false)
+        compose.onNodeWithTag("item-${leite.id}").assertIsEnabled()
+        compose.onNodeWithTag("toast-message").assertDoesNotExist()
+        compose.onAllNodesWithTag("feedback").assertCountEquals(1)
+        assertEquals("pending", leite.status)
+    }
+
+    @Test fun removingFromTheEditFormKeepsTheFormBusyWhenComingBackAndClosesItOnTheAnswer() {
+        val (held, rows) = openListHeld("Leite")
+        val leite = rows.single()
+        press("edit-${leite.id}")
+        compose.onNodeWithTag("remove-item").performScrollTo().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
+        goToAddAndBack()
+
+        compose.onNodeWithTag("edit-save").assertIsNotEnabled()
+        compose.onNodeWithTag("remove-item").assertIsNotEnabled()
+
+        held.release.complete(Unit)
+        waitForText("toast-message", "Leite removido")
+        compose.onNodeWithTag("edit-name").assertDoesNotExist()
+        compose.onNodeWithTag("item-${leite.id}").assertDoesNotExist()
+        assertEquals(listOf("remove_item"), commandTypes())
+    }
+
+    @Test fun aRemovalAnsweredOnTheAddTabCanBeUndoneFromThereAndTheRowComesBack() {
+        val (held, rows) = openListHeld("Leite")
+        val leite = rows.single()
+        press("edit-${leite.id}")
+        compose.onNodeWithTag("remove-item").performScrollTo().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
+        press("nav-add")
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
+
+        held.release.complete(Unit)
+        waitForText("toast-message", "Leite removido")
+        compose.onNodeWithTag("toast-undo").performClick()
+        press("nav-list")
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("item-${leite.id}").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("edit-name").assertDoesNotExist()
+        assertEquals(listOf("remove_item", "undo_remove"), commandTypes())
+    }
+
+    @Test fun savingAnEditAnsweredWhileOnTheAddTabAppliesItAndClosesTheForm() {
+        val (held, rows) = openListHeld("Leite")
+        val leite = rows.single()
+        press("edit-${leite.id}")
+        compose.onNodeWithTag("edit-name").performTextReplacement("Café")
+        compose.onNodeWithTag("edit-save").performScrollTo().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
+        goToAddAndBack()
+        compose.onNodeWithTag("edit-save").assertIsNotEnabled()
+        press("nav-add")
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
+
+        held.release.complete(Unit)
+        compose.waitUntil(10_000) { leite.name == "Café" }
+        press("nav-list")
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("edit-name").fetchSemanticsNodes().isEmpty() }
+        compose.onNodeWithText("Café").assertIsDisplayed()
+        assertEquals(listOf("correct_item"), commandTypes())
+    }
+
+    @Test fun aRefusedEditAnsweredOnTheAddTabKeepsTheDraftWithItsErrorForTheReturn() {
+        val (held, rows) = openListHeld("Leite")
+        val leite = rows.single()
+        press("edit-${leite.id}")
+        compose.onNodeWithTag("edit-name").performTextReplacement("Café")
+        leite.lock++ // another phone edited it: the server will refuse the stale version
+        compose.onNodeWithTag("edit-save").performScrollTo().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
+        press("nav-add")
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
+
+        held.release.complete(Unit)
+        press("nav-list")
+        waitForText("edit-error", "A lista mudou")
+        compose.onNodeWithTag("edit-name").assertTextContains("Café")
+        compose.onNodeWithTag("edit-save").assertIsEnabled()
+        assertEquals("Leite", leite.name)
+        assertEquals(listOf("correct_item"), commandTypes())
     }
 
     @Test fun unmarkingAnItemCanBeUndoneToTheOriginalPurchase() {

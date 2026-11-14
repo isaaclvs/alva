@@ -414,6 +414,27 @@ class OnlineRailsConvergenceTest {
         assertEquals("B sees it exactly once", 1, b.items.count { it.name == name })
     }
 
+    @Test fun aMarkWhoseAnswerIsLostOnAReusedConnectionIsRetriedAndMarksOnceInRails() = runBlocking<Unit> {
+        val proxy = ResponseDroppingProxy(Regex(":(\\d+)$").find(url)!!.groupValues[1].toInt()).also { closeables += it }
+        val a = phone(tokenA, commandsThrough = proxy.port)
+        val b = phone(tokenB)
+        val name = newName()
+        assertTrue(a.add(name) is ActionResult.Success) // its command went through the proxy: that connection is now pooled
+        val before = proxy.requestBodies.size
+
+        proxy.dropNextResponses(1)
+        val result = a.mark(name, ItemStatus.PURCHASED) as ActionResult.Success // reuses it; Rails answers, the answer is lost
+
+        assertEquals(ReceiptStatus.DUPLICATE, result.receipt.status)
+        assertEquals(2, proxy.requestBodies.size - before)
+        assertArrayEquals("the very same bytes", proxy.requestBodies[before], proxy.requestBodies[before + 1])
+        assertEquals("the add and the lost mark shared a connection; the retry needed a new one", 2, proxy.connections.get())
+        assertEquals(1, a.item(name)!!.status)
+        b.repository.refresh()
+        assertEquals(1, b.item(name)!!.status)
+        assertEquals("Rails holds the mark once, at the version it left", 1, b.item(name)!!.lockVersion)
+    }
+
     @Test fun aRefusedCredentialIsNoAccessAndIsReported() = runBlocking<Unit> {
         val intruder = phone("not-a-credential-" + UUID.randomUUID())
         intruder.repository.refresh()

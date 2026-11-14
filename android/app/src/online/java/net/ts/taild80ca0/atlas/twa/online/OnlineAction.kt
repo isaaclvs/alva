@@ -16,6 +16,13 @@ interface OnlineAction {
      * what every retry puts on the wire.
      */
     fun plan(context: PlanContext): ActionPlan
+
+    /**
+     * True when a successful receipt of this action carries `data.item` with the state and `lock_version` the item
+     * has on the server after it. The repository then keeps that confirmed state on screen until a snapshot that is
+     * at least that new replaces it.
+     */
+    val receiptConfirmsItemState: Boolean get() = false
 }
 
 /** What an action may use to build its document. */

@@ -19,6 +19,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -69,8 +71,9 @@ fun ListScreen(
     shoppingMode: Boolean = false,
     rowActions: @Composable RowScope.(ListItem, () -> Unit) -> Unit = { _, _ -> },
     onMarked: () -> Unit = {},
+    /** The operations and their in-flight state. The host passes its own so they outlive this tab being composed. */
+    actions: ListActions = rememberListActions(repository, editState, showToast, onFailure, onMarked) { shoppingMode },
 ) {
-    val scope = rememberCoroutineScope()
     val items = remember(snapshot) { snapshot.liveItems() }
     val filters = filterState.value
     val searchFocus = remember { FocusRequester() }
@@ -79,87 +82,8 @@ fun ListScreen(
     val groups = remember(snapshot.categories, items, visibleIds) {
         ListGroups.of(snapshot.categories, items).filter { group -> group.items.any { it.publicId in visibleIds } }
     }
-    val busy = remember { mutableStateListOf<String>() }
     val pending = items.count { it.status == ItemStatus.PENDING }
     val purchased = items.size - pending
-
-    var finishing by remember { mutableStateOf(false) }
-
-    fun finishShopping() {
-        if (finishing || busy.isNotEmpty()) return
-        val observed = snapshot.listItems
-        finishing = true
-        scope.launch {
-            try {
-                when (val result = repository.execute(FinishShopping(observed))) {
-                    is ActionResult.Success -> result.receipt.shoppingTripPublicId()?.let { tripId ->
-                        showToast(ToastMessage("Compra registrada", "Desfazer") {
-                            val undone = repository.execute(UndoShopping(tripId))
-                            if (undone !is ActionResult.Success) onFailure(OnlineMessages.failure(undone))
-                        })
-                    } ?: onFailure("A compra foi registrada, mas não foi possível preparar o desfazer. Atualize a lista.")
-                    else -> onFailure(OnlineMessages.failure(result))
-                }
-            } finally { finishing = false }
-        }
-    }
-
-    fun remove(item: ListItem, observedVersion: Int? = null) {
-        if (item.publicId in busy || shoppingMode || finishing) return
-        busy += item.publicId
-        val editing = editState.itemId == item.publicId
-        if (editing) editState.saving = true
-        scope.launch {
-            try {
-                when (val result = repository.execute(RemoveItem(item.publicId, observedVersion))) {
-                    is ActionResult.Success -> {
-                        if (editState.itemId == item.publicId) editState.close()
-                        showToast(ToastMessage("${item.name} removido", "Desfazer") {
-                            val undone = repository.execute(UndoRemove(result.receipt.commandId))
-                            if (undone !is ActionResult.Success) onFailure(OnlineMessages.failure(undone))
-                        })
-                    }
-                    else -> {
-                        if (editing) editState.error = OnlineMessages.failure(result, keepsText = true)
-                        else onFailure(OnlineMessages.failure(result))
-                    }
-                }
-            } finally {
-                busy -= item.publicId
-                if (editing) editState.saving = false
-            }
-        }
-    }
-
-    fun mark(item: ListItem) {
-        if (item.publicId in busy || finishing) return
-        busy += item.publicId
-        scope.launch {
-            try {
-                val purchasing = item.status != ItemStatus.PURCHASED
-                val desired = if (purchasing) ItemStatus.PURCHASED else ItemStatus.PENDING
-                when (val result = repository.execute(SetItemState(item.publicId, desired))) {
-                    is ActionResult.Success -> {
-                        // Only a mark that took effect on this device's request can be undone; "already in that
-                        // state" (another phone got there first) has nothing to take back.
-                        val marked = result.receipt.markedItem()
-                        if (result.receipt.status != ReceiptStatus.NOOP) onMarked()
-                        if (marked != null && result.receipt.status != ReceiptStatus.NOOP) {
-                            val undo = UndoItemState(item.publicId, item.status, item.purchasedAt, marked.lockVersion)
-                            showToast(ToastMessage(
-                                text = if (purchasing) "${item.name} marcado" else "${item.name} desmarcado",
-                                actionLabel = "Desfazer",
-                            ) {
-                                val undone = repository.execute(undo)
-                                if (undone !is ActionResult.Success) onFailure(OnlineMessages.failure(undone))
-                            })
-                        }
-                    }
-                    else -> onFailure(OnlineMessages.failure(result))
-                }
-            } finally { busy -= item.publicId }
-        }
-    }
 
     val header: @Composable () -> Unit = {
         Column(Modifier.fillMaxWidth().padding(start = if (shoppingMode) 20.dp else 0.dp, end = if (shoppingMode) 20.dp else 0.dp, top = 24.dp, bottom = 16.dp)) {
@@ -211,27 +135,13 @@ fun ListScreen(
                 item(key = "category-$key") { CategoryHeading(group, shoppingMode) }
                 itemsIndexed(group.items.filter { it.publicId in visibleIds }, key = { _, item -> item.publicId }) { index, item ->
                     if (!shoppingMode && editState.itemId == item.publicId) {
-                        EditItemForm(editState, snapshot.categories, onCancel = { editState.close() }, onSave = {
-                            editState.saving = true
-                            scope.launch {
-                                try {
-                                    val result = repository.execute(CorrectItem(item.publicId, name = editState.name,
-                                        categoryPublicId = editState.categoryId.takeIf { editState.categoryChosen },
-                                        observedLockVersion = editState.version, observedDictionaryRevision = editState.dictionaryRevision))
-                                    if (result is ActionResult.Success) editState.close() else {
-                                        editState.error = OnlineMessages.failure(result, keepsText = true)
-                                        val fresh = (repository.state.value as? net.ts.taild80ca0.atlas.twa.online.OnlineState.Ready)?.snapshot
-                                        fresh?.listItems?.firstOrNull { it.publicId == item.publicId }?.let { editState.version = it.lockVersion }
-                                        fresh?.let { editState.dictionaryRevision = it.dictionaryRevision }
-                                    }
-                                } finally { editState.saving = false }
-                            }
-                        }, remove = {
-                            RemoveItemButton(enabled = !editState.saving && item.publicId !in busy) { remove(item, editState.version) }
+                        EditItemForm(editState, snapshot.categories, onCancel = { editState.close() }, onSave = { actions.saveEdit(item.publicId) }, remove = {
+                            RemoveItemButton(enabled = !editState.saving && !actions.isBusy(item.publicId)) { actions.remove(item, editState.version) }
                         })
-                    } else ListRow(item, first = index == 0, enabled = item.publicId !in busy && !finishing, onToggle = { mark(item) }, shoppingMode = shoppingMode,
-                        modifier = Modifier.swipeToRemove(!shoppingMode && item.publicId !in busy) { remove(item) }, trailing = {
-                        if (!shoppingMode) rowActions(item) { remove(item) }
+                    } else ListRow(item, first = index == 0, enabled = !actions.isBusy(item.publicId) && !actions.finishing, onToggle = { actions.mark(item) }, shoppingMode = shoppingMode,
+                        pendingStatus = actions.pendingStatus(item.publicId),
+                        modifier = Modifier.swipeToRemove(!shoppingMode && !actions.isBusy(item.publicId)) { actions.remove(item) }, trailing = {
+                        if (!shoppingMode) rowActions(item) { actions.remove(item) }
                         if (!shoppingMode) EditItemButton(item.name, Modifier.testTag("edit-${item.publicId}")) {
                             editState.open(item, snapshot.listItems.first { it.publicId == item.publicId }.lockVersion, snapshot.dictionaryRevision)
                         }
@@ -240,11 +150,11 @@ fun ListScreen(
                 item(key = "gap-$key") { Spacer(Modifier.height(25.6.dp)) }
             }
             if (!shoppingMode && purchased > 0) item(key = "finish-shopping") {
-                FinishShoppingButton(purchased, enabled = !finishing && busy.isEmpty()) { finishShopping() }
+                FinishShoppingButton(purchased, enabled = !actions.finishing && !actions.anyBusy) { actions.finishShopping(snapshot) }
             }
         }
         if (shoppingMode) Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-            if (purchased > 0) FinishShoppingButton(purchased, enabled = !finishing && busy.isEmpty()) { finishShopping() }
+            if (purchased > 0) FinishShoppingButton(purchased, enabled = !actions.finishing && !actions.anyBusy) { actions.finishShopping(snapshot) }
             ListSearchFilters(filterState, searchFocus, shoppingMode = true)
         }
     }
@@ -278,8 +188,10 @@ internal fun ListRow(
     modifier: Modifier = Modifier,
     trailing: @Composable RowScope.() -> Unit = {},
     shoppingMode: Boolean = false,
+    /** The state just asked for and not yet confirmed by the server: shown at once, dimmed, as "sending". */
+    pendingStatus: ItemStatus? = null,
 ) {
-    val bought = item.status == ItemStatus.PURCHASED
+    val bought = (pendingStatus ?: item.status) == ItemStatus.PURCHASED
     val source = remember { MutableInteractionSource() }
     // `divide-y`: a 1dp line on top of every row but the first, which takes room of its own.
     Row(
@@ -289,6 +201,10 @@ internal fun ListRow(
     ) {
         Row(
             Modifier.weight(1f).testTag("item-${item.publicId}")
+                .then(if (pendingStatus == null) Modifier else Modifier.alpha(0.6f).semantics {
+                    // Replaces the checkbox's own "marcado/desmarcado" for TalkBack, so it must still say which one.
+                    stateDescription = if (bought) "Marcado, enviando" else "Desmarcado, enviando"
+                })
                 .pressedSurface(source, AlvaTheme.colors.surface2)
                 .toggleable(value = bought, enabled = enabled, role = Role.Checkbox, interactionSource = source, indication = null,
                     onValueChange = { onToggle() })

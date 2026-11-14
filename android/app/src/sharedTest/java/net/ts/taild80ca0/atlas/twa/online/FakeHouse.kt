@@ -35,6 +35,12 @@ class FakeHouse : SnapshotTransport, CommandTransport {
         data object ServerError : Step
         data object Unauthorized : Step
         data class Refuse(val status: Int, val code: String) : Step
+
+        /**
+         * A read answered from before the latest commands (a lagging replica, a cache in the way): the last snapshot
+         * this server gave, again. For commands it changes nothing.
+         */
+        data object Stale : Step
     }
 
     val rows = ArrayList<Row>()
@@ -57,7 +63,14 @@ class FakeHouse : SnapshotTransport, CommandTransport {
     /** How long a read of the list takes, to let requests pile up behind it. */
     var fetchDelayMillis = 0L
     val commandSteps = ArrayDeque<Step>()
+
+    /**
+     * Command types this server does not know, answered `rejected`/`unsupported_command` like the Rails of the Atlas
+     * did on 2026-11-13 (its `EXECUTORS` held only `add_items` and `set_item_state`).
+     */
+    var unsupportedTypes: Set<String> = emptySet()
     val snapshotSteps = ArrayDeque<Step>()
+    private var lastServed: net.ts.taild80ca0.atlas.twa.sync.ServerSnapshot? = null
 
     fun seed(
         name: String, status: String = "pending", lock: Int = 0, id: String = java.util.UUID.randomUUID().toString(),
@@ -81,6 +94,7 @@ class FakeHouse : SnapshotTransport, CommandTransport {
             Step.ServerError -> return SnapshotOutcome.Transient(TransientCause.SERVER_ERROR)
             Step.Unauthorized -> return SnapshotOutcome.Unauthorized
             is Step.Refuse -> return SnapshotOutcome.Refused(step.status, step.code)
+            Step.Stale -> lastServed?.let { return SnapshotOutcome.Received(it) }
             null -> Unit
         }
         val items = rows.map { row ->
@@ -95,6 +109,7 @@ class FakeHouse : SnapshotTransport, CommandTransport {
             archived = trips.flatMap { (trip, rows) -> rows.map { row -> SnapshotFixtures.item(row.id, row.name, status = row.status, category = row.category, lockVersion = row.lock, purchasedAt = row.purchasedAt, trip = trip) } })
             .put("buy_again", recommendations)))
         check(parsed is SnapshotParse.Valid) { "Fake snapshot invalid: $parsed" }
+        lastServed = parsed.snapshot
         return SnapshotOutcome.Received(parsed.snapshot)
     }
 
@@ -108,7 +123,7 @@ class FakeHouse : SnapshotTransport, CommandTransport {
             Step.ServerError -> return CommandOutcome.Transient(TransientCause.SERVER_ERROR)
             Step.Unauthorized -> return CommandOutcome.Unauthorized
             is Step.Refuse -> return CommandOutcome.Refused(step.status, step.code)
-            Step.LostAnswer, null -> Unit
+            Step.LostAnswer, Step.Stale, null -> Unit
         }
         val receipt = answer(commandId, JSONObject(document))
         return if (step == Step.LostAnswer) CommandOutcome.Transient(TransientCause.NETWORK) else CommandOutcome.Receipt(receipt)
@@ -117,6 +132,7 @@ class FakeHouse : SnapshotTransport, CommandTransport {
     private fun answer(id: String, command: JSONObject): CommandReceipt {
         ledger[id]?.let { return it.copy(status = ReceiptStatus.DUPLICATE, originalStatus = it.status) }
         val receipt = when (command.getString("type")) {
+            in unsupportedTypes -> receipt(id, ReceiptStatus.REJECTED, error = "unsupported_command")
             "create_habitual" -> createHabitual(id, command.getJSONObject("payload").getString("name"))
             "remove_habitual" -> {
                 habituals.removeAll { it.getString("public_id") == command.getJSONObject("payload").getString("public_id") }
@@ -211,7 +227,8 @@ class FakeHouse : SnapshotTransport, CommandTransport {
             }
             reported.put(
                 JSONObject().put("public_id", entry.getString("public_id")).put("canonical_public_id", row.id).put("name", row.name)
-                    .put("status", row.status).put("lock_version", row.lock).put("outcome", outcome),
+                    .put("status", row.status)
+            .put("purchased_at", row.purchasedAt ?: JSONObject.NULL).put("lock_version", row.lock).put("outcome", outcome),
             )
         }
         rows += created
@@ -290,7 +307,8 @@ class FakeHouse : SnapshotTransport, CommandTransport {
     }
 
     private fun itemJson(row: Row) =
-        JSONObject().put("public_id", row.id).put("canonical_public_id", row.id).put("name", row.name).put("status", row.status).put("lock_version", row.lock)
+        JSONObject().put("public_id", row.id).put("canonical_public_id", row.id).put("name", row.name).put("status", row.status)
+            .put("purchased_at", row.purchasedAt ?: JSONObject.NULL).put("lock_version", row.lock)
 
     private fun receipt(id: String, status: ReceiptStatus, error: String? = null, data: JSONObject? = null) = CommandReceipt(
         commandId = id, status = status, originalStatus = null,
