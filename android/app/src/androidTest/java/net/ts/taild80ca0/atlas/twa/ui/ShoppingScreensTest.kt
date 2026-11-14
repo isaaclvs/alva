@@ -63,7 +63,7 @@ class ShoppingScreensTest {
         compose.onNodeWithTag("nav-add").assertDoesNotExist()
         compose.onNodeWithTag("house-menu").assertDoesNotExist()
         compose.onNodeWithTag("edit-${item.id}").assertDoesNotExist()
-        compose.onNodeWithTag("pending-only").assertDoesNotExist()
+        compose.onNodeWithTag("pending-only").assertExists().assertIsOff()
         compose.onNodeWithText("1 restantes").assertExists()
         fun awake(view: android.view.View): Boolean = view.keepScreenOn || (view is android.view.ViewGroup && (0 until view.childCount).any { awake(view.getChildAt(it)) })
         scenario!!.onActivity { assertTrue(awake(it.window.decorView)) }
@@ -83,6 +83,77 @@ class ShoppingScreensTest {
         compose.onNodeWithTag("nav-add").assertExists()
         scenario!!.onActivity { assertFalse(awake(it.window.decorView)) }
         assertEquals("purchased", house.rows.single().status)
+    }
+
+    @Test fun pendingOnlyIsAvailableInShoppingModeCombinesWithSearchAndSurvivesRefreshUntilExit() {
+        val milk = house.seed("Leite")
+        val bread = house.seed("Pão integral")
+        val boughtBread = house.seed("Pão doce", status = "purchased")
+        val repository = launch()
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("nav-list").fetchSemanticsNodes().isNotEmpty() }
+        press("nav-list")
+        press("start-shopping")
+        compose.onNodeWithTag("list-title").assertTextEquals("Em compras")
+        compose.onNodeWithTag("nav-add").assertDoesNotExist()
+        compose.onNodeWithTag("list-search").assertIsNotFocused()
+        compose.onNodeWithText("Seções · A–Z").assertDoesNotExist()
+        // The switch sits with the fixed search and starts off: the purchased item is still in the checklist.
+        compose.onNodeWithTag("pending-only").assertExists().assertIsOff()
+        compose.onNodeWithTag("item-${boughtBread.id}").assertExists()
+        fun assertWholeSnapshotCounts() {
+            compose.onNodeWithTag("list-summary").assertTextEquals("2 pendentes · 1 comprado")
+            compose.onNodeWithTag("shopping-progress").assert(SemanticsMatcher("1 of 3 bought") {
+                val range = it.config[androidx.compose.ui.semantics.SemanticsProperties.ProgressBarRangeInfo]
+                range.current == 1f && range.range.endInclusive == 3f
+            })
+        }
+        assertWholeSnapshotCounts()
+
+        compose.onNodeWithTag("pending-only").performClick()
+        compose.onNodeWithTag("pending-only").assertIsOn()
+        compose.onNodeWithTag("item-${boughtBread.id}").assertDoesNotExist()
+        compose.onNodeWithTag("item-${milk.id}").assertExists()
+        compose.onNodeWithTag("item-${bread.id}").assertExists()
+        assertWholeSnapshotCounts()
+        assertTrue(house.sent.isEmpty())
+
+        compose.onNodeWithTag("list-search").performTextInput("PAO")
+        compose.onNodeWithTag("list-search").performImeAction()
+        compose.onNodeWithTag("item-${milk.id}").assertDoesNotExist()
+        compose.onNodeWithTag("item-${bread.id}").assertExists()
+        compose.onNodeWithTag("item-${boughtBread.id}").assertDoesNotExist()
+        assertWholeSnapshotCounts()
+
+        // A refresh that brings a new matching item keeps both filters and the whole-list counters.
+        val newBread = house.seed("Pão francês")
+        kotlinx.coroutines.runBlocking { repository.refresh() }
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("item-${newBread.id}").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("pending-only").assertIsOn()
+        compose.onNodeWithTag("list-search").assertTextContains("PAO")
+        compose.onNodeWithTag("item-${boughtBread.id}").assertDoesNotExist()
+        compose.onNodeWithTag("list-summary").assertTextEquals("3 pendentes · 1 comprado")
+
+        // Marking with the filter on removes the row from view; the undo brings it back.
+        press("item-${bread.id}")
+        waitForText("toast-message", "Pão integral marcado")
+        compose.onNodeWithTag("item-${bread.id}").assertDoesNotExist()
+        press("toast-undo")
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("item-${bread.id}").fetchSemanticsNodes().isNotEmpty() }
+        assertEquals(listOf("set_item_state", "undo_item_state"), commandTypes())
+
+        compose.onNodeWithTag("pending-only").performClick()
+        compose.onNodeWithTag("pending-only").assertIsOff()
+        compose.onNodeWithTag("item-${boughtBread.id}").assertExists()
+        assertEquals(2, house.sent.size)
+
+        compose.onNodeWithTag("pending-only").performClick()
+        press("exit-shopping")
+        compose.onNodeWithTag("nav-add").assertExists()
+        press("nav-list")
+        compose.onNodeWithTag("pending-only").assertIsOff()
+        compose.onNodeWithTag("list-search").assert(SemanticsMatcher("search cleared") {
+            it.config[androidx.compose.ui.semantics.SemanticsProperties.EditableText].text.isEmpty()
+        })
     }
 
     @Test fun editingBlocksShoppingWithoutLosingTheDraftAndExitClearsSearch() {

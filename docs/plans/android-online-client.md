@@ -173,7 +173,9 @@ canvas, com as duas abas lado a lado (ícone e texto, contador de pendentes em L
 
 `ShoppingMode` lê a preferência local de 24 horas antes de compor as telas e a
 revalida ao retomar. O modo força a Lista, esconde navegação, personalização,
-edição e swipe; a saída limpa filtros. A busca fica no rodapé, sem autofocus.
+edição e swipe; a saída limpa filtros. A busca fica no rodapé, sem autofocus, e
+leva junto o switch "Só pendentes" (sem o rótulo "Seções · A–Z"); busca e switch
+se combinam, só filtram a visão e sobrevivem ao refresh até a saída do modo.
 `LocalView.keepScreenOn` mantém a tela acesa enquanto o modo está ativo;
 marcações aceitas no aparelho pedem feedback háptico pela API do Android.
 A barra de progresso e os contadores vêm do snapshot inteiro, mesmo com busca.

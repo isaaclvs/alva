@@ -222,7 +222,8 @@ continua decidindo (e pega plurais que a dica não pega).
 
 **Busca na Lista:** campo e "Só pendentes" sempre visíveis. A lupa foca o campo
 sem limpar os filtros (`list_filter_controller.js`). No modo compras, o campo
-fica fixo próximo ao rodapé; sair do modo limpa os filtros e mantém a busca visível.
+fica fixo próximo ao rodapé, com "Só pendentes" junto dele; sair do modo limpa os
+filtros e mantém a busca visível.
 
 **Iniciar compras:** botão no resumo da Lista (só com itens na lista viva, também
 quando todos já estão marcados) que a transforma em checklist. A preferência é do
