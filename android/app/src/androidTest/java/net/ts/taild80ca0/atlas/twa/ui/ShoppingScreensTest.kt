@@ -849,6 +849,14 @@ class ShoppingScreensTest {
         }
     }
 
+    /**
+     * Answers the held commands from the UI thread, where a real answer would resume the screen's coroutines. The
+     * Compose test environment resumes them inline on whichever thread completes the deferred, so doing it from the
+     * test thread ran the whole end of the operation (the failure message, then the row's "sending" hint going away)
+     * on the instrumentation thread, and under load the row never recomposed.
+     */
+    private fun HeldCommands.letGo() = compose.runOnUiThread { release.complete(Unit) }
+
     private fun assertSending(id: String, sending: Boolean) {
         compose.onNodeWithTag("item-$id").let { node ->
             if (sending) node.assert(SemanticsMatcher("is shown as sending") {
@@ -877,7 +885,7 @@ class ShoppingScreensTest {
         compose.onNodeWithTag("list-summary").assertTextContains("1 pendente", substring = true)
         assertEquals("pending", leite.status)
 
-        held.release.complete(Unit)
+        held.letGo()
         waitForText("toast-message", "Leite marcado")
         assertSending(leite.id, false)
         assertMarked(leite.id, true)
@@ -898,7 +906,7 @@ class ShoppingScreensTest {
         assertMarked(leite.id, true)
         assertSending(leite.id, true)
 
-        held.release.complete(Unit)
+        held.letGo()
         waitForText("feedback", "Sem conexão com o servidor")
         assertMarked(leite.id, false)
         assertSending(leite.id, false)
@@ -918,7 +926,7 @@ class ShoppingScreensTest {
         assertSending(leite.id, true)
         otherPhone()
 
-        held.release.complete(Unit)
+        held.letGo()
         afterAnswer()
         assertSending(leite.id, false)
         assertEquals(listOf("set_item_state"), commandTypes())
@@ -982,7 +990,7 @@ class ShoppingScreensTest {
         press("nav-add")
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
 
-        held.release.complete(Unit)
+        held.letGo()
         waitForText("toast-message", "Leite marcado") // the toast is the device's, so it shows on whichever tab is open
         assertEquals("purchased", leite.status)
         press("nav-list")
@@ -1006,7 +1014,7 @@ class ShoppingScreensTest {
         compose.onNodeWithTag("item-${leite.id}").assertIsNotEnabled()
         compose.onNodeWithTag("item-${leite.id}").performTouchInput { click() }
 
-        held.release.complete(Unit)
+        held.letGo()
         waitForText("toast-message", "Leite marcado")
         assertSending(leite.id, false)
         assertMarked(leite.id, true)
@@ -1021,7 +1029,7 @@ class ShoppingScreensTest {
         press("nav-add")
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
 
-        held.release.complete(Unit)
+        held.letGo()
         waitForText("feedback", "Sem conexão com o servidor")
         press("nav-list")
         assertMarked(leite.id, false)
@@ -1042,7 +1050,7 @@ class ShoppingScreensTest {
         compose.onNodeWithTag("edit-save").assertIsNotEnabled()
         compose.onNodeWithTag("remove-item").assertIsNotEnabled()
 
-        held.release.complete(Unit)
+        held.letGo()
         waitForText("toast-message", "Leite removido")
         compose.onNodeWithTag("edit-name").assertDoesNotExist()
         compose.onNodeWithTag("item-${leite.id}").assertDoesNotExist()
@@ -1057,7 +1065,7 @@ class ShoppingScreensTest {
         press("nav-add")
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
 
-        held.release.complete(Unit)
+        held.letGo()
         waitForText("toast-message", "Leite removido")
         compose.onNodeWithTag("toast-undo").performClick()
         press("nav-list")
@@ -1077,7 +1085,7 @@ class ShoppingScreensTest {
         press("nav-add")
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
 
-        held.release.complete(Unit)
+        held.letGo()
         compose.waitUntil(10_000) { leite.name == "Café" }
         press("nav-list")
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("edit-name").fetchSemanticsNodes().isEmpty() }
@@ -1095,7 +1103,7 @@ class ShoppingScreensTest {
         press("nav-add")
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
 
-        held.release.complete(Unit)
+        held.letGo()
         press("nav-list")
         waitForText("edit-error", "A lista mudou")
         compose.onNodeWithTag("edit-name").assertTextContains("Café")

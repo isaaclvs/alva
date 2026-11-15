@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -71,6 +72,7 @@ fun ListScreen(
     shoppingMode: Boolean = false,
     rowActions: @Composable RowScope.(ListItem, () -> Unit) -> Unit = { _, _ -> },
     onMarked: () -> Unit = {},
+    onShoppingFooterHeightChanged: (Int) -> Unit = {},
     /** The operations and their in-flight state. The host passes its own so they outlive this tab being composed. */
     actions: ListActions = rememberListActions(repository, editState, showToast, onFailure, onMarked) { shoppingMode },
 ) {
@@ -153,7 +155,9 @@ fun ListScreen(
                 FinishShoppingButton(purchased, enabled = !actions.finishing && !actions.anyBusy) { actions.finishShopping(snapshot) }
             }
         }
-        if (shoppingMode) Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+        if (shoppingMode) Column(Modifier.fillMaxWidth().testTag("shopping-footer")
+            .onSizeChanged { onShoppingFooterHeightChanged(it.height) }
+            .padding(horizontal = 16.dp, vertical = 8.dp)) {
             if (purchased > 0) FinishShoppingButton(purchased, enabled = !actions.finishing && !actions.anyBusy) { actions.finishShopping(snapshot) }
             ListSearchFilters(filterState, searchFocus, shoppingMode = true)
         }

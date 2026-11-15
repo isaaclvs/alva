@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -144,16 +145,50 @@ enum class AppScreen(val tag: String, val label: String) {
     Add("add", "Adicionar"), List("list", "Lista");
 }
 
+/** Geometry of the floating navigation capsule (approved prototype, variant A). */
+object FloatingNavigation {
+    /** Space at the sides of the capsule: the canvas stays visible there. */
+    val SideMargin = 16.dp
+    /** Space between the capsule and the system gesture/navigation area, and above it between it and the content. */
+    val EdgeGap = 8.dp
+    val InnerPadding = 6.dp
+    val CapsuleRadius = 26.dp
+    val PillRadius = 21.dp
+    /** Touch target of each tab; it grows with the font, never below this. */
+    val MinTabHeight = 48.dp
+    val MaxWidth = 448.dp
+    const val CapsuleTag = "bottom-navigation"
+}
+
 /**
- * The bottom navigation of the PWA: two pills with icon and label, the current one over `accent-soft`
- * (`accent` in pink, `accent-strong` in teal), the "Lista" one with the pending counter.
+ * The bottom navigation: a single floating capsule with the two tabs side by side (icon and label), on `surface`
+ * with a hairline and a soft shadow, the current tab a pill over `accent-soft` (`accent` in pink, `accent-strong`
+ * in teal) and the "Lista" tab with the pending counter. The bar itself paints nothing, so the canvas shows at the
+ * sides and below the capsule. It sits in the Scaffold's bottom bar slot, so the content ends above it, and it
+ * clears the system gesture/3-button area and the cutout. It is not shown in shopping mode (the host decides).
  */
 @Composable
 fun BottomNavigation(current: AppScreen, pending: Int, onSelect: (AppScreen) -> Unit, modifier: Modifier = Modifier) {
     val c = AlvaTheme.colors
-    Column(modifier.fillMaxWidth().background(c.canvas).navigationBarsPadding()) {
-        Box(Modifier.fillMaxWidth().height(1.dp).background(c.line))
-        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+    val capsule = RoundedCornerShape(FloatingNavigation.CapsuleRadius)
+    Box(
+        modifier.fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.displayCutout)
+                .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
+            .padding(start = FloatingNavigation.SideMargin, end = FloatingNavigation.SideMargin,
+                top = FloatingNavigation.EdgeGap, bottom = FloatingNavigation.EdgeGap),
+        contentAlignment = Alignment.Center,
+    ) {
+        Row(
+            Modifier.widthIn(max = FloatingNavigation.MaxWidth).fillMaxWidth().height(IntrinsicSize.Min)
+                .shadow(8.dp, capsule, ambientColor = Color.Black.copy(alpha = 0.15f), spotColor = Color.Black.copy(alpha = 0.15f))
+                .background(c.surface, capsule).border(1.dp, c.line, capsule)
+                .padding(FloatingNavigation.InnerPadding)
+                .selectableGroup()
+                .semantics { contentDescription = "Navegação do app" }
+                .testTag(FloatingNavigation.CapsuleTag),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
             AppScreen.entries.forEach { screen ->
                 val selected = screen == current
                 val tint = when {
@@ -162,17 +197,19 @@ fun BottomNavigation(current: AppScreen, pending: Int, onSelect: (AppScreen) -> 
                     else -> c.accentStrong
                 }
                 Row(
-                    Modifier.weight(1f).heightIn(min = 44.8.dp).clip(RoundedCornerShape(13.6.dp))
+                    Modifier.weight(1f).fillMaxHeight().heightIn(min = FloatingNavigation.MinTabHeight)
+                        .clip(RoundedCornerShape(FloatingNavigation.PillRadius))
                         .background(if (selected) c.accentSoft else Color.Transparent)
                         .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, role = Role.Tab) { onSelect(screen) }
                         .semantics { this.selected = selected }
                         .testTag("nav-${screen.tag}")
-                        .padding(vertical = 10.dp),
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     NavIcon(screen, tint)
-                    Text(screen.label, style = AlvaTheme.type.navigation.copy(fontWeight = FontWeight.Medium), color = tint)
+                    Text(screen.label, style = AlvaTheme.type.navigation.copy(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold),
+                        color = tint, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                     if (screen == AppScreen.List) ListCounter(pending, Modifier.testTag("list-counter"))
                 }
             }
