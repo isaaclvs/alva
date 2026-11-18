@@ -19,6 +19,7 @@ import net.ts.taild80ca0.atlas.twa.data.list.WirePreparer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import net.ts.taild80ca0.atlas.twa.online.HttpHistoryTransport
 import net.ts.taild80ca0.atlas.twa.online.OnlineAccess
 import net.ts.taild80ca0.atlas.twa.online.OnlineRepository
 import net.ts.taild80ca0.atlas.twa.sync.CommandSender
@@ -97,6 +98,7 @@ object AccessGraph {
             val endpoint = ServerEndpoint.parse(BuildConfig.SERVER_URL)
             OnlineRepository(
                 OnlineAccess.of(houseAccess(context)), HttpSnapshotTransport(endpoint), HttpCommandTransport(endpoint), scope,
+                history = HttpHistoryTransport(endpoint),
             )
         }.also { onlineRepository = it; net.ts.taild80ca0.atlas.twa.widgets.WidgetRuntime.bind(context, it) }
     }

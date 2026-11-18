@@ -48,6 +48,8 @@ class OnlineRepository(
     /** Pauses between the attempts of one action; its size is the number of retries. */
     private val retryDelaysMillis: List<Long> = listOf(400L, 1_200L),
     private val pause: suspend (Long) -> Unit = { delay(it) },
+    /** The read-only history: a month per page, plus the same `add_items` to repeat a purchase. */
+    private val history: HistoryTransport? = null,
 ) : InvalidationSink {
     private val _state = MutableStateFlow<OnlineState>(OnlineState.Loading)
     val state: StateFlow<OnlineState> = _state.asStateFlow()
@@ -79,6 +81,23 @@ class OnlineRepository(
     fun forget() = synchronized(stateLock) {
         confirmed.clear()
         _state.value = OnlineState.Loading
+    }
+
+    /**
+     * Reads one page of the read-only shopping history (the newest month when [month] is null or
+     * has no trip). It is separate from [state]: history does not change the list on screen, and a
+     * failure here never takes the list away.
+     */
+    suspend fun history(month: String? = null): HistoryRead {
+        val transport = history ?: return HistoryRead.Invalid(HistoryProblem.UNEXPECTED_STATUS)
+        val credential = access.credential() ?: return HistoryRead.Unauthorized
+        return when (val read = transport.fetch(credential, month)) {
+            is HistoryRead.Unauthorized -> {
+                access.reportUnauthorized(credential)
+                read
+            }
+            else -> read
+        }
     }
 
     /** The ActionCable signal: something changed on the server. */
