@@ -74,6 +74,7 @@ Comandos úteis:
 
 ```bash
 bin/rails db:seed          # categorias e dicionário; preserva entradas aprendidas
+bin/rails dictionary:recategorize  # move itens em "Outros" que o dicionário agora conhece
 bin/rails test             # testes de unidade e integração
 bin/rails test:system      # testes de sistema (rodar após a suíte anterior)
 bin/rubocop               # estilo Ruby

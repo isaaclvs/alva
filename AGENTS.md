@@ -87,6 +87,10 @@ pequenos e coerentes; uma entrega revisável por PR; dependência integrada à
   não são afetados.
 - **Categorização automática sem IA.** Matching por nome normalizado contra um
   dicionário pré-cadastrado (`CatalogItem`). Sem match → categoria "Outros".
+  O seed cobre a cesta brasileira (~300 nomes, sinônimos incluídos) e o
+  `DictionaryRecategorizer` (também `rake dictionary:recategorize`) move, uma
+  única vez por mudança de catálogo, itens que já estavam em "Outros" para a
+  categoria que o dicionário agora conhece — nunca os que a casa escolheu à mão.
 - **Categorias fixas** (criar/renomear categorias não existe). O dicionário
   aprende: corrigir a categoria de um item à mão (lápis na linha) grava a
   entrada em `CatalogItem` com `learned: true` via `ItemCategorizer.learn`, e o
