@@ -48,6 +48,7 @@ fun ShoppingScreens(
     saveDark: suspend (Boolean) -> Unit = {},
     saveColor: suspend (AlvaColor) -> Unit = {},
     saveScreen: suspend (String) -> Unit = {},
+    dismissBuyAgain: suspend (String) -> Unit = {},
     signOut: (suspend () -> String?)? = null,
     exportPdf: (suspend () -> String?)? = null,
     /** The "Modo compras" launcher shortcut: starts the checklist without waiting for a tap (#158). */
@@ -264,7 +265,15 @@ fun ShoppingScreens(
                     else -> Column(Modifier.fillMaxSize().padding(horizontal = 20.dp).padding(top = 20.dp)) {
                         BrandHeader(markSize = 28.dp, gap = 9.6.dp, markBox = 36.dp, trailing = menu)
                         notices(0.dp)
-                        AddScreen(addState, ready.snapshot, Modifier.weight(1f).fillMaxWidth())
+                        AddScreen(addState, ready.snapshot, Modifier.weight(1f).fillMaxWidth(),
+                            buyAgainDismissed = preferences.buyAgainDismissed,
+                            onDismissBuyAgain = { name ->
+                                // "Agora não": this device's own opinion (#163), saved before the screen drops it.
+                                scope.launch {
+                                    try { dismissBuyAgain(name) }
+                                    catch (_: IOException) { feedback.show("Não foi possível salvar a preferência. Tente de novo.") }
+                                }
+                            })
                 }
                 }
             }

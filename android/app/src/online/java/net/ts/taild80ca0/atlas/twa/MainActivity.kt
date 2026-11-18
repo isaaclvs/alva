@@ -71,6 +71,7 @@ class MainActivity : ComponentActivity() {
                             preferences = if (requestedScreen == SCREEN_LIST) saved.copy(screen = SCREEN_LIST) else saved, saveDark = preferences::dark, saveColor = preferences::color,
                             saveScreen = preferences::screen,
                             startShopping = startShopping,
+                            dismissBuyAgain = preferences::dismissBuyAgain,
                             signOut = { if (access.signOut()) null else "Não foi possível sair agora. Tente de novo." },
                             exportPdf = {
                                 when (val result = pdf.download()) {
