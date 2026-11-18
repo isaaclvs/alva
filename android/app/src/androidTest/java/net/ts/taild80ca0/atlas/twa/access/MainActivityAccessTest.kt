@@ -6,7 +6,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.performTextReplacement
 import androidx.test.core.app.ActivityScenario
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -78,10 +79,19 @@ class MainActivityAccessTest {
     private fun androidx.compose.ui.test.junit4.ComposeTestRule.onAllNodesWithTextCompat(text: String) =
         onAllNodes(androidx.compose.ui.test.hasText(text)).fetchSemanticsNodes().isNotEmpty()
 
+    /**
+     * Types the password and sends it.
+     *
+     * Neither step may depend on the device's IME: on a loaded machine the keyboard takes seconds to bind, and a
+     * keystroke or a tap injected while the window is still moving goes nowhere (the test then waits 10 s for a
+     * screen that will never come). The text goes straight into the field's own `SetText` action and the send
+     * through the button's `OnClick`, and each step waits for the previous one to be on screen.
+     */
     private fun connectWith(password: String) {
-        compose.onNodeWithTag("password").performTextInput(password)
-        // The keyboard opens with the field (autofocus) and can cover the button: scroll to it like a thumb would.
-        compose.onNodeWithTag("connect").performScrollTo().performClick()
+        compose.onNodeWithTag("password").performTextReplacement(password)
+        // The keyboard opens over the button and moves the layout; the button is tapped once it settled there.
+        compose.onNodeWithTag("connect").performScrollTo()
+            .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
     }
 
     @Test
@@ -164,12 +174,20 @@ class MainActivityAccessTest {
         val preferences = net.ts.taild80ca0.atlas.twa.preferences.DevicePreferencesStore(
             androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext)
         runBlocking { preferences.dark(false); preferences.color(net.ts.taild80ca0.atlas.twa.ui.theme.AlvaColor.Pink) }
-        compose.onNodeWithTag("house-menu").performClick()
-        compose.onNodeWithTag("sign-out").performClick()
+        // The theme just changed, so the menu is opened only once the header settled with it, and "Sair" is pressed
+        // only once the menu is open: a click injected while Compose is still recomposing lands on nothing.
+        waitUntilTag("house-menu")
+        compose.onNodeWithTag("house-menu").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
+        waitUntilTag("sign-out")
+        compose.onNodeWithTag("sign-out").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         waitForText(AccessMessages.TITLE)
         val saved = runBlocking { preferences.values.first() }
         assertTrue(!saved.dark)
         assertEquals(net.ts.taild80ca0.atlas.twa.ui.theme.AlvaColor.Pink, saved.color)
+    }
+
+    private fun waitUntilTag(tag: String) = compose.waitUntil(10_000) {
+        compose.onAllNodes(androidx.compose.ui.test.hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty()
     }
 
 }
