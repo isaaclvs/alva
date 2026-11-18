@@ -140,6 +140,19 @@ keystore_fingerprint() {
   rm -f "$secret_file"
   printf '%s\n' "$output" | sed -nE 's/^[[:space:]]*SHA256: (.*)$/\1/p' | head -n 1
 }
+# Proves the release output directory is usable without writing anything: an
+# existing directory must be writable, and a missing one must be creatable from
+# its nearest existing ancestor. A dry run never leaves the directory behind.
+require_writable_release_dir() {
+  local dir="$1" existing="$1"
+  while [[ ! -e $existing ]]; do
+    existing="$(dirname "$existing")"
+    [[ $existing != / ]] || break
+  done
+  [[ -d $existing ]] || die "${existing#"$root_dir"/} is not a directory"
+  [[ -w $existing ]] || die "${existing#"$root_dir"/} is not writable"
+  [[ $dir == "$existing" ]] || note "would create ${dir#"$root_dir"/}"
+}
 read_version() {
   version_code="$(sed -nE 's/^[[:space:]]*versionCode[[:space:]]+([0-9]+).*/\1/p' "$gradle_config" | head -n 1)"
   version_name="$(sed -nE "s/^[[:space:]]*versionName[[:space:]]+['\"]([^'\"]+)['\"].*/\1/p" "$gradle_config" | head -n 1)"
@@ -278,12 +291,10 @@ if [[ $dry_run == true ]]; then
   else
     warn "a real run stops before building until the signing material is configured"
   fi
+  require_writable_release_dir "$release_dir"
   note "would run: (cd android && ./gradlew assembleRelease)"
   note "would check that the APK declares $application_id $version_name (versionCode $version_code)"
   note "would write ${release_dir#"$root_dir"/}/Alva-$version_name.apk, .sha256 and $(basename "$latest_json")"
-  if [[ -d $release_dir && ! -w $release_dir ]]; then
-    die "${release_dir#"$root_dir"/} is not writable"
-  fi
   note "nothing was built, signed or written"
   exit 0
 fi
