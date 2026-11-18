@@ -19,8 +19,9 @@ internal val LocalAlvaColors = staticCompositionLocalOf { AlvaPalettes.TealDark 
 
 /**
  * Access to the tokens inside [AlvaTheme]: `AlvaTheme.colors.accent`, `AlvaTheme.type.row`,
- * `AlvaTheme.space.lg`, `AlvaTheme.radius.card`, `AlvaTheme.icon.bar`. The dimension scales live in
- * `AlvaDimens.kt` as plain objects, like [AlvaShapes], so screens name a token instead of a length.
+ * `AlvaTheme.space.lg`, `AlvaTheme.radius.card`, `AlvaTheme.icon.bar`, `AlvaTheme.motion.fast`. The
+ * dimension scales live in `AlvaDimens.kt` as plain objects, like [AlvaShapes], so screens name a
+ * token instead of a length.
  */
 object AlvaTheme {
     val colors: AlvaColors
@@ -37,6 +38,8 @@ object AlvaTheme {
         get() = AlvaIconSize
     val size: AlvaSize
         get() = AlvaSize
+    val motion: AlvaMotion
+        get() = AlvaMotion
 }
 
 /**

@@ -24,12 +24,26 @@
   --color-warn: #fbbf24;
   --color-danger: #f87171;
 
-  --animate-highlight: highlight 1.5s ease-out;
+  --animate-highlight: highlight 1.5s var(--ease-standard);
 
   @keyframes highlight {
     from { background-color: var(--color-accent-soft); }
     to { background-color: transparent; }
   }
+
+  /* Motion. An animation only ever explains a state change, never delays one,
+     and every rule below has its `prefers-reduced-motion` counterpart at the
+     end of this file. Compose names the same numbers in `AlvaMotion`
+     (`ui/theme/AlvaMotion.kt`); PwaThemeParityTest compares the two, so a
+     duration or easing changed on one side alone fails the build.
+     `fast` is the answer to a touch, `base` a state settling in, `slow` a
+     measured move across the screen and `switch` the pending filter. */
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-slow: 300ms;
+  --duration-switch: 150ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
 
   /* The spacing base: every `p-*`/`gap-*`/`size-*` utility multiplies it, and
      Compose's `AlvaSpacing` names the same 4dp steps. */

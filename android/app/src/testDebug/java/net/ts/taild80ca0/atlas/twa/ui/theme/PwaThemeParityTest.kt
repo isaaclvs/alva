@@ -187,6 +187,26 @@ class PwaThemeParityTest {
         assertXmlDimen("alva_elevation_float", AlvaElevation.Float.value)
     }
 
+    @Test fun theMotionScaleIsTheSameOnEverySide() {
+        // Both sides declare the same durations and easings; Compose reads them through `AlvaMotion`.
+        assertEquals(setOf("fast", "base", "slow", "switch").map { "--duration-$it" }.toSet(), AlvaMotion.durations.keys)
+        assertEquals(setOf("standard", "exit").map { "--ease-$it" }.toSet(), AlvaMotion.easings.keys)
+        for ((token, millis) in AlvaMotion.durations) {
+            val css = tokens.getValue(token)
+            assertEquals("$token: the CSS says $css but Compose has ${millis}ms", millis, css.removeSuffix("ms").toInt())
+        }
+        // 120/180/300 are the state-change scale; the switch keeps the 150 the PWA already used.
+        assertEquals(listOf(120, 180, 300), listOf(AlvaMotion.Fast, AlvaMotion.Base, AlvaMotion.Slow))
+        assertEquals(150, AlvaMotion.Switch)
+        for ((token, control) in AlvaMotion.easings) {
+            val match = Regex("""cubic-bezier\(([\d.,\s]+)\)""").matchEntire(tokens.getValue(token).trim())
+                ?: error("$token is not a cubic-bezier(): ${tokens.getValue(token)}")
+            assertEquals("$token", control, match.groupValues[1].split(",").map { it.trim().toFloat() })
+        }
+        // The decelerating curve and the accelerating one are not the same curve.
+        assertNotEquals(AlvaMotion.StandardControl, AlvaMotion.ExitControl)
+    }
+
     @Test fun theTitleAndRowTextTokensMatchTheComposeTypography() {
         val t = AlvaTypographyTokens
         assertDp("--text-title", tokens.getValue("--text-title"), Dp(t.pageTitle.fontSize.value))
