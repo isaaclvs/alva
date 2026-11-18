@@ -54,6 +54,9 @@ fun ShoppingScreens(
     val state by repository.state.collectAsState()
     val editState = rememberEditItemState()
     var screen by rememberSaveable { mutableStateOf(preferences.screen) }
+    // The read-only history is a screen of its own over the two tabs, opened from the ⋯ menu.
+    var historyOpen by rememberSaveable { mutableStateOf(false) }
+    val historyState = rememberHistoryScreenState()
     // The host's own failure line (#146): dismissible, in a card, and never older than the action that caused it.
     val feedback = rememberFeedbackState()
     var toast by remember { mutableStateOf<ToastMessage?>(null) }
@@ -143,6 +146,7 @@ fun ShoppingScreens(
             toggleTheme = { menuAction { saveDark(!preferences.dark); null } },
             selectColor = { color -> menuAction { saveColor(color); null } },
             exportPdf = exportPdf?.let { { menuAction(it) } },
+            history = { historyState.forget(); historyOpen = true },
             signOut = signOut?.let { { menuAction(it) } }, actions = accessActions)
     }
     // A command that is taking longer than a moment says so (the transport waits up to 10 s to connect and 30 s for
@@ -172,7 +176,7 @@ fun ShoppingScreens(
         Scaffold(
             modifier = Modifier.imePadding(),
             bottomBar = {
-                if (!shoppingMode)
+                if (!shoppingMode && !historyOpen)
                 BottomNavigation(
                     current = if (screen == "list") AppScreen.List else AppScreen.Add, pending = pending,
                     onSelect = { selected ->
@@ -196,6 +200,14 @@ fun ShoppingScreens(
                             .padding(vertical = 8.dp))
                         Button(onClick = { scope.launch { repository.refresh() } }, modifier = Modifier.testTag("reload")) { Text("Tentar de novo") }
                     }
+                    historyOpen -> HistoryScreen(
+                        repository = repository, snapshot = ready?.snapshot, state = historyState,
+                        onBack = { historyOpen = false },
+                        onReadd = { result ->
+                            // The same summary the add field shows: what the repeat did, only on this device.
+                            addState.notice(historyReaddToast(result))
+                        },
+                    )
                     ready == null -> Column(Modifier.padding(horizontal = 20.dp, vertical = 20.dp)) {
                         BrandHeader(trailing = menu)
                         Text("Abrindo sua lista…", modifier = Modifier.padding(top = 16.dp).testTag("loading"))
