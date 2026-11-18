@@ -2,8 +2,8 @@
   <%= form_with model: habitual_item, url: habitual_items_path, class: "flex gap-2" do |form| %>
     <%= form.label :name, "Salvar item habitual", class: "sr-only" %>
     <%= form.text_field :name, placeholder: "Ex.: café", maxlength: 100,
-          class: "min-w-0 flex-1 rounded-xl border border-line bg-canvas px-3 py-2 text-sm text-ink placeholder:text-ink-faint" %>
-    <%= form.submit "Salvar", class: "rounded-xl bg-surface-2 px-3 py-2 text-sm font-medium text-ink active:opacity-80" %>
+          class: "min-w-0 flex-1 rounded-control border border-line bg-canvas px-3 py-2 text-sm text-ink placeholder:text-ink-faint" %>
+    <%= form.submit "Salvar", class: "rounded-control bg-surface-2 px-3 py-2 text-sm font-medium text-ink active:opacity-80" %>
   <% end %>
   <% if local_assigns[:message].present? %>
     <p role="status" aria-live="polite" class="mt-2 text-xs text-danger"><%= local_assigns[:message] %></p>

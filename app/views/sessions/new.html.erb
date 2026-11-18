@@ -14,7 +14,7 @@
   <%= form_with url: login_path, data: { turbo: false }, class: "mt-8 space-y-4" do |form| %>
     <%= form.label :password, "Senha da casa", class: "block text-sm font-medium" %>
     <%= form.password_field :password, required: true, autofocus: true, autocomplete: "current-password",
-          class: "min-h-12 w-full rounded-xl border border-line bg-surface px-4 text-base text-ink focus:outline-accent" %>
-    <%= form.submit "Entrar", class: "min-h-12 w-full cursor-pointer rounded-xl bg-accent px-4 font-semibold text-accent-ink" %>
+          class: "min-h-12 w-full rounded-control border border-line bg-surface px-4 text-base text-ink focus:outline-accent" %>
+    <%= form.submit "Entrar", class: "min-h-12 w-full cursor-pointer rounded-control bg-accent px-4 font-semibold text-accent-ink" %>
   <% end %>
 </section>

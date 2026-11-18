@@ -3,13 +3,13 @@
     keeps their labels in sync. %>
 <% label = theme_name == "dark" ? "Tema claro" : "Tema escuro" %>
 <%= tag.button type: "button", title: label, aria: { label: label },
-      class: "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-ink active:bg-surface-2",
+      class: "flex w-full items-center gap-3 rounded-control px-3 py-2.5 text-left text-sm text-ink active:bg-surface-2",
       data: { controller: "theme", action: "theme#toggle" } do %>
-  <svg class="size-5 text-ink-soft in-data-[theme=light]:hidden" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true">
+  <svg class="size-icon-bar text-ink-soft in-data-[theme=light]:hidden" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="var(--stroke-icon)" stroke-linecap="round" aria-hidden="true">
     <circle cx="10" cy="10" r="3.5" />
     <path d="M10 2.5v1.5M10 16v1.5M2.5 10H4M16 10h1.5M4.7 4.7l1.05 1.05M14.25 14.25l1.05 1.05M4.7 15.3l1.05-1.05M14.25 5.75l1.05-1.05" />
   </svg>
-  <svg class="hidden size-5 text-ink-soft in-data-[theme=light]:block" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <svg class="hidden size-icon-bar text-ink-soft in-data-[theme=light]:block" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="var(--stroke-icon)" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
     <path d="M16.5 11.5A6.5 6.5 0 0 1 8.5 3.5a6.5 6.5 0 1 0 8 8z" />
   </svg>
   <span class="in-data-[theme=light]:hidden" aria-hidden="true">Tema claro</span>

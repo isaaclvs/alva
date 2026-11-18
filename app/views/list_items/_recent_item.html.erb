@@ -18,14 +18,14 @@
     <%= form.collection_select :category_id, Category.order(:position), :id, :name,
           { include_blank: (Category::NONE_LABEL if uncategorized) },
           data: { action: "auto-submit#submit" },
-          class: class_names("recent-category min-h-11 max-w-40 appearance-none truncate rounded-lg border bg-transparent py-1.5 pr-6 pl-1 text-xs",
+          class: class_names("recent-category min-h-[var(--size-touch)] max-w-40 appearance-none truncate rounded-xs border bg-transparent py-1.5 pr-6 pl-1 text-xs",
                    "border-transparent text-ink-soft": !unknown, "border-warn text-warn": unknown) %>
-    <svg class="pointer-events-none absolute top-1/2 right-1.5 size-3.5 -translate-y-1/2 <%= unknown ? "text-warn" : "text-ink-faint" %>" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
+    <svg class="pointer-events-none absolute top-1/2 right-1.5 size-icon-inline -translate-y-1/2 <%= unknown ? "text-warn" : "text-ink-faint" %>" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="var(--stroke-check)" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
   <% end %>
   <% if undoable %>
     <%= button_to list_item_path(item), method: :delete, params: { lock_version: item.lock_version, from: "recent" },
           form: { class: "shrink-0" }, aria: { label: "Remover #{item.name}" }, title: "Remover #{item.name}",
-          class: "grid size-11 place-items-center rounded-lg text-base leading-none text-ink-faint active:text-danger" do %>
+          class: "grid size-touch place-items-center rounded-xs text-base leading-none text-ink-faint active:text-danger" do %>
       ×
     <% end %>
   <% end %>
