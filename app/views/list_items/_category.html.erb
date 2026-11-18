@@ -14,7 +14,7 @@
       <%= purchased_in_group == items.size ? "tudo pego" : pluralize(items.size - purchased_in_group, "restante") %>
     </span>
   </h2>
-  <ul class="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
+  <ul class="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
     <%= render partial: "list_items/list_item", collection: items %>
   </ul>
 </section>

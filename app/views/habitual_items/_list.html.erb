@@ -3,8 +3,8 @@
   <% if habits.any? %>
     <div class="space-y-2" aria-label="Lista de habituais">
       <% habits.each do |habit| %>
-        <div id="habitual_item_<%= habit.id %>" data-turbo-permanent class="flex min-h-11 items-center gap-2">
-          <label for="habitual_item_<%= habit.id %>_checkbox" class="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-2 text-sm text-ink-soft">
+        <div id="habitual_item_<%= habit.id %>" data-turbo-permanent class="flex min-h-[var(--size-touch)] items-center gap-2">
+          <label for="habitual_item_<%= habit.id %>_checkbox" class="flex min-h-[var(--size-touch)] min-w-0 flex-1 cursor-pointer items-center gap-2 text-sm text-ink-soft">
             <%= check_box_tag "habitual_item_ids[]", habit.id, false,
                   id: "habitual_item_#{habit.id}_checkbox", form: "habitual_item_selection",
                   class: "size-4 accent-accent" %>
@@ -12,16 +12,16 @@
           </label>
           <%= button_to "Remover", habitual_item_path(habit), method: :delete,
                 form: { class: "shrink-0" }, aria: { label: "Remover item habitual #{habit.name}" },
-                class: "flex min-h-11 items-center rounded-lg px-2 text-xs text-ink-faint underline underline-offset-2 active:text-ink" %>
+                class: "flex min-h-[var(--size-touch)] items-center rounded-xs px-2 text-xs text-ink-faint underline underline-offset-2 active:text-ink" %>
         </div>
       <% end %>
     </div>
 
     <%= form_with url: add_selected_habitual_items_path, id: "habitual_item_selection" do %>
-      <%= submit_tag "Adicionar selecionados", class: "w-full rounded-xl bg-accent px-3 py-2 text-sm font-medium text-accent-ink active:opacity-80" %>
+      <%= submit_tag "Adicionar selecionados", class: "w-full rounded-control bg-accent px-3 py-2 text-sm font-medium text-accent-ink active:opacity-80" %>
     <% end %>
     <%= button_to "Adicionar todos", add_all_habitual_items_path,
-          class: "w-full rounded-xl border border-line px-3 py-2 text-sm text-ink-soft active:bg-surface-2" %>
+          class: "w-full rounded-control border border-line px-3 py-2 text-sm text-ink-soft active:bg-surface-2" %>
   <% else %>
     <p class="text-sm text-ink-faint">Ainda não há itens habituais salvos.</p>
   <% end %>

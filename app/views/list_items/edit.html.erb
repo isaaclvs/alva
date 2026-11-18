@@ -5,12 +5,12 @@
     <%= form.hidden_field :lock_version %>
     <%= form.label :name, "Nome", class: "sr-only" %>
     <%= form.text_field :name, autofocus: true, required: true, autocomplete: "off",
-          class: "w-full rounded-xl border border-line bg-canvas px-3 py-2 text-base focus:border-accent focus:outline-none" %>
+          class: "w-full rounded-control border border-line bg-canvas px-3 py-2 text-base focus:border-accent focus:outline-none" %>
 
     <%= form.label :category_id, "Categoria", class: "sr-only" %>
     <%= form.collection_select :category_id, Category.order(:position), :id, :name,
           { include_blank: (Category::NONE_LABEL if @list_item.category.nil?) },
-          class: "w-full rounded-xl border border-line bg-canvas px-3 py-2 text-base focus:border-accent focus:outline-none" %>
+          class: "w-full rounded-control border border-line bg-canvas px-3 py-2 text-base focus:border-accent focus:outline-none" %>
 
     <% if @list_item.errors.of_kind?(:name, :duplicate_pending) %>
       <p class="px-1 text-sm text-warn" role="status"><%= @list_item.name %> já está na lista</p>
@@ -23,11 +23,11 @@
           button next to every name. The form attribute keeps the button inside
           this layout while it submits the separate delete form below. %>
       <button type="submit" form="<%= dom_id(@list_item, :remove) %>" aria-label="Remover <%= @list_item.name %>" title="Remover <%= @list_item.name %>"
-              class="mr-auto rounded-xl px-3 py-2 text-sm font-medium text-danger active:bg-surface-2">Remover</button>
+              class="mr-auto rounded-control px-3 py-2 text-sm font-medium text-danger active:bg-surface-2">Remover</button>
       <%= link_to "Cancelar", list_item_path(@list_item),
-            class: "rounded-xl px-4 py-2 text-sm font-medium text-ink-soft active:bg-surface-2" %>
+            class: "rounded-control px-4 py-2 text-sm font-medium text-ink-soft active:bg-surface-2" %>
       <%= form.submit "Salvar",
-            class: "rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-accent-ink active:opacity-80" %>
+            class: "rounded-control bg-accent px-4 py-2 text-sm font-semibold text-accent-ink active:opacity-80" %>
     </div>
   <% end %>
   <%= form_with url: list_item_path(@list_item), method: :delete, id: dom_id(@list_item, :remove), class: "hidden" do %>
