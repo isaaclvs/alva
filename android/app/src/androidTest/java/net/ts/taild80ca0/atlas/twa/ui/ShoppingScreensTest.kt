@@ -1283,6 +1283,47 @@ class ShoppingScreensTest {
         assertEquals(listOf("set_item_state", "set_item_state"), commandTypes())
     }
 
+    @Test fun aSlowCommandSaysItIsStillOnItsWayAndTheAnswerTakesTheHintAway() {
+        val leite = house.seed("Leite")
+        val held = HeldCommands(house)
+        launch(commands = held)
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
+        press("nav-list")
+        waitForText("list-summary", "1 pendente")
+        compose.onNodeWithTag("sending-hint").assertDoesNotExist()
+
+        tap(leite.id)
+        // Nothing after a moment: the screen says the command is still on its way, and shows it on either tab.
+        compose.waitUntil(SLOW_COMMAND_MILLIS + 4_000) { compose.onAllNodesWithTag("sending-hint").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("sending-hint").assertTextEquals("Ainda enviando…")
+        press("nav-add")
+        compose.onNodeWithTag("sending-hint").assertExists()
+        press("nav-list")
+
+        held.letGo()
+        waitForText("toast-message", "Leite marcado")
+        compose.onNodeWithTag("sending-hint").assertDoesNotExist()
+    }
+
+    @Test fun anAddInFlightAlsoShowsTheSlowHintAndTheAddLineStillOwnsItsFailure() {
+        val held = HeldCommands(house)
+        launch(commands = held)
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("add-input").performTextInput("Café")
+        compose.onNodeWithTag("save-add").performClick()
+        compose.waitUntil(SLOW_COMMAND_MILLIS + 4_000) { compose.onAllNodesWithTag("sending-hint").fetchSemanticsNodes().isNotEmpty() }
+
+        house.commandSteps += listOf(Step.NetworkDown, Step.NetworkDown, Step.NetworkDown)
+        held.letGo()
+        // The add screen already says what the last add did, under the field; the host's card stays out of its way.
+        waitForText("feedback", "Sem conexão com o servidor")
+        compose.onNodeWithTag("sending-hint").assertDoesNotExist()
+        compose.onNodeWithTag("feedback-banner").assertDoesNotExist()
+        // Nothing was stored and the text stays, as before.
+        compose.onNodeWithTag("add-input").assertTextContains("Café")
+        assertTrue(house.rows.isEmpty())
+    }
+
     @Test fun theBottomNavigationHasPlusAndListPillsAndSwitchesScreens() {
         launchLoaded()
         compose.onNodeWithTag("nav-add").assertIsSelected()
