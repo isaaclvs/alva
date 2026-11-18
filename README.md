@@ -31,6 +31,9 @@ compartilhada da casa, lembrada por aparelho por 30 dias.
   próximas adições, sem IA ou serviços externos.
 - **Comprar de novo e Habituais:** até cinco sugestões do histórico e um painel
   de produtos escolhidos pela casa para adicionar com poucos toques.
+- **Compras:** tela somente leitura, no menu ⋯, com o que cada compra finalizada
+  levou, por mês, e o botão **Adicionar tudo de novo** para repetir uma compra
+  inteira.
 - **Compra feita:** arquiva os produtos marcados e mantém os pendentes na lista.
   Remoções, finalizações e a última marcação oferecem **Desfazer**.
   Ao marcar ou desmarcar, o aviso fica disponível por cerca de cinco segundos
@@ -42,8 +45,9 @@ compartilhada da casa, lembrada por aparelho por 30 dias.
   rosa claro enquanto outra usa teal escuro na mesma lista.
 
 O Alva mantém o foco em nomes de produtos: não há quantidades, modo offline,
-cadastro de contas ou publicação na Play Store. O histórico arquivado alimenta as sugestões;
-ainda não existe uma tela para consultá-lo.
+cadastro de contas ou publicação na Play Store. O histórico arquivado alimenta as
+sugestões e a tela **Compras**, de onde uma compra inteira volta para a lista com
+**Adicionar tudo de novo**.
 
 ## Stack
 
