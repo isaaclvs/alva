@@ -39,6 +39,23 @@ atrasada de um token antigo não revoga o novo. TLS inválido, erro permanente d
 handshake ou inscrição recusada não repetem em laço; nova retomada pode tentar
 outra vez. O backoff não promete um prazo exato de Retry-After.
 
+**Socket meio aberto (#157).** O servidor manda `ping` a cada 3 s
+(`ActionCable::Server::Connections::BEAT_INTERVAL`). O conector trata esse frame
+como `CableEvent.Ping` e o `ForegroundInvalidation` encerra a sessão com
+`CableEnd.RETRY` quando passa `SILENCE_TIMEOUT_MILLIS` (10 s, ~3 pings) sem
+nenhum frame depois da inscrição: um NAT que mate o TCP não deixa mais o app
+"inscrito" para sempre. OkHttp também manda ping de protocolo a cada 20 s
+(`pingInterval`), que força a falha do socket pelo lado do transporte.
+
+**Rede de volta (#157).** Enquanto está iniciado, o `ForegroundInvalidation`
+registra um `NetworkCallback` padrão (`AndroidNetworkWatcher`, permissão
+`ACCESS_NETWORK_STATE`). Quando uma rede fica disponível — inclusive a que já
+estava no ar ao registrar, quando a inscrição ainda vai abrir — a espera de
+reconexão termina na hora (o backoff volta ao inicial) e uma leitura de snapshot
+pede a lista de novo, para o que mudou durante a queda não ficar de fora; um
+socket vivo nunca é fechado por isso. `stop()` desregistra o callback: em
+segundo plano nada observa rede e nenhum serviço de background é criado.
+
 Não há polling. Com app fechado, as garantias e atrasos são os do WorkManager.
 Se o socket continuar ativo mas um ciclo HTTP falhar, o resultado continua no
 painel; mudança seguinte, retomada ou tentativa manual verifica novamente. O
@@ -47,9 +64,15 @@ canal é um aviso recuperável, não um log de eventos ou confirmação de coman
 ## Validação
 
 - JVM: headers e ausência de redirects, assinatura/protocolo, revisão estrita,
-  recusas HTTP, revisões repetidas, pausa/callback tardio, reconexão e sucessor
-  durante ciclo de worker. O teste do wrapper verifica commit → agendamento
-  persistente → notificação de primeiro plano, somente em Saved.
+  `ping` do ActionCable, recusas HTTP, revisões repetidas, pausa/callback tardio,
+  reconexão e sucessor durante ciclo de worker. O teste do wrapper verifica
+  commit → agendamento persistente → notificação de primeiro plano, somente em
+  Saved.
+- JVM, watchdog e rede (#157): sessão inscrita que fica em silêncio é encerrada
+  pelo watchdog e reconecta sem esperar `Ended`; pings mantêm a sessão viva; uma
+  rede de volta encerra a espera, reconecta, relê a lista e reinicia o backoff;
+  `stop()` cancela tudo e desregistra o callback. Relógio e socket são falsos —
+  nenhum teste espera os 10 s reais.
 - Rails real isolado: script/android_rails_transport_check agora inclui
   RailsCableTransportTest. Login e inclusão pelas rotas PWA produzem aviso no
   WebSocket e snapshot no cliente Kotlin; retomar recupera inclusão feita com
