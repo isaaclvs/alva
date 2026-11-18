@@ -1,7 +1,6 @@
 package net.ts.taild80ca0.atlas.twa.ui.theme
 
 import android.provider.Settings
-import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FiniteAnimationSpec
@@ -53,11 +52,11 @@ object AlvaMotion {
     const val CheckDamping = 0.7f
 
     /** A state change at [durationMillis], or [snap] when the device draws no animations. */
-    fun <T> spec(enabled: Boolean, durationMillis: Int, easing: Easing = Standard): AnimationSpec<T> =
+    fun <T> spec(enabled: Boolean, durationMillis: Int, easing: Easing = Standard): FiniteAnimationSpec<T> =
         if (enabled) tween(durationMillis, easing = easing) else snap()
 
     /** The check's spring, or [snap] when the device draws no animations. */
-    fun <T> springSpec(enabled: Boolean, dampingRatio: Float = CheckDamping): AnimationSpec<T> =
+    fun <T> springSpec(enabled: Boolean, dampingRatio: Float = CheckDamping): FiniteAnimationSpec<T> =
         if (enabled) spring(dampingRatio = dampingRatio) else snap()
 
     /** The list's placement spec: a row slides to where the change put it, or jumps there instantly. */

@@ -9,6 +9,7 @@ import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Text
@@ -174,10 +175,11 @@ fun ListScreen(
                     if (!shoppingMode && editState.itemId == item.publicId) {
                         EditItemForm(editState, snapshot.categories, onCancel = { editState.close() }, onSave = { actions.saveEdit(item.publicId) }, remove = {
                             RemoveItemButton(enabled = !editState.saving && !actions.isBusy(item.publicId)) { actions.remove(item, editState.version) }
-                        })
+                        }, modifier = animatedItem(animations))
                     } else ListRow(item, first = index == 0, enabled = !actions.isBusy(item.publicId) && !actions.finishing, onToggle = { actions.mark(item) }, shoppingMode = shoppingMode,
                         pendingStatus = actions.pendingStatus(item.publicId),
-                        modifier = Modifier.swipeToRemove(!shoppingMode && !actions.isBusy(item.publicId)) { actions.remove(item) }, trailing = {
+                        modifier = Modifier.swipeToRemove(!shoppingMode && !actions.isBusy(item.publicId)) { actions.remove(item) }
+                            .then(animatedItem(animations)), trailing = {
                         if (!shoppingMode) rowActions(item) { actions.remove(item) }
                         if (!shoppingMode) EditItemButton(item.name, Modifier.testTag("edit-${item.publicId}")) {
                             editState.open(item, snapshot.listItems.first { it.publicId == item.publicId }.lockVersion, snapshot.dictionaryRevision)
@@ -212,7 +214,17 @@ fun ListScreen(
     }
 }
 
-/** `.shopping-category > h2`: category chip, name, and "x/y" once something in it is bought. */@Composable
+/**
+ * `Modifier.animateItem()` of the LazyColumn: inserting, removing, reordering or archiving a row ("Compra feita")
+ * slides the list into its new place instead of jumping, and the row itself fades in and out. With the device's
+ * animations off there is no placement or fade spec at all, so the row simply appears where the list put it and a
+ * Compose test never waits for an animation.
+ */
+private fun LazyItemScope.animatedItem(enabled: Boolean): Modifier =
+    Modifier.animateItem(placementSpec = AlvaMotion.placement(enabled), fadeInSpec = AlvaMotion.fadeIn(enabled), fadeOutSpec = AlvaMotion.fadeOut(enabled))
+
+/** `.shopping-category > h2`: category chip, name, and "x/y" once something in it is bought. */
+@Composable
 private fun CategoryHeading(group: ListGroup, shoppingMode: Boolean = false) {
     Row(Modifier.fillMaxWidth().padding(start = AlvaSpacing.xs, end = AlvaSpacing.xs, bottom = AlvaSpacing.md)
         .testTag("category-${group.label}"),
