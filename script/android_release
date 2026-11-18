@@ -7,13 +7,14 @@
 #   script/android_release --dry-run  # validates everything it can, signs nothing
 #
 # Signing material is never read from the repository: the keystore path, the key
-# alias and the two passwords come from the environment or from a file whose path
-# is given in a *_FILE variable. The resolved values reach Gradle through the
-# environment of the build, never through its command line. No value of those
-# four variables is ever printed — not even the keystore path or the alias — and
-# this script never enables `set -x`. See docs/deployment/android-apk.md.
+# alias and the two passwords come from the environment, and each text value can
+# instead come from a private file named by a *_FILE variable. The resolved
+# values reach Gradle through the environment of the build, never through its
+# command line. None of them is ever printed — not even the keystore path or the
+# alias — and this script never enables `set -x`. See
+# docs/deployment/android-release.md.
 #
-# Environment (a real release needs all four signing variables):
+# Environment (a real release needs all four signing values):
 #   ALVA_ANDROID_KEYSTORE             keystore file, outside the repository
 #   ALVA_ANDROID_KEY_ALIAS            alias of the release key
 #   ALVA_ANDROID_STORE_PASSWORD       keystore password
@@ -21,9 +22,8 @@
 #
 # Each of the three text values accepts a `<name>_FILE` twin instead — e.g.
 # ALVA_ANDROID_KEY_ALIAS_FILE — pointing at a private file whose first line is
-# the value, so nothing secret has to live in the shell history:
-#   ALVA_ANDROID_STORE_PASSWORD_FILE  file with the keystore password (one line)
-#   ALVA_ANDROID_KEY_PASSWORD_FILE    file with the key password (one line)
+# the value, so nothing secret has to live in the shell history. The keystore is
+# binary, so it only ever travels as ALVA_ANDROID_KEYSTORE.
 #
 #   ALVA_RELEASE_DIR                  output directory (default: public/downloads)
 #   ALVA_RELEASE_LATEST_JSON          last published latest.json
