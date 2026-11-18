@@ -131,7 +131,7 @@ internal fun ListSearchFilters(state: ListFilterState, focus: FocusRequester) {
 @Composable
 internal fun ShoppingSearchToggle(filtering: Boolean, onClick: () -> Unit) {
     val c = AlvaTheme.colors
-    IconButton(onClick, modifier = Modifier.size(40.dp)
+    IconButton(onClick, modifier = Modifier.size(48.dp)
         .background(if (filtering) c.accentSoft else c.surface2, CircleShape)
         .semantics { contentDescription = if (filtering) "Buscar na lista, filtro ativo" else "Buscar na lista" }
         .testTag("shopping-search-toggle")) {
@@ -153,7 +153,7 @@ internal fun ShoppingBoughtChip(purchased: Int, pendingOnly: Boolean, onToggle: 
     if (purchased == 0) return
     val c = AlvaTheme.colors
     val source = remember { MutableInteractionSource() }
-    Box(Modifier.heightIn(min = 40.dp).background(if (pendingOnly) c.surface2 else c.accentSoft, AlvaShapes.Control)
+    Box(Modifier.heightIn(min = 48.dp).background(if (pendingOnly) c.surface2 else c.accentSoft, AlvaShapes.Control)
         .pressedSurface(source, if (pendingOnly) c.surface else c.accentSoft, AlvaShapes.Control)
         .clickable(interactionSource = source, indication = null, role = Role.Button, onClick = onToggle)
         .padding(horizontal = 12.dp).testTag("shopping-bought-toggle"), contentAlignment = Alignment.Center) {
