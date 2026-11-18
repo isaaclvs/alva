@@ -170,6 +170,36 @@ resposta chega com qualquer aba aberta (toast, mensagem de erro, fechar ou mante
 edição) e a linha volta ocupada se a resposta ainda não veio. Fora de escopo: rotação e morte do
 processo (o estado é só em memória).
 
+## Erros dispensáveis e aviso de envio lento (#146)
+
+A linha de erro do host (`feedback` em `ShoppingScreens`) nunca era limpa: uma falha
+atravessava as duas abas até outra falha ou uma ação de menu bem-sucedida. Agora ela é
+`FeedbackState` (`ui/Feedback.kt`), com uma `FeedbackMessage` só por vez (a mais nova):
+
+- **Como some.** "Fechar" (sempre presente), o começo de qualquer ação seguinte (marcar,
+  remover, adicionar, salvar edição, um item do menu), o sucesso de uma ação, e sozinha depois
+  de `FEEDBACK_MILLIS` (8 s). O auto-hide carrega o `id` da mensagem, então nunca tira uma
+  mais nova que chegou depois. Trocar de aba não limpa: uma marcação enviada da Lista pode
+  responder com o Adicionar aberto, e a falha dela precisa estar lá quando a pessoa volta.
+- **Como aparece.** `NoticeCard`: faixa `surface-2` com borda de 1dp (a linguagem do toast
+  de Desfazer), o `!` no token do tom (`danger` para uma ação que falhou, `warn` para a
+  lista possivelmente desatualizada) e a mensagem em `ink`, legível nos dois temas (na PWA
+  era `text-danger` direto sobre o conteúdo). As ações ficam embaixo, com 48dp de toque.
+  "Tentar de novo" existe quando a ação pode ser repetida (marcar, remover, finalizar
+  compra, menu), sempre a partir da lista que a releitura da própria falha já trouxe.
+- **A linha do Adicionar fica como está.** `#feedback` sob o campo continua sendo o
+  resultado do último add (`AddFeedback`, com os tons accent/warn/danger da PWA); o card do
+  host usa o tag `feedback-message`, para os dois não se confundirem quando uma marcação
+  responde com o Adicionar aberto.
+- **Envio lento.** O transporte espera até 10 s para conectar e 30 s pela resposta, com
+  duas retentativas, e a tela não dizia nada. Depois de `SLOW_COMMAND_MILLIS` (2,5 s) com
+  alguma operação em voo (marcar, remover, corrigir, finalizar, adicionar, habituais, menu),
+  a área de avisos mostra "Ainda enviando…" (`sending-hint`); a resposta tira a dica. O
+  aviso é do host: aparece na aba aberta e sobrevive à troca de aba.
+- Testes: `FeedbackStateTest` (JVM: o mais novo vence, o auto-hide do antigo não derruba o
+  novo, a repetição fica guardada) e, em `ShoppingScreensTest`, fechar, limpar na ação
+  seguinte, sumir sozinho, repetir a marcação recusada e a dica de envio lento nas duas abas.
+
 ## Navegação flutuante
 
 Decisão do usuário (14/11/2026), a partir de três protótipos descartáveis: a variante **A, cápsula
