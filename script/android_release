@@ -222,6 +222,29 @@ expected_fingerprint="$(normalize_fingerprint "$expected_fingerprint")" ||
   die "public/.well-known/assetlinks.json pins an unreadable SHA-256 fingerprint"
 ok "assetlinks.json pins ${expected_fingerprint:0:14}… for $application_id"
 
+step "checking the published version"
+published_code=""
+published_name=""
+if [[ -r $latest_json ]]; then
+  published="$(ruby -rjson -e '
+    data = JSON.parse(File.read(ARGV[0]))
+    print "#{data["versionCode"]}\t#{data["versionName"]}"
+  ' "$latest_json")" || die "${latest_json#"$root_dir"/} is not valid JSON"
+  published_code="${published%%$'\t'*}"
+  published_name="${published#*$'\t'}"
+  [[ $published_code =~ ^[0-9]+$ ]] ||
+    die "${latest_json#"$root_dir"/} has no numeric versionCode"
+  ok "last published ${published_name:-?} (versionCode $published_code)"
+elif [[ -d $release_dir && -n "$(find "$release_dir" -maxdepth 1 -name 'Alva-*.apk' -print -quit)" ]]; then
+  die "${latest_json#"$root_dir"/} is missing, but $release_dir already holds an APK; refusing to publish over it without knowing its versionCode (pass ALVA_RELEASE_LATEST_JSON)"
+else
+  note "no published release yet, nothing to compare against"
+fi
+
+if [[ -n $published_code ]] && ((version_code <= published_code)); then
+  die "versionCode $version_code is not newer than the published $published_code; bump versionCode and versionName in ${gradle_config#"$root_dir"/} before releasing"
+fi
+
 if [[ $signing_ready == true ]]; then
   step "checking the release key"
   keystore_cert="$(keystore_fingerprint "$keystore" "$key_alias" "$store_password")"
