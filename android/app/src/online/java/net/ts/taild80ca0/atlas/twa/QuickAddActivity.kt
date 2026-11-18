@@ -171,7 +171,11 @@ class QuickAddActivity : ComponentActivity() {
             setTextColor(palette.accentInk.toArgb())
         }
         findViewById<TextView>(R.id.quick_add_success_icon).apply {
-            background = shape(palette.accentSoft.toArgb(), AlvaRadius.sheet.value)
+            // A circle, the `full` radius of the design system: the token size keeps it a circle.
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(palette.accentSoft.toArgb())
+            }
             setTextColor(palette.accent.toArgb())
         }
         findViewById<Button>(R.id.quick_add_success_undo).apply {
