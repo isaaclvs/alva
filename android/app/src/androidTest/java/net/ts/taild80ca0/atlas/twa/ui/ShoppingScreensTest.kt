@@ -375,6 +375,21 @@ class ShoppingScreensTest {
         }
     }
 
+    /**
+     * Waits for the Só pendentes switch to be [on] (or off) and asserts it there. The switch is toggled through an
+     * action, which recomposes the screen afterwards, and a screen that was rebuilt (navigation, recreation, a
+     * reload) only shows the filter once it exists: reading it without waiting reads the previous screen.
+     */
+    private fun assertPendingOnly(on: Boolean) {
+        val value = if (on) androidx.compose.ui.state.ToggleableState.On else androidx.compose.ui.state.ToggleableState.Off
+        compose.waitUntil(10_000) {
+            compose.onAllNodes(hasTestTag("pending-only") and SemanticsMatcher.expectValue(
+                androidx.compose.ui.semantics.SemanticsProperties.ToggleableState, value,
+            )).fetchSemanticsNodes().isNotEmpty()
+        }
+        if (on) compose.onNodeWithTag("pending-only").assertIsOn() else compose.onNodeWithTag("pending-only").assertIsOff()
+    }
+
     private val emptyInput = SemanticsMatcher("editable text is empty") {
         it.config[androidx.compose.ui.semantics.SemanticsProperties.EditableText].text.isEmpty()
     }
@@ -731,21 +746,29 @@ class ShoppingScreensTest {
         house.seed("Pão")
         val repository = launch()
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
+        press("nav-list")
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("list-search").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("list-search").performTextInput("pao")
         compose.onNodeWithTag("list-search").performImeAction()
-        compose.onNodeWithTag("pending-only").performClick()
+        compose.waitForIdle()
+        // The search action hides the keyboard, and it slides away while the filters move. The switch is clicked by
+        // its semantics action, which does not depend on that layout, and its new state is awaited right after the
+        // click: a toggle that never happened has to fail here, next to the click, not later on.
+        press("pending-only")
+        assertPendingOnly(on = true)
         val new = house.seed("Pão integral")
         kotlinx.coroutines.runBlocking { repository.refresh() }
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("item-${new.id}").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("item-${new.id}").assertIsDisplayed()
-        compose.onNodeWithTag("nav-add").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
-        compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
+        press("nav-add")
+        press("nav-list")
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("list-search").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("list-search").assertTextContains("pao")
-        compose.onNodeWithTag("pending-only").assertIsOn()
+        assertPendingOnly(on = true)
         scenario!!.recreate()
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("list-search").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("list-search").assertTextContains("pao")
-        compose.onNodeWithTag("pending-only").assertIsOn()
+        assertPendingOnly(on = true)
     }
 
     @Test fun swipingLeftRemovesAndUndoRestoresOnlyOnThisDevice() {
