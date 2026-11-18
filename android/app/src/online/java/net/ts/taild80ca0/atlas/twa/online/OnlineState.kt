@@ -2,6 +2,7 @@ package net.ts.taild80ca0.atlas.twa.online
 
 import net.ts.taild80ca0.atlas.twa.data.list.ItemStatus
 import net.ts.taild80ca0.atlas.twa.data.list.ListItem
+import net.ts.taild80ca0.atlas.twa.data.matching.TextNormalizer
 import net.ts.taild80ca0.atlas.twa.sync.ServerSnapshot
 
 /** Why the list could not be read, with the words the person sees (Portuguese, no codes). */
@@ -47,6 +48,21 @@ fun ServerSnapshot.liveItems(): List<ListItem> = listItems.map {
         purchasedAt = it.purchasedAtMicros,
         awaitingSync = false,
     )
+}
+
+/**
+ * Every name the house already uses, for the add field's suggestions: what Rails' `NameSuggestions` builds for the
+ * PWA's datalist. Live and archived items count (any status, so history counts too) plus the dictionary, one name
+ * per [TextNormalizer.key]: the house's own spelling wins over the dictionary's, and the latest spelling it used
+ * wins over older ones. The snapshot's item lists come in ascending id order, and a created item's instant grows
+ * with that id, so taking the newest first is the same "latest spelling wins" the server applies. Sorted like the
+ * datalist: ignoring accents and case, then by the name itself.
+ */
+fun ServerSnapshot.suggestionNames(): List<String> {
+    val household = (listItems + archivedItems).sortedByDescending { it.createdAtMicros }.map { it.name }
+    return (household + catalogItems.map { it.name })
+        .distinctBy { TextNormalizer.key(it) }
+        .sortedWith(compareBy({ TextNormalizer.plain(it) }, { it }))
 }
 
 /**
