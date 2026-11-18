@@ -41,6 +41,15 @@ class BuyAgainTest < ApplicationSystemTestCase
     assert_selector "#buy_again button", count: BuyAgainSuggestions::LIMIT
   end
 
+  test "each chip is at least 44px tall" do
+    visit_list
+    click_button "Leite"
+    click_on "Compra feita"
+
+    show_add
+    assert_touch_target "#buy_again button"
+  end
+
   test "chips update live on another open session" do
     using_session(:other) do
       visit root_path

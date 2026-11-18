@@ -65,4 +65,18 @@ class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
   def focused_element_id
     page.evaluate_script("document.activeElement.id")
   end
+
+  # The frequent touches of the Add screen stay at least 44 CSS px high (#145).
+  def assert_touch_target(*selectors)
+    heights = page.evaluate_script(<<~JS)
+      #{selectors.to_json}.map((selector) => {
+        const element = document.querySelector(selector)
+        return element ? element.getBoundingClientRect().height : null
+      })
+    JS
+    selectors.zip(heights).each do |selector, height|
+      assert_not_nil height, "no element for #{selector}"
+      assert_operator height, :>=, 44, "#{selector} is #{height}px high, under the 44px touch target"
+    end
+  end
 end
