@@ -152,6 +152,8 @@ html[data-shopping-mode="on"] .shopping-check {
   width: var(--size-check-shopping);
   height: var(--size-check-shopping);
 }
+/* The focused checklist has no navigation; keep the old room at the bottom. */
+html[data-shopping-mode="on"] #list_screen { padding-bottom: calc(var(--spacing) * 28); }
 /* The fixed search occupies the lower edge in the focused checklist. */
 
 /* Leave room above the fixed search for local feedback. */
@@ -323,8 +325,9 @@ html[data-shopping-mode="on"] #list_search_panel > .relative { background: var(-
 
   /* What the content and the toast leave free at the bottom: the 60px capsule
      (8 + 44 + 8), the 8px between it and the system gesture area and 8px of
-     breathing room. It replaces the 4.75rem the toast used to carry by hand. */
-  html:not([data-shopping-mode="on"]) #toast { padding-bottom: var(--navigation-clearance); }
+     breathing room. It replaces the 4.75rem the toast used to carry by hand, and
+     the `pb-24`/`pb-28` utilities the two screens used to carry. */
+  html:not([data-shopping-mode="on"]) #toast,
   html:not([data-shopping-mode="on"]) #add_screen,
   html:not([data-shopping-mode="on"]) #list_screen { padding-bottom: var(--navigation-clearance); }
 }
