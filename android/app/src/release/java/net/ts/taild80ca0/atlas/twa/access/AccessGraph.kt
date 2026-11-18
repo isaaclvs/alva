@@ -26,7 +26,7 @@ object AccessGraph {
         OnlineAccess.of(houseAccess(context)), HttpSnapshotTransport(endpoint()), HttpCommandTransport(endpoint()), scope,
     ).also { repository = it; net.ts.taild80ca0.atlas.twa.widgets.WidgetRuntime.bind(context, it) }
     @Synchronized fun foregroundInvalidation(context: Context): ForegroundInvalidation = invalidation ?: ForegroundInvalidation(
-        houseAccess(context), endpoint(), onlineRepository(context), scope,
+        houseAccess(context), endpoint(), onlineRepository(context), scope, network = AndroidNetworkWatcher(context),
     ).also { invalidation = it }
 }
 
