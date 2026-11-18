@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.work.WorkManager
 import kotlinx.coroutines.launch
 import net.ts.taild80ca0.atlas.twa.sync.BackgroundSync
+import net.ts.taild80ca0.atlas.twa.sync.AndroidNetworkWatcher
 import net.ts.taild80ca0.atlas.twa.sync.ForegroundInvalidation
 import net.ts.taild80ca0.atlas.twa.sync.SyncingShoppingListStore
 import net.ts.taild80ca0.atlas.twa.data.list.RoomShoppingListStore
@@ -109,6 +110,7 @@ object AccessGraph {
         if (overridden) return foregroundInvalidation
         return foregroundInvalidation ?: ForegroundInvalidation(
             houseAccess(context), ServerEndpoint.parse(BuildConfig.SERVER_URL), onlineRepository(context)!!, scope,
+            network = AndroidNetworkWatcher(context),
         ).also { foregroundInvalidation = it }
     }
 
