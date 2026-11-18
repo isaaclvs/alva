@@ -24,6 +24,7 @@ object AccessGraph {
     ).also { access = it }
     @Synchronized fun onlineRepository(context: Context): OnlineRepository = repository ?: OnlineRepository(
         OnlineAccess.of(houseAccess(context)), HttpSnapshotTransport(endpoint()), HttpCommandTransport(endpoint()), scope,
+        history = HttpHistoryTransport(endpoint()),
     ).also { repository = it; net.ts.taild80ca0.atlas.twa.widgets.WidgetRuntime.bind(context, it) }
     @Synchronized fun foregroundInvalidation(context: Context): ForegroundInvalidation = invalidation ?: ForegroundInvalidation(
         houseAccess(context), endpoint(), onlineRepository(context), scope,

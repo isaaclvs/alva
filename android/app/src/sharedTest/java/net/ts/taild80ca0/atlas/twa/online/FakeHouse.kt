@@ -19,7 +19,7 @@ import org.json.JSONObject
  * list, a revision and the **ledger of command ids** the real server keeps (a UUID it already holds is answered
  * `duplicate`, never applied twice), and it fails on demand. Nothing here is the production code under test.
  */
-class FakeHouse : SnapshotTransport, CommandTransport {
+class FakeHouse : SnapshotTransport, CommandTransport, HistoryTransport {
     class Row(
         val id: String, var name: String, var status: String, var lock: Int, var purchasedAt: String? = null,
         var category: String? = SnapshotFixtures.DAIRY,
@@ -45,6 +45,8 @@ class FakeHouse : SnapshotTransport, CommandTransport {
 
     val rows = ArrayList<Row>()
     val trips = LinkedHashMap<String, List<Row>>()
+    /** When each trip of [trips] was finished (ISO 8601 UTC), for the history page. */
+    val tripFinishedAt = HashMap<String, String>()
     val habituals = ArrayList<JSONObject>()
     var buyAgain: List<JSONObject> = emptyList()
     var categories: List<JSONObject> = CATEGORIES.mapIndexed { index, (id, name) -> SnapshotFixtures.category(id, name, if (name == "Outros") 99 else index + 1) }
@@ -113,6 +115,52 @@ class FakeHouse : SnapshotTransport, CommandTransport {
         return SnapshotOutcome.Received(parsed.snapshot)
     }
 
+    // ---- history -------------------------------------------------------------------------------------------
+
+    /** Requests the history transport answered, so a test can prove the screen asked for one page. */
+    val historyRequests = ArrayList<String?>()
+    val historySteps = ArrayDeque<Step>()
+
+    /**
+     * Reads one page of the history like `GET /api/v1/history` does: the month asked for when it has a trip,
+     * otherwise the newest one. The trips are built from [trips], so a seeded trip shows its items here too.
+     */
+    override suspend fun fetch(credential: AccessCredential, month: String?): HistoryRead {
+        historyRequests += month
+        when (val step = historySteps.removeFirstOrNull()) {
+            Step.NetworkDown, Step.LostAnswer -> return HistoryRead.Transient(offline = true)
+            Step.ServerError -> return HistoryRead.Transient(offline = false)
+            Step.Unauthorized -> return HistoryRead.Unauthorized
+            is Step.Refuse -> return if (step.status == 401 || step.status == 403) HistoryRead.Unauthorized
+                else HistoryRead.Transient(offline = false)
+            Step.Stale, null -> Unit
+        }
+        val byMonth = trips.keys.groupBy { (tripFinishedAt[it] ?: SnapshotFixtures.EARLY).substring(0, 7) }
+            .toSortedMap(compareByDescending { it })
+        val selected = month?.takeIf { byMonth.containsKey(it) } ?: byMonth.keys.firstOrNull()
+        val document = JSONObject()
+            .put("month", selected ?: JSONObject.NULL)
+            .put("months", JSONArray(byMonth.map { (key, ids) -> JSONObject().put("key", key).put("trip_count", ids.size) }))
+            .put("older_month", selected?.let { key -> byMonth.keys.firstOrNull { it < key } } ?: JSONObject.NULL)
+            .put("newer_month", selected?.let { key -> byMonth.keys.lastOrNull { it > key } } ?: JSONObject.NULL)
+            .put("trips", JSONArray((selected?.let { byMonth[it] } ?: emptyList()).map { tripJson(it) }))
+        return when (val parsed = HistoryParser.parse(document.toString().toByteArray())) {
+            is HistoryParse.Valid -> HistoryRead.Received(parsed.page)
+            is HistoryParse.Invalid -> HistoryRead.Invalid(parsed.problem)
+        }
+    }
+
+    /** A trip as the API writes it, with the categories sorted by position like the server's. */
+    private fun tripJson(id: String): JSONObject {
+        val archived = (trips[id] ?: emptyList()).sortedWith(compareBy({ categories.indexOfFirst { entry -> entry.getString("public_id") == it.category }.let { it + 1 } }, { it.name.lowercase() }))
+        return JSONObject().put("public_id", id).put("finished_at", tripFinishedAt[id] ?: SnapshotFixtures.EARLY)
+            .put("items_count", archived.size)
+            .put("items", JSONArray(archived.map {
+                JSONObject().put("public_id", it.id).put("name", it.name)
+                    .put("category_public_id", it.category ?: JSONObject.NULL)
+            }))
+    }
+
     // ---- commands ------------------------------------------------------------------------------------------
 
     override suspend fun send(credential: AccessCredential, commandId: String, document: String): CommandOutcome {
@@ -178,6 +226,7 @@ class FakeHouse : SnapshotTransport, CommandTransport {
         rows.removeAll(archived.toSet())
         archived.forEach { it.lock++ }
         trips[trip] = archived
+        tripFinishedAt[trip] = SnapshotFixtures.EARLY
         revision++
         return receipt(id, ReceiptStatus.APPLIED, data = JSONObject().put("trip", JSONObject().put("public_id", trip)))
     }
@@ -188,6 +237,7 @@ class FakeHouse : SnapshotTransport, CommandTransport {
         if (trips.keys.last() != trip) return receipt(id, ReceiptStatus.CONFLICT, error = "precondition_failed")
         archived.filter { archivedRow -> rows.none { it.name.equals(archivedRow.name, true) } }.forEach { it.lock++; rows.add(it) }
         trips.remove(trip)
+        tripFinishedAt.remove(trip)
         revision++
         return receipt(id, ReceiptStatus.APPLIED)
     }
