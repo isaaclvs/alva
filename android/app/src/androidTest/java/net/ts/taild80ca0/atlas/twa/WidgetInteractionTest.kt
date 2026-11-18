@@ -5,11 +5,15 @@ import android.widget.TextView
 import android.view.View
 import android.view.ViewGroup
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.compose.ui.graphics.toArgb
 import kotlinx.coroutines.*
 import net.ts.taild80ca0.atlas.twa.access.*
 import net.ts.taild80ca0.atlas.twa.online.*
+import net.ts.taild80ca0.atlas.twa.preferences.DevicePreferencesStore
 import net.ts.taild80ca0.atlas.twa.sync.SnapshotFixtures
 import net.ts.taild80ca0.atlas.twa.ui.InMemoryHouseholdBinding
+import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaColor
+import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaPalettes
 import net.ts.taild80ca0.atlas.twa.widgets.*
 import org.junit.After
 import org.junit.Assert.*
@@ -136,6 +140,34 @@ class WidgetInteractionTest {
         instrumentation.runOnMainSync {
             val root = ShoppingListWidgetProvider.render(context, widgetId).apply(context, FrameLayout(context))
             assertFalse(texts(root).any { it.text == "Leite" })
+        }
+    }
+
+    /** The "Adicionar rápido" widget is tinted by the palette: no pink of its own in any theme. */
+    @Test fun quickAddWidgetFollowsTheDeviceThemeAndAccent() {
+        val preferences = DevicePreferencesStore(context)
+        try {
+            connect()
+            runBlocking { preferences.dark(true); preferences.color(AlvaColor.Teal) }
+            await { WidgetRuntime.palette(context).ink == AlvaPalettes.TealDark.ink.toArgb() }
+            instrumentation.runOnMainSync {
+                val root = QuickAddWidgetProvider.render(context, widgetId).apply(context, FrameLayout(context))
+                val palette = AlvaPalettes.TealDark
+                assertEquals(palette.ink.toArgb(), root.findViewById<TextView>(R.id.quick_add_widget_prompt).currentTextColor)
+                assertEquals(palette.inkSoft.toArgb(), root.findViewById<TextView>(R.id.quick_add_widget_brand).currentTextColor)
+                assertEquals(palette.accentInk.toArgb(), root.findViewById<TextView>(R.id.quick_add_widget_plus).currentTextColor)
+            }
+            runBlocking { preferences.dark(true); preferences.color(AlvaColor.Pink) }
+            await { WidgetRuntime.palette(context).ink == AlvaPalettes.PinkDark.ink.toArgb() }
+            instrumentation.runOnMainSync {
+                val root = QuickAddWidgetProvider.render(context, widgetId).apply(context, FrameLayout(context))
+                val palette = AlvaPalettes.PinkDark
+                assertEquals(palette.canvas.toArgb(), WidgetRuntime.palette(context).background)
+                assertEquals(palette.accent, WidgetRuntime.palette(context).accent)
+                assertEquals(palette.ink.toArgb(), root.findViewById<TextView>(R.id.quick_add_widget_prompt).currentTextColor)
+            }
+        } finally {
+            runBlocking { preferences.reset() }
         }
     }
 }
