@@ -4,7 +4,7 @@
         data: { list_refresh_correction: true } do |form| %>
     <%= form.hidden_field :lock_version %>
     <%= form.label :name, "Nome", class: "sr-only" %>
-    <%= form.text_field :name, autofocus: true, required: true, autocomplete: "off",
+    <%= form.text_field :name, autofocus: true, required: true, autocomplete: "off", maxlength: ListItem::MAX_NAME_LENGTH,
           class: "w-full rounded-control border border-line bg-canvas px-3 py-2 text-base focus:border-accent focus:outline-none" %>
 
     <%= form.label :category_id, "Categoria", class: "sr-only" %>
@@ -16,6 +16,8 @@
       <p class="px-1 text-sm text-warn" role="status"><%= @list_item.name %> já está na lista</p>
     <% elsif @list_item.errors.of_kind?(:name, :blank) %>
       <p class="px-1 text-sm text-danger" role="status">Digite um nome</p>
+    <% elsif @list_item.errors.of_kind?(:name, :too_long) %>
+      <p class="px-1 text-sm text-danger" role="status">O nome pode ter até <%= ListItem::MAX_NAME_LENGTH %> caracteres</p>
     <% end %>
 
     <div class="flex items-center justify-end gap-2">
