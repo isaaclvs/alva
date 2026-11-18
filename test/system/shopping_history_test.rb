@@ -12,7 +12,8 @@ class ShoppingHistoryTest < ApplicationSystemTestCase
 
   test "the menu opens the history and a trip expands into its items by category" do
     visit_list
-    open_menu { click_link "Compras" }
+    find("summary[aria-label='Mais opções']", match: :first).click
+    within("details[open]") { click_link "Compras" }
 
     assert_selector "h1", text: "Compras"
     assert_selector "#history_month", text: "Novembro de 2026"
