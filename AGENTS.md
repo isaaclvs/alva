@@ -302,6 +302,22 @@ e no XML em `values/alva_dimens.xml`. Nada de valor fracionário transliterado d
 mudar uma escala, mude as três. Os alvos de toque continuam 44px na PWA e 48dp
 no Android.
 
+**Tokens de movimento:** a mesma ideia para o tempo, em `--duration-fast` (120ms,
+a resposta direta ao toque: check, riscado, opacidade do "enviando"), `--duration-base`
+(180ms, o estado que assenta: toast entrando, aba ativa, linha que muda de lugar),
+`--duration-slow` (300ms, o movimento medido: barra de progresso das compras) e
+`--duration-switch` (150ms, "Só pendentes"); easings `--ease-standard`
+(`cubic-bezier(.2, 0, 0, 1)`, decelera) e `--ease-exit` (`(.4, 0, 1, 1)`, acelera
+na saída). No Android os mesmos números estão em `AlvaMotion`
+(`ui/theme/AlvaMotion.kt`, também via `AlvaTheme.motion`): `spec(enabled, …)` e
+`springSpec(enabled, …)` devolvem `snap()` quando `ANIMATOR_DURATION_SCALE` é 0,
+e as linhas da `LazyColumn` usam `animateItem` só com as specs quando o aparelho
+anima — é assim que o teste de Compose não espera animação. Na PWA todo
+`transition`/`animation` novo entra também no bloco `prefers-reduced-motion` do
+fim de `application.css`. `MotionTokensTest` (Rails) e `PwaThemeParityTest`
+(Android) cobram as duas coisas: duração tokenizada, easing tokenizado e o
+desligamento nos dois lados.
+
 **Desfazer:** remover um item e "Compra feita" não pedem confirmação; em vez disso
 a resposta HTTP (nunca o broadcast, então só o aparelho que agiu) preenche o
 `#toast` por ~5 s com "Desfazer". Remoção: o toast leva um `ListItemSnapshot`
