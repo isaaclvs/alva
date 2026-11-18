@@ -195,8 +195,11 @@ fun ListScreen(
                     filterState.value = filters.copy(pendingOnly = !filters.pendingOnly)
                 }
                 if (purchased > 0) FinishShoppingAction(enabled = !actions.finishing && !actions.anyBusy,
-                    onClick = { actions.finishShopping(snapshot) }, modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(vertical = AlvaSpacing.md))
+                    onClick = { actions.finishShopping(snapshot) },
+                    // 8 is the nearest step below the 10dp this used to hold, so the row keeps the height it had. The
+                    // minimum keeps the button itself a 48dp target, since 8dp of padding alone leaves it at 40dp.
+                    modifier = Modifier.weight(1f).heightIn(min = AlvaSize.TouchMin),
+                    contentPadding = PaddingValues(vertical = AlvaSpacing.sm))
             }
         }
     }
