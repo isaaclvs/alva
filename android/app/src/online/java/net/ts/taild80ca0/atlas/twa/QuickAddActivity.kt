@@ -1,6 +1,7 @@
 package net.ts.taild80ca0.atlas.twa
 
 import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.view.ViewGroup
 import androidx.core.content.res.ResourcesCompat
 import androidx.compose.ui.graphics.toArgb
@@ -118,6 +119,11 @@ class QuickAddActivity : ComponentActivity() {
             }
         }
     }
+    /**
+     * The sheet is drawn entirely from the app's design system: the layout has no color of its own, so
+     * every piece below names a token of [palette] and a radius of [AlvaRadius]. Teal, pink, light and
+     * dark therefore reach the panel the same way they reach the screens.
+     */
     private fun applyPalette(palette: AlvaColors) {
         fun shape(fill: Int, radius: Float, border: Boolean = false) = GradientDrawable().apply {
             setColor(fill)
@@ -125,7 +131,7 @@ class QuickAddActivity : ComponentActivity() {
             if (border) setStroke(resources.displayMetrics.density.toInt().coerceAtLeast(1), palette.line.toArgb())
         }
         val root = findViewById<View>(R.id.quick_add_panel)
-        root.background = shape(palette.surface.toArgb(), AlvaRadius.capsule.value)
+        root.background = shape(palette.surface.toArgb(), AlvaRadius.sheet.value)
         val regular = ResourcesCompat.getFont(this, R.font.nunito_sans_regular)
         val bold = ResourcesCompat.getFont(this, R.font.nunito_sans_bold)
         fun textStyles(view: View) {
@@ -145,6 +151,16 @@ class QuickAddActivity : ComponentActivity() {
             background = shape(palette.canvas.toArgb(), AlvaRadius.control.value, border = true)
             setTextColor(palette.ink.toArgb())
             setHintTextColor(palette.inkFaint.toArgb())
+            // Selection and cursor follow the accent, not the dialog theme's own hue (the style names none).
+            highlightColor = palette.accent.copy(alpha = 0.35f).toArgb()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) textCursorDrawable = cursor(palette.accent.toArgb())
+        }
+        // The password field is hidden since the panel sends through the paired house, but it keeps the
+        // same look if a caller ever shows it (textStyles above already gave it the body colors).
+        findViewById<EditText>(R.id.quick_add_password).apply {
+            background = shape(palette.canvas.toArgb(), AlvaRadius.control.value, border = true)
+            setTextColor(palette.ink.toArgb())
+            setHintTextColor(palette.inkFaint.toArgb())
         }
         findViewById<Button>(R.id.quick_add_submit).apply {
             background = shape(palette.accent.toArgb(), AlvaRadius.control.value)
@@ -157,6 +173,13 @@ class QuickAddActivity : ComponentActivity() {
         findViewById<Button>(R.id.quick_add_success_undo).setTextColor(palette.accent.toArgb())
         findViewById<TextView>(R.id.quick_add_status).setTextColor(
             if (model.state.value.error != null) palette.danger.toArgb() else palette.inkSoft.toArgb())
+    }
+
+    /** The text cursor of the field, in the palette's accent; the dialog theme names no color of its own. */
+    private fun cursor(color: Int): GradientDrawable = GradientDrawable().apply {
+        shape = GradientDrawable.RECTANGLE
+        setColor(color)
+        setSize((2 * resources.displayMetrics.density).toInt(), 0)
     }
 
     override fun onStart() {

@@ -1,11 +1,16 @@
 <resources>
+    <!--
+      The window of the quick add panel. It defines no color of its own: QuickAddActivity paints the
+      sheet from the app's design system (AlvaPalettes for the theme and the accent), so teal, pink,
+      light and dark all reach the panel. The accent is only the window's fallback while the view
+      tree is being drawn, and the field also overrides its own selection and cursor colors.
+    -->
     <style name="QuickAddDialog" parent="android:style/Theme.Material.Light.Dialog.Alert">
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:windowContentOverlay">@null</item>
         <item name="android:backgroundDimEnabled">true</item>
         <item name="android:backgroundDimAmount">0.18</item>
-        <item name="android:colorAccent">#A93F70</item>
         <item name="android:fontFamily">sans-serif</item>
         <item name="android:windowSoftInputMode">stateAlwaysVisible|adjustResize</item>
     </style>
