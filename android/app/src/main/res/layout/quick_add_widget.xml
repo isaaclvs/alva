@@ -1,11 +1,14 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/quick_add_widget" android:layout_width="match_parent" android:layout_height="match_parent" android:contentDescription="Adicionar item à lista de compras">
+<!-- Both backgrounds are white masks: QuickAddWidgetProvider tints the shape with palette.background
+     and the hairline with palette.line, so the widget follows the theme and the accent of the app. -->
 <ImageView android:id="@+id/quick_add_widget_background" android:layout_width="match_parent" android:layout_height="match_parent" android:src="@drawable/quick_add_widget_bg" android:scaleType="fitXY" android:importantForAccessibility="no"/>
-<LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center_vertical" android:padding="18dp">
- <FrameLayout android:layout_width="48dp" android:layout_height="48dp" android:layout_marginEnd="13dp">
+<ImageView android:id="@+id/quick_add_widget_border" android:layout_width="match_parent" android:layout_height="match_parent" android:src="@drawable/quick_add_widget_border" android:scaleType="fitXY" android:importantForAccessibility="no"/>
+<LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center_vertical" android:padding="@dimen/alva_space_lg">
+ <FrameLayout android:layout_width="@dimen/alva_size_touch" android:layout_height="@dimen/alva_size_touch" android:layout_marginEnd="@dimen/alva_space_md">
  <ImageView android:id="@+id/quick_add_widget_plus_background" android:layout_width="match_parent" android:layout_height="match_parent" android:src="@drawable/widget_circle" android:importantForAccessibility="no"/>
- <TextView android:id="@+id/quick_add_widget_plus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:fontFamily="@font/nunito_sans_regular" android:text="+" android:textSize="28sp" android:minWidth="48dp" android:minHeight="48dp" android:gravity="center" android:importantForAccessibility="no"/>
+ <TextView android:id="@+id/quick_add_widget_plus" android:layout_width="wrap_content" android:layout_height="wrap_content" android:fontFamily="@font/nunito_sans_regular" android:text="+" android:textSize="28sp" android:minWidth="@dimen/alva_size_touch" android:minHeight="@dimen/alva_size_touch" android:gravity="center" android:importantForAccessibility="no"/>
  </FrameLayout>
  <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:importantForAccessibility="noHideDescendants">
  <TextView android:id="@+id/quick_add_widget_brand" android:layout_width="wrap_content" android:layout_height="wrap_content" android:fontFamily="@font/nunito_sans_regular" android:text="ADICIONAR RÁPIDO" android:textSize="10sp" />
- <TextView android:id="@+id/quick_add_widget_prompt" android:layout_width="wrap_content" android:layout_height="wrap_content" android:fontFamily="@font/nunito_sans_bold" android:text="O que acabou?" android:textSize="17sp" android:layout_marginTop="3dp"/>
+ <TextView android:id="@+id/quick_add_widget_prompt" android:layout_width="wrap_content" android:layout_height="wrap_content" android:fontFamily="@font/nunito_sans_bold" android:text="O que acabou?" android:textSize="17sp" android:layout_marginTop="@dimen/alva_space_xs"/>
  </LinearLayout></LinearLayout></FrameLayout>

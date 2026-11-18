@@ -35,10 +35,12 @@ public class QuickAddWidgetProvider extends AppWidgetProvider {
     for (int id : ids) manager.updateAppWidget(id, render(context, id));
   }
 
+  /** Every piece is a white mask in the layout, tinted here: the widget follows the app's theme. */
   public static RemoteViews render(Context context, int id) {
     WidgetPalette palette = WidgetRuntime.palette(context);
     RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.quick_add_widget);
     views.setInt(R.id.quick_add_widget_background, "setColorFilter", palette.getBackground());
+    views.setInt(R.id.quick_add_widget_border, "setColorFilter", palette.getLine());
     views.setTextColor(R.id.quick_add_widget_brand, palette.getSoft());
     views.setTextColor(R.id.quick_add_widget_prompt, palette.getInk());
     views.setTextColor(R.id.quick_add_widget_plus, palette.getAccentInk());
