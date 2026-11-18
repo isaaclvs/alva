@@ -1,1 +1,42 @@
-<shortcuts xmlns:android='http://schemas.android.com/apk/res/android' />
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The three launcher shortcuts (long press on the Alva icon), declared on the launcher activity by the debug and
+    release manifests through `android.app.shortcuts`.
+
+    A static shortcut's <intent> cannot carry extras and its target package would have to be written by hand (the
+    debug build installs with a suffix), so each shortcut names a URI of the `alva-shortcut` scheme instead.
+    ShortcutsActivity is the one exported handler of that scheme: it turns the URI into the typed intent of the
+    screen that already does the job and finishes.
+-->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="add_item"
+        android:enabled="true"
+        android:icon="@drawable/shortcut_add"
+        android:shortcutShortLabel="@string/shortcut_add_short"
+        android:shortcutLongLabel="@string/shortcut_add_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="alva-shortcut://add" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="shopping_list"
+        android:enabled="true"
+        android:icon="@drawable/shortcut_list"
+        android:shortcutShortLabel="@string/shortcut_list_short"
+        android:shortcutLongLabel="@string/shortcut_list_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="alva-shortcut://list" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="shopping_mode"
+        android:enabled="true"
+        android:icon="@drawable/shortcut_shopping"
+        android:shortcutShortLabel="@string/shortcut_shopping_short"
+        android:shortcutLongLabel="@string/shortcut_shopping_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="alva-shortcut://shopping" />
+    </shortcut>
+</shortcuts>

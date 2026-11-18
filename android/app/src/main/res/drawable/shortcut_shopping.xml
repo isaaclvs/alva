@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Launcher shortcut "Modo compras": a checklist box, ink for the box and accent for the tick that says "pego". -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:fillColor="#09090B"
+        android:pathData="M12,0 L36,0 Q48,0 48,12 L48,36 Q48,48 36,48 L12,48 Q0,48 0,36 L0,12 Q0,0 12,0 Z" />
+    <path
+        android:pathData="M16.5,11 L31.5,11 Q35,11 35,14.5 L35,33.5 Q35,37 31.5,37 L16.5,37 Q13,37 13,33.5 L13,14.5 Q13,11 16.5,11 Z"
+        android:strokeColor="#F4F4F5"
+        android:strokeWidth="2.4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M18.6,24 L22.6,28 L29.6,19.8"
+        android:strokeColor="#2DD4BF"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>
