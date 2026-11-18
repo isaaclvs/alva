@@ -41,13 +41,24 @@ class QuickAddActivity : ComponentActivity() {
          * to the entry screen instead of showing a panel that could not send the name.
          */
         const val EXTRA_OPEN_APP_WHEN_UNPAIRED = "open_app_when_unpaired"
+
+        /**
+         * Instrumentation only: how long the confirmation stays before the panel closes by itself. The real panel
+         * waits [QuickPanelModel.UNDO_MILLIS]; a test machine under load takes longer than that to look at the
+         * screen and press "Desfazer", so the test asks for a window it can actually act in. Nothing else reads
+         * this extra, and a release build ignores it.
+         */
+        const val EXTRA_CONFIRMATION_MILLIS = "confirmation_millis"
     }
 
     private val model: QuickPanelModel by viewModels {
         object : AbstractSavedStateViewModelFactory(this, intent.extras) {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(key: String, modelClass: Class<T>, handle: SavedStateHandle): T =
-                QuickPanelModel(handle, AccessGraph.houseAccess(applicationContext), AccessGraph.onlineRepository(applicationContext)) as T
+                QuickPanelModel(
+                    handle, AccessGraph.houseAccess(applicationContext), AccessGraph.onlineRepository(applicationContext),
+                    confirmationMillis = intent.getLongExtra(EXTRA_CONFIRMATION_MILLIS, QuickPanelModel.UNDO_MILLIS),
+                ) as T
         }
     }
     private var colors = AlvaPalettes.TealDark

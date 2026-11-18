@@ -31,7 +31,7 @@ class QuickPanelTest {
     private var scenario: ActivityScenario<QuickAddActivity>? = null
     private var stored: StoredAccess? = StoredAccess(AccessCredential(1, "test-only"))
     private lateinit var access: HouseAccess
-    private fun launch(commands: CommandTransport = house): OnlineRepository {
+    private fun launch(commands: CommandTransport = house, confirmationMillis: Long = QuickPanelModel.UNDO_MILLIS): OnlineRepository {
         val vault = object : CredentialVault {
             override fun read() = stored?.let { VaultRead.Found(it) } ?: VaultRead.Empty
             override fun write(access: StoredAccess) { stored = access }
@@ -43,7 +43,10 @@ class QuickPanelTest {
         access = HouseAccess(vault, api, InMemoryHouseholdBinding())
         val repository = OnlineRepository(OnlineAccess.of(access), house, commands, scope, pause = {})
         AccessGraph.install(access, online = repository)
-        scenario = ActivityScenario.launch(QuickAddActivity::class.java)
+        val intent = android.content.Intent(
+            androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext, QuickAddActivity::class.java,
+        ).putExtra(QuickAddActivity.EXTRA_CONFIRMATION_MILLIS, confirmationMillis)
+        scenario = ActivityScenario.launch(intent)
         await { activity -> activity.findViewById<Button>(R.id.quick_add_submit).isEnabled }
         return repository
     }
@@ -150,7 +153,10 @@ class QuickPanelTest {
     }
 
     @Test fun aSingleNewNameIsConfirmedWithItsCategoryAndCanBeUndone() {
-        launch()
+        // The confirmation is on screen for only a few seconds: on a loaded machine looking at it and pressing
+        // "Desfazer" can take longer than that, so this run gets a window it can act in (the panel's own delay,
+        // only longer). The real 3 s are the model's default and are covered by the JVM tests.
+        launch(confirmationMillis = 30_000)
         onView(withId(R.id.quick_add_product)).perform(replaceText("Leite"), pressImeActionButton())
         await { it.findViewById<TextView>(R.id.quick_add_success_message).text == "Leite adicionado em Laticínios" }
         onView(withId(R.id.quick_add_success_undo)).check(matches(withEffectiveVisibility(Visibility.VISIBLE)))
