@@ -16,6 +16,7 @@ etapa de transição.
 | Funcionalidade | Hoje (PWA + APK conectado) | Destino Android offline | Sync implicado | Task |
 | --- | --- | --- | --- | --- |
 | Adicionar item | Campo aceita vírgula/ponto e vírgula/linha, máx. 30, dedup por nome normalizado | Implementado em debug: campo via `ShoppingListStore`, gravando local primeiro | `add_items` idempotente | #43 |
+| Sugestão de nomes ao digitar | `<datalist>` com histórico da casa + dicionário, filtrado ao digitar | `NameSuggestions` sobre o snapshot (mesma fonte, ordem e normalização) | Nenhum campo novo; snapshot já traz dicionário, vivos e arquivados | #156 |
 | Dica de duplicado ao digitar | `duplicate_hint_controller.js` compara com pendentes (sem acento/caixa) | Mesma dica sobre o banco local (`DuplicateHint`, consumido pela tela debug na #43) | Só dica; servidor decide | #42 |
 | Acabou de adicionar | Itens criados/revividos com seletor de categoria (`from=recent`); o "×" tira o que este add criou, com o Desfazer do toast | Retorno local implementado em debug; seletor de correção fica para #48 | Resposta HTTP, nunca broadcast; `remove_item` + `undo_remove` | #43, #144 |
 | Categorização automática | `ItemCategorizer` sobre `CatalogItem`, fallback "Outros" | Módulo Kotlin equivalente (`data/matching`), corpus compartilhado, dicionário no Room | Dicionário sincronizado | #42 |
