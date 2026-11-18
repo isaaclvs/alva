@@ -45,7 +45,7 @@ class ListActions internal constructor(
     private val scope: CoroutineScope,
     private val editState: EditItemState,
     private val showToast: (ToastMessage) -> Unit,
-    private val onFailure: (String) -> Unit,
+    private val onFailure: (String, (() -> Unit)?) -> Unit,
     private val onActionStart: () -> Unit,
     private val onMarked: () -> Unit,
     private val shoppingMode: () -> Boolean,
@@ -77,12 +77,12 @@ class ListActions internal constructor(
                     is ActionResult.Success -> result.receipt.shoppingTripPublicId()?.let { tripId ->
                         showToast(ToastMessage("Compra registrada", "Desfazer") {
                             val undone = repository.execute(UndoShopping(tripId))
-                            if (undone !is ActionResult.Success) onFailure(OnlineMessages.failure(undone))
+                            if (undone !is ActionResult.Success) onFailure(OnlineMessages.failure(undone), null)
                         })
-                    } ?: onFailure("A compra foi registrada, mas não foi possível preparar o desfazer. Atualize a lista.")
+                    } ?: onFailure("A compra foi registrada, mas não foi possível preparar o desfazer. Atualize a lista.", null)
                     // "Tentar de novo" repeats the request from the list the failure's own reload brought back: a
                     // command the server had applied answers `duplicate` instead of finishing the trip twice.
-                    else -> onFailure(OnlineMessages.failure(result))
+                    else -> onFailure(OnlineMessages.failure(result)) { retryFinish() }
                 }
             } finally { finishing = false }
         }
@@ -101,12 +101,13 @@ class ListActions internal constructor(
                         if (editState.itemId == item.publicId) editState.close()
                         showToast(ToastMessage("${item.name} removido", "Desfazer") {
                             val undone = repository.execute(UndoRemove(result.receipt.commandId))
-                            if (undone !is ActionResult.Success) onFailure(OnlineMessages.failure(undone))
+                            if (undone !is ActionResult.Success) onFailure(OnlineMessages.failure(undone), null)
                         })
                     }
                     else -> {
                         if (editing) editState.error = OnlineMessages.failure(result, keepsText = true)
-                        else onFailure(OnlineMessages.failure(result))
+                        // The reload of the failed answer has already brought a fresh version for the row.
+                        else onFailure(OnlineMessages.failure(result)) { retryRemove(item.publicId) }
                     }
                 }
             } finally {
@@ -116,12 +117,15 @@ class ListActions internal constructor(
         }
     }
 
-    fun mark(item: ListItem) {
+    /** The tap asks for the opposite of what the row shows now. */
+    fun mark(item: ListItem) = sendMark(item, if (item.status == ItemStatus.PURCHASED) ItemStatus.PENDING else ItemStatus.PURCHASED)
+
+    /** [desired] is decided by the caller so a retry keeps the intent, even if another phone changed the item since. */
+    private fun sendMark(item: ListItem, desired: ItemStatus) {
         if (item.publicId in busy || finishing) return
         onActionStart()
         busy += item.publicId
-        val purchasing = item.status != ItemStatus.PURCHASED
-        val desired = if (purchasing) ItemStatus.PURCHASED else ItemStatus.PENDING
+        val purchasing = desired == ItemStatus.PURCHASED
         pendingMarks[item.publicId] = desired
         scope.launch {
             try {
@@ -138,11 +142,12 @@ class ListActions internal constructor(
                                 actionLabel = "Desfazer",
                             ) {
                                 val undone = repository.execute(undo)
-                                if (undone !is ActionResult.Success) onFailure(OnlineMessages.failure(undone))
+                                if (undone !is ActionResult.Success) onFailure(OnlineMessages.failure(undone), null)
                             })
                         }
                     }
-                    else -> onFailure(OnlineMessages.failure(result))
+                    // Repeat the same intent from the list the answer brought back, not from the row as it was before it.
+                    else -> onFailure(OnlineMessages.failure(result)) { retryMark(item.publicId, desired) }
                 }
             } finally {
                 busy -= item.publicId
@@ -150,6 +155,28 @@ class ListActions internal constructor(
             }
         }
     }
+
+    /** "Tentar de novo" of a mark, remove or finish: the same intent on the list the server has right now. */
+    private fun retryMark(itemPublicId: String, desired: ItemStatus) {
+        val fresh = freshItem(itemPublicId) ?: return
+        sendMark(ListItem(fresh.publicId, fresh.name, fresh.categoryPublicId,
+            ItemStatus.fromCode(fresh.status), fresh.purchasedAtMicros, awaitingSync = false), desired)
+    }
+
+    private fun retryRemove(itemPublicId: String) {
+        val fresh = freshItem(itemPublicId) ?: return
+        remove(ListItem(fresh.publicId, fresh.name, fresh.categoryPublicId,
+            ItemStatus.fromCode(fresh.status), fresh.purchasedAtMicros, awaitingSync = false), fresh.lockVersion)
+    }
+
+    private fun retryFinish() {
+        val fresh = (repository.state.value as? OnlineState.Ready)?.snapshot ?: return
+        finishShopping(fresh)
+    }
+
+    /** The item as the last snapshot has it (the list is read again after every answer); null if it left the list. */
+    private fun freshItem(itemPublicId: String): net.ts.taild80ca0.atlas.twa.sync.SnapshotItem? =
+        (repository.state.value as? OnlineState.Ready)?.snapshot?.listItems?.firstOrNull { it.publicId == itemPublicId }
 
     /** Saves the inline correction form. The draft stays in [editState]: only a server answer closes or annotates it. */
     fun saveEdit(itemPublicId: String) {
@@ -181,7 +208,7 @@ fun rememberListActions(
     repository: OnlineRepository,
     editState: EditItemState,
     showToast: (ToastMessage) -> Unit,
-    onFailure: (String) -> Unit,
+    onFailure: (String, (() -> Unit)?) -> Unit,
     onActionStart: () -> Unit = {},
     onMarked: () -> Unit = {},
     shoppingMode: () -> Boolean = { false },
@@ -193,7 +220,7 @@ fun rememberListActions(
     val latestMarked by rememberUpdatedState(onMarked)
     val latestShopping by rememberUpdatedState(shoppingMode)
     return remember(repository, editState, scope) {
-        ListActions(repository, scope, editState, { latestToast(it) }, { latestFailure(it) },
+        ListActions(repository, scope, editState, { latestToast(it) }, { message, retry -> latestFailure(message, retry) },
             { latestStart() }, { latestMarked() }, { latestShopping() })
     }
 }

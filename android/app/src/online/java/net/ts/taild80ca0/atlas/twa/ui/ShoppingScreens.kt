@@ -78,7 +78,7 @@ fun ShoppingScreens(
     val listActions = rememberListActions(repository, editState,
         // A success is the clearest sign the failure is over: the toast only comes from an answer that was taken.
         showToast = { toast = it; feedback.dismiss() },
-        onFailure = { feedback.show(it) }, onActionStart = feedback::dismiss,
+        onFailure = { message, retry -> feedback.show(message, retry) }, onActionStart = feedback::dismiss,
         onMarked = { if (shoppingMode) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove) },
         shoppingMode = { shoppingMode })
     DisposableEffect(shoppingMode, view) {
