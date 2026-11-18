@@ -1,9 +1,13 @@
 package net.ts.taild80ca0.atlas.twa
 
+import android.content.res.ColorStateList
+import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.RippleDrawable
 import android.os.Build
 import android.view.ViewGroup
 import androidx.core.content.res.ResourcesCompat
+import androidx.core.graphics.ColorUtils
 import androidx.compose.ui.graphics.toArgb
 import net.ts.taild80ca0.atlas.twa.preferences.DevicePreferencesStore
 import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaColors
@@ -170,7 +174,12 @@ class QuickAddActivity : ComponentActivity() {
             background = shape(palette.accentSoft.toArgb(), AlvaRadius.sheet.value)
             setTextColor(palette.accent.toArgb())
         }
-        findViewById<Button>(R.id.quick_add_success_undo).setTextColor(palette.accent.toArgb())
+        findViewById<Button>(R.id.quick_add_success_undo).apply {
+            setTextColor(palette.accent.toArgb())
+            background = ripple(palette.accent.toArgb(), AlvaRadius.control.value)
+        }
+        // The close button is borderless, so its ripple is a circle rather than a rounded rectangle.
+        findViewById<Button>(R.id.quick_add_close).background = ripple(palette.accent.toArgb())
         findViewById<TextView>(R.id.quick_add_status).setTextColor(
             if (model.state.value.error != null) palette.danger.toArgb() else palette.inkSoft.toArgb())
     }
@@ -180,6 +189,20 @@ class QuickAddActivity : ComponentActivity() {
         shape = GradientDrawable.RECTANGLE
         setColor(color)
         setSize((2 * resources.displayMetrics.density).toInt(), 0)
+    }
+
+    /**
+     * The press feedback of a button, in the palette's accent instead of the dialog theme's own
+     * `colorControlHighlight`. Without [radius] the ripple is clipped to a circle (a borderless button).
+     */
+    private fun ripple(color: Int, radius: Float? = null): RippleDrawable {
+        val mask = GradientDrawable().apply {
+            shape = if (radius == null) GradientDrawable.OVAL else GradientDrawable.RECTANGLE
+            setColor(Color.WHITE)
+            if (radius != null) cornerRadius = radius * resources.displayMetrics.density
+        }
+        val pressed = ColorStateList.valueOf(ColorUtils.setAlphaComponent(color, 0x29))
+        return RippleDrawable(pressed, null, mask)
     }
 
     override fun onStart() {
