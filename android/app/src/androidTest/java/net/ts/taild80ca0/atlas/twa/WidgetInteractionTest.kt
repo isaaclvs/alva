@@ -163,7 +163,7 @@ class WidgetInteractionTest {
                 val root = QuickAddWidgetProvider.render(context, widgetId).apply(context, FrameLayout(context))
                 val palette = AlvaPalettes.PinkDark
                 assertEquals(palette.canvas.toArgb(), WidgetRuntime.palette(context).background)
-                assertEquals(palette.accent, WidgetRuntime.palette(context).accent)
+                assertEquals(palette.accent.toArgb(), WidgetRuntime.palette(context).accent)
                 assertEquals(palette.ink.toArgb(), root.findViewById<TextView>(R.id.quick_add_widget_prompt).currentTextColor)
             }
         } finally {
