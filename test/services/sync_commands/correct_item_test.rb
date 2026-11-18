@@ -108,6 +108,18 @@ class SyncCommands::CorrectItemTest < ActiveSupport::TestCase
     assert_equal "preconditions.dictionary_revision", submit(missing_dictionary).first[:data]["field"]
   end
 
+  test "a blank or over-long name is invalid_name and changes nothing" do
+    item = list_items(:milk)
+
+    [ [ " ", "blank" ], [ "x" * (ListItem::MAX_NAME_LENGTH + 1), "too_long" ] ].each do |name, reason|
+      result = submit(correct_item_command(item.public_id, name, lock_version: 0)).first
+
+      assert_equal [ "rejected", "invalid_name", reason ], [ result[:status], result[:error], result[:data]["reason"] ]
+      assert_equal "Leite", item.reload.name
+    end
+    assert_equal "applied", submit(correct_item_command(item.public_id, "x" * ListItem::MAX_NAME_LENGTH, lock_version: 0)).first[:status]
+  end
+
   test "foreign and unknown ids are indistinguishable and archived or removed items are gone" do
     foreign = Household.create!(name: "Outra").list_items.create!(name: "Estrangeiro")
     [ foreign.public_id, uuid ].each do |public_id|
