@@ -19,9 +19,9 @@ class OptimisticMarkTest < ApplicationSystemTestCase
     assert_selector "#{row}[data-mutation-in-flight][aria-busy=true]"
     assert_selector "#{row} button[aria-pressed=true]"
     assert_selector "#mutation_progress", text: SENDING_MARKED
-    assert_equal "0.6", row_opacity(list_items(:milk))
+    assert_equal "0.6", row_opacity(list_items(:milk), expected: "0.6")
     # The circle is already the bought one: same fill the settled row will have.
-    assert_equal "rgb(45, 212, 191)", check_background(list_items(:milk))
+    assert_equal "rgb(45, 212, 191)", check_background(list_items(:milk), expected: "rgb(45, 212, 191)")
     assert_equal "block", check_glyph_display(list_items(:milk))
 
     release_toggle
@@ -94,13 +94,13 @@ class OptimisticMarkTest < ApplicationSystemTestCase
 
     row = row_selector(list_items(:milk))
     assert_selector "#{row} > turbo-frame[busy]"
-    assert_equal "0.6", row_opacity(list_items(:milk))
+    assert_equal "0.6", row_opacity(list_items(:milk), expected: "0.6")
 
     release_edit_frame
 
     assert_field "Nome", with: "Leite"
     assert_no_selector "#{row} > turbo-frame[busy]"
-    assert_equal "1", row_opacity(list_items(:milk))
+    assert_equal "1", row_opacity(list_items(:milk), expected: "1")
   end
 
   private
@@ -109,16 +109,29 @@ class OptimisticMarkTest < ApplicationSystemTestCase
     "##{dom_id(item)}"
   end
 
-  def row_opacity(item)
-    page.evaluate_script("getComputedStyle(document.getElementById('#{dom_id(item)}')).opacity")
+  def row_opacity(item, expected: nil)
+    computed("##{dom_id(item)}", "opacity", expected: expected)
   end
 
-  def check_background(item)
-    page.evaluate_script("getComputedStyle(document.querySelector('##{dom_id(item)} .shopping-check')).backgroundColor")
+  def check_background(item, expected: nil)
+    computed("##{dom_id(item)} .shopping-check", "backgroundColor", expected: expected)
   end
 
   def check_glyph_display(item)
-    page.evaluate_script("getComputedStyle(document.querySelector('##{dom_id(item)} .mutation-check')).display")
+    computed("##{dom_id(item)} .mutation-check", "display")
+  end
+
+  # The row's answer is a transition (120ms, `--duration-fast`), so a single
+  # read can catch it mid-way. This waits for the property to reach the value
+  # the state deserves, and reports whatever it reached when it never does.
+  def computed(selector, property, expected: nil, timeout: 2)
+    read = -> { page.evaluate_script("getComputedStyle(document.querySelector(#{selector.to_json})).#{property}") }
+    deadline = Time.now + timeout
+    loop do
+      value = read.call
+      return value if expected.nil? || value == expected || Time.now > deadline
+      sleep 0.02
+    end
   end
 
   # Holds the toggle's submission open so the test can read what the row shows

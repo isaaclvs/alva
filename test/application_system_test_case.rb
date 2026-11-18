@@ -8,6 +8,12 @@ class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
   driven_by :selenium, using: :headless_chrome, screen_size: [ 390, 844 ] do |options|
     # Lets machines without a system Chrome point at another binary.
     options.binary = ENV["CHROME_BIN"] if ENV["CHROME_BIN"]
+    # The motion layer is decoration and every rule of it has a
+    # `prefers-reduced-motion` counterpart (MotionTokensTest keeps that true).
+    # The browser is asked for it, the way CI emulators run Android with
+    # ANIMATOR_DURATION_SCALE 0: a test reads a settled state instead of racing
+    # a 120ms transition, so no assertion depends on animation timing.
+    options.add_argument("--force-prefers-reduced-motion")
   end
 
   private
