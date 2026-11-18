@@ -173,8 +173,9 @@ html[data-shopping-mode="on"] #toast {
   padding-bottom: calc(env(safe-area-inset-bottom) + 5rem);
 }
 
-/* Desktop keeps the same two spaces, with persistent side navigation and
-   categories in reading order across two columns. Mobile retains its tabs. */
+/* The bottom navigation is the floating capsule the Android app already ships
+   (`FloatingNavigation`, variant A) on phones; the desktop block below keeps
+   the side column. */
 @media (min-width: 1024px) {
   .app-shell {
     max-width: 1200px;
@@ -343,6 +344,37 @@ html[data-shopping-mode="on"] #list_summary > [role="progressbar"] { display: bl
 html[data-shopping-mode="on"] .list-brand-row { margin-bottom: calc(var(--spacing) * 4); }
 html[data-shopping-mode="on"] .list-finish { position: static; padding-bottom: calc(var(--spacing) * 4); background: none; }
 html[data-shopping-mode="on"] #list_search_panel > .relative { background: var(--color-surface); border-radius: var(--radius-control); }
+
+/* The bottom navigation floats as the capsule the Android app already ships
+   (`FloatingNavigation`, variant A): a `surface` pill over the canvas, the
+   current tab a `--radius-pill` pill over `accent-soft`, and the canvas visible
+   at the sides and below it. No bar edge to edge, so nothing is blurred. This
+   block comes after the tab rules above so the capsule wins the cascade. */
+@media (max-width: 1023px) {
+  html { --navigation-clearance: calc(env(safe-area-inset-bottom) + var(--size-touch) + var(--spacing) * 8); }
+
+  html:not([data-shopping-mode="on"]) .app-navigation {
+    inset-inline: calc(var(--spacing) * 4);
+    bottom: calc(env(safe-area-inset-bottom) + var(--spacing) * 2);
+    max-width: var(--container-content);
+    margin-inline: auto;
+    padding: calc(var(--spacing) * 2);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-capsule);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-float);
+  }
+  .navigation-items { gap: var(--spacing); padding: 0; }
+  .navigation-items > button { min-height: var(--size-touch); border-radius: var(--radius-pill); }
+
+  /* What the content and the toast leave free at the bottom: the 60px capsule
+     (8 + 44 + 8), the 8px between it and the system gesture area and 8px of
+     breathing room. It replaces the 4.75rem the toast used to carry by hand. */
+  html:not([data-shopping-mode="on"]) #toast { padding-bottom: var(--navigation-clearance); }
+  html:not([data-shopping-mode="on"]) #add_screen,
+  html:not([data-shopping-mode="on"]) #list_screen { padding-bottom: var(--navigation-clearance); }
+}
+
 @media (min-width: 1024px) {
   .app-shell { padding-top: 0; padding-bottom: 0; }
   .app-navigation { top: 0; bottom: 0; padding: 2.5rem 1rem; border-right: 1px solid var(--color-line); }
