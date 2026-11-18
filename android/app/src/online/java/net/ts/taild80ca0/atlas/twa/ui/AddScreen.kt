@@ -77,6 +77,7 @@ import net.ts.taild80ca0.atlas.twa.data.list.AddOutcome
 import net.ts.taild80ca0.atlas.twa.data.list.Category
 import net.ts.taild80ca0.atlas.twa.data.list.ListItem
 import net.ts.taild80ca0.atlas.twa.data.matching.DuplicateHint
+import net.ts.taild80ca0.atlas.twa.data.matching.NameSuggestions
 import net.ts.taild80ca0.atlas.twa.online.ActionResult
 import net.ts.taild80ca0.atlas.twa.online.AddItems
 import net.ts.taild80ca0.atlas.twa.online.AddedItem
@@ -90,6 +91,7 @@ import net.ts.taild80ca0.atlas.twa.online.UndoRemove
 import net.ts.taild80ca0.atlas.twa.online.addedItems
 import net.ts.taild80ca0.atlas.twa.online.categoryLabel
 import net.ts.taild80ca0.atlas.twa.online.liveItems
+import net.ts.taild80ca0.atlas.twa.online.suggestionNames
 import net.ts.taild80ca0.atlas.twa.sync.ServerSnapshot
 import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaShapes
 import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaTheme
@@ -155,6 +157,15 @@ class AddScreenState internal constructor(
 
     /** A shortcut uses the same online command and feedback, while leaving the field's draft intact. */
     fun addSuggestion(name: String) = send(AddItems(listOf(name)), null)
+
+    /**
+     * Tapping a name suggestion: completes the name being typed (the last comma/semicolon/line segment of the
+     * draft) with [name], keeping the names already typed before it. The field keeps the focus, so the person can
+     * either send it or go on typing.
+     */
+    fun completeDraft(name: String) {
+        draft = NameSuggestions.complete(draft, name)
+    }
 
     private fun send(action: OnlineAction, submitted: String?) {
         if (saving) return
@@ -300,6 +311,8 @@ fun AddScreen(
     habituals: (@Composable () -> Unit)? = null,
 ) {
     val items = remember(snapshot) { snapshot.liveItems() }
+    val known = remember(snapshot) { snapshot.suggestionNames() }
+    val suggestions = remember(state.draft, known) { NameSuggestions.forDraft(state.draft, known) }
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     val colors = AlvaTheme.colors
@@ -342,6 +355,13 @@ fun AddScreen(
             if (duplicates.isNotEmpty()) {
                 Text(OnlineMessages.alreadyOnList(duplicates), style = type.caption.copy(fontWeight = FontWeight.Medium), color = colors.warn,
                     modifier = Modifier.padding(top = 8.dp, start = 4.dp, end = 4.dp).testTag("duplicate-hint"))
+            }
+            if (suggestions.isNotEmpty()) {
+                SuggestionRows(suggestions, onPick = {
+                    state.completeDraft(it)
+                    // Stay in the field: the completion is a step of typing, not the add itself.
+                    focus.requestFocus()
+                })
             }
             Text("Separe por vírgula para adicionar vários.", style = type.caption, color = colors.inkFaint,
                 modifier = Modifier.padding(top = 8.dp, start = 4.dp, end = 4.dp))
@@ -423,6 +443,32 @@ private fun AddField(state: AddScreenState, focus: FocusRequester) {
                 val stroke = 2.5f * unit
                 drawLine(colors.accentInk, Offset(10 * unit, 4 * unit), Offset(10 * unit, 16 * unit), stroke, StrokeCap.Round)
                 drawLine(colors.accentInk, Offset(4 * unit, 10 * unit), Offset(16 * unit, 10 * unit), stroke, StrokeCap.Round)
+            }
+        }
+    }
+}
+
+/**
+ * The `datalist` of the PWA, as rows under the field: the names that complete what is being typed, each one a full
+ * 48dp touch target. Tapping completes the draft (it does not add), leaving the person in the field to send it or to
+ * keep typing; the names already typed before the last separator stay as they were.
+ */
+@Composable
+private fun SuggestionRows(names: List<String>, onPick: (String) -> Unit) {
+    val colors = AlvaTheme.colors
+    Column(Modifier.padding(top = 8.dp).testTag("add-suggestions")) {
+        names.forEach { name ->
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(AlvaShapes.Control)
+                    .clickable(role = Role.Button, onClickLabel = "Completar com $name") { onPick(name) }
+                    .testTag("add-suggestion-$name")
+                    .padding(horizontal = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // The `+` of the PWA's shortcuts, so a suggestion reads as something to take, not a list row.
+                Text("+", style = AlvaTheme.type.caption, color = colors.accent)
+                Text(name, style = AlvaTheme.type.bodySmall, color = colors.inkSoft, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
