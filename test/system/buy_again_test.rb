@@ -50,6 +50,63 @@ class BuyAgainTest < ApplicationSystemTestCase
     assert_touch_target "#buy_again button"
   end
 
+  # --- cadence (issue #163) ---
+
+  test "a name the house buys on a rhythm is labelled once the rhythm passes, and the due ones come first" do
+    household = households(:home)
+    trip = household.shopping_trips.create!(finished_at: 1.day.ago)
+    household.list_items.create!(name: "Detergente", status: :purchased, purchased_at: 1.day.ago, shopping_trip: trip)
+
+    travel_to Time.zone.local(2026, 11, 18, 9) do
+      [ Date.new(2026, 10, 5), Date.new(2026, 10, 15), Date.new(2026, 10, 29) ].each do |date|
+        rhythm = household.shopping_trips.create!(finished_at: Time.zone.local(date.year, date.month, date.day, 10))
+        household.list_items.create!(name: "Arroz", status: :purchased, purchased_at: rhythm.finished_at, shopping_trip: rhythm)
+      end
+
+      visit root_path
+      show_add
+
+      within("#buy_again") do
+        assert_text "costuma acabar a cada ~12 dias"
+        assert_selector "button[data-buy-again-dismiss=Arroz]", text: "Agora não"
+      end
+      # The due one is first, even though it was bought fewer times than the rest.
+      within("#buy_again") { assert_selector "[data-buy-again-suggestion='Arroz']", match: :first }
+      assert_touch_target "#buy_again button"
+    end
+  end
+
+  test "Agora não hides the due label on this device for a few days" do
+    household = households(:home)
+    travel_to Time.zone.local(2026, 11, 18, 9) do
+      [ Date.new(2026, 10, 5), Date.new(2026, 10, 15), Date.new(2026, 10, 29) ].each do |date|
+        rhythm = household.shopping_trips.create!(finished_at: Time.zone.local(date.year, date.month, date.day, 10))
+        household.list_items.create!(name: "Arroz", status: :purchased, purchased_at: rhythm.finished_at, shopping_trip: rhythm)
+      end
+
+      visit root_path
+      show_add
+      within("#buy_again") { click_button "Agora não" }
+
+      assert_no_text "costuma acabar"
+      assert_no_selector "#buy_again button[data-buy-again-dismiss]"
+      assert_selector "#buy_again [data-buy-again-suggestion][hidden]", visible: :all
+      assert_selector "#buy_again button", text: "Arroz", visible: :all
+
+      # The device remembers it across a reload (localStorage, never the server).
+      visit root_path
+      show_add
+      assert_no_text "costuma acabar"
+
+      # The other phone never heard of it.
+      using_session(:other) do
+        visit root_path
+        show_add
+        assert_text "costuma acabar a cada ~12 dias"
+      end
+    end
+  end
+
   test "chips update live on another open session" do
     using_session(:other) do
       visit root_path
