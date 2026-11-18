@@ -2,13 +2,17 @@ package net.ts.taild80ca0.atlas.twa.sync
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.select
+import kotlinx.coroutines.withTimeoutOrNull
 import net.ts.taild80ca0.atlas.twa.access.AccessCredential
 import net.ts.taild80ca0.atlas.twa.access.AccessState
 import net.ts.taild80ca0.atlas.twa.access.HouseAccess
@@ -27,16 +31,27 @@ class ForegroundInvalidation(
     private val scope: CoroutineScope,
     private val connector: CableConnector = OkHttpCableConnector(),
     private val pause: suspend (Long) -> Unit = { delay(it) },
+    private val network: NetworkWatcher? = null,
+    private val silenceTimeoutMillis: Long = OkHttpCableConnector.SILENCE_TIMEOUT_MILLIS,
 ) {
     private var job: Job? = null
 
+    /** A network coming back wakes the reconnect wait instead of letting the backoff expire. */
+    private val networkWakes = Channel<Unit>(Channel.CONFLATED)
+
+    /** True while the cycle waits to reconnect: only then does a network back mean the wait can be cut short. */
+    @Volatile private var recovering = false
+
     @Synchronized fun start() {
         if (job?.isActive == true) return
+        recovering = false
         job = scope.launch {
             access.state.collectLatest { state ->
                 if (state == AccessState.Connected) runConnected()
             }
         }
+        // Only while the app is resumed; no background service and no polling.
+        network?.start(::networkAvailable)
     }
 
     /** Local commits also wake the foreground cycle, without waiting for the worker. */
@@ -45,12 +60,25 @@ class ForegroundInvalidation(
     }
 
     @Synchronized fun stop() {
+        network?.stop()
+        recovering = false
         job?.cancel()
         job = null
+        // A wake from the previous foreground period must not skip or shorten the next backoff.
+        while (networkWakes.tryReceive().isSuccess) Unit
+    }
+
+    /**
+     * A network became available: cut the reconnect wait short and read the list again, so whatever changed while
+     * the connection was down does not stay off screen. It never closes a live socket.
+     */
+    private fun networkAvailable() {
+        if (recovering) networkWakes.trySend(Unit)
+        if (job?.isActive == true && access.state.value == AccessState.Connected) sync.requestInvalidation()
     }
 
     private suspend fun runConnected() {
-        var backoff = 1_000L
+        var backoff = INITIAL_BACKOFF
         while (currentCoroutineContext().isActive) {
             val credential = access.credentialForSync() ?: return
             val session = session(credential)
@@ -64,12 +92,25 @@ class ForegroundInvalidation(
                 }
                 CableEnd.PERMANENT -> return
                 CableEnd.RETRY -> {
-                    if (session.subscribed) backoff = 1_000L
-                    pause(backoff)
-                    backoff = (backoff * 2).coerceAtMost(30_000L)
+                    if (session.subscribed) backoff = INITIAL_BACKOFF
+                    // A network that comes back before the timer expires skips the rest of the wait.
+                    recovering = true
+                    backoff = if (pauseUntilNetworkOrTimeout(backoff)) INITIAL_BACKOFF else (backoff * 2).coerceAtMost(MAX_BACKOFF)
+                    recovering = false
                 }
             }
         }
+    }
+
+    /** True when a network became available while waiting, false when the whole [backoff] elapsed. */
+    private suspend fun pauseUntilNetworkOrTimeout(backoff: Long): Boolean = coroutineScope {
+        val paused = async { pause(backoff) }
+        val woke = select {
+            paused.onAwait { false }
+            networkWakes.onReceive { true }
+        }
+        if (woke) paused.cancel()
+        woke
     }
 
     private data class Session(val end: CableEnd, val subscribed: Boolean)
@@ -82,11 +123,17 @@ class ForegroundInvalidation(
         try {
             while (true) {
                 currentCoroutineContext().ensureActive()
-                when (val event = events.receive()) {
+                // ActionCable beats every 3 s once subscribed: a longer silence is a half-open socket,
+                // never a quiet list. Ending the session reconnects instead of waiting for OkHttp's own timeout.
+                val event = if (subscribed) withTimeoutOrNull(silenceTimeoutMillis) { events.receive() } else events.receive()
+                if (event == null) return Session(CableEnd.RETRY, subscribed)
+                when (event) {
                     CableEvent.Subscribed -> {
                         if (!subscribed) sync.requestInvalidation()
                         subscribed = true
                     }
+                    // A ping is the proof of life the watchdog waits for; it carries no list data.
+                    CableEvent.Ping -> Unit
                     is CableEvent.Invalidated -> if (subscribed && (event.household > household || event.dictionary > dictionary)) {
                         household = maxOf(household, event.household)
                         dictionary = maxOf(dictionary, event.dictionary)
@@ -99,5 +146,10 @@ class ForegroundInvalidation(
             events.close()
             socket.close()
         }
+    }
+
+    companion object {
+        const val INITIAL_BACKOFF = 1_000L
+        const val MAX_BACKOFF = 30_000L
     }
 }
