@@ -106,6 +106,7 @@ class PwaThemeParityTest {
         val tones = mapOf(
             "produce" to CategoryTone.Produce, "dairy" to CategoryTone.Dairy, "pantry" to CategoryTone.Pantry, "bakery" to CategoryTone.Bakery,
             "meat" to CategoryTone.Meat, "drinks" to CategoryTone.Drinks, "cleaning" to CategoryTone.Cleaning, "hygiene" to CategoryTone.Hygiene,
+            "frozen" to CategoryTone.Frozen, "pharmacy" to CategoryTone.Pharmacy, "pet" to CategoryTone.Pet,
         )
         assertEquals(tones.keys, hues.keys)
         for ((dark, iconRule, backgroundRule) in listOf(Triple(true, 0, 1), Triple(false, 2, 3))) {

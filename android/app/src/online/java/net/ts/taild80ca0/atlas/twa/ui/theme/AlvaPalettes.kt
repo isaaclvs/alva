@@ -23,24 +23,30 @@ object AlvaPalettes {
     private fun darkTones(surface2: Color, inkSoft: Color) = mapOf(
         CategoryTone.Produce to tone(0x99C49E, 0.12f),
         CategoryTone.Dairy to tone(0x8FBEE0, 0.12f),
+        CategoryTone.Frozen to tone(0x9EB9E5, 0.12f),
         CategoryTone.Pantry to tone(0xD2B285, 0.12f),
         CategoryTone.Bakery to tone(0xD2B285, 0.12f),
         CategoryTone.Meat to tone(0xE1A6A9, 0.12f),
         CategoryTone.Drinks to tone(0x80C5CD, 0.12f),
         CategoryTone.Cleaning to tone(0xB2B2E3, 0.12f),
         CategoryTone.Hygiene to tone(0xD7A6C6, 0.12f),
+        CategoryTone.Pharmacy to tone(0x8AC6B1, 0.12f),
+        CategoryTone.Pet to tone(0xC1B985, 0.12f),
         CategoryTone.Other to ToneColors(inkSoft, surface2),
     )
 
     private fun lightTones(surface2: Color, inkSoft: Color) = mapOf(
         CategoryTone.Produce to tone(0x3C6341, 0.10f, 0x729B77),
         CategoryTone.Dairy to tone(0x305D7B, 0.10f, 0x6795B6),
+        CategoryTone.Frozen to tone(0x41587F, 0.10f, 0x7690BA),
         CategoryTone.Pantry to tone(0x6F5228, 0.10f, 0xA9895E),
         CategoryTone.Bakery to tone(0x6F5228, 0.10f, 0xA9895E),
         CategoryTone.Meat to tone(0x7A474B, 0.10f, 0xB67E81),
         CategoryTone.Drinks to tone(0x19636B, 0.10f, 0x589CA3),
         CategoryTone.Cleaning to tone(0x54527E, 0.10f, 0x8A8AB9),
         CategoryTone.Hygiene to tone(0x724864, 0.10f, 0xAD7F9D),
+        CategoryTone.Pharmacy to tone(0x286552, 0.10f, 0x629D89),
+        CategoryTone.Pet to tone(0x615927, 0.10f, 0x99915E),
         CategoryTone.Other to ToneColors(inkSoft, surface2),
     )
 
