@@ -309,6 +309,8 @@ fun rememberAddScreenState(repository: OnlineRepository, showToast: (ToastMessag
  *
  * [buyAgain] and [habituals] are the places of "Comprar de novo" and "Habituais" (#107, #105): empty until
  * those land, where the PWA puts them (between the title and the field, and under the feedback line).
+ * A due "Comprar de novo" suggestion is labelled with its cadence and can be hidden on this device for a few
+ * days by "Agora não" (#163), through [buyAgainDismissed] and [onDismissBuyAgain].
  */
 @Composable
 fun AddScreen(
@@ -317,6 +319,8 @@ fun AddScreen(
     modifier: Modifier = Modifier,
     buyAgain: (@Composable () -> Unit)? = null,
     habituals: (@Composable () -> Unit)? = null,
+    buyAgainDismissed: Map<String, Long> = emptyMap(),
+    onDismissBuyAgain: (String) -> Unit = {},
 ) {
     val items = remember(snapshot) { snapshot.liveItems() }
     val known = remember(snapshot) { snapshot.suggestionNames() }
@@ -326,7 +330,10 @@ fun AddScreen(
     val colors = AlvaTheme.colors
     val type = AlvaTheme.type
     val recommendations: (@Composable () -> Unit)? = buyAgain ?: if (snapshot.buyAgain.isEmpty()) null else {
-        { BuyAgainShortcuts(snapshot.buyAgain, enabled = !state.saving, onAdd = state::addSuggestion) }
+        {
+            BuyAgainShortcuts(snapshot.buyAgain, enabled = !state.saving, onAdd = state::addSuggestion,
+                dismissed = buyAgainDismissed, onDismiss = onDismissBuyAgain)
+        }
     }
 
     state.feedback?.let { current ->

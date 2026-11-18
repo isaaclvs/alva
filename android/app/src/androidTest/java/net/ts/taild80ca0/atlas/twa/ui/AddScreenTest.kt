@@ -117,6 +117,41 @@ class AddScreenTest {
     private fun recommendation(name: String) = JSONObject().put("name", name)
         .put("category_public_id", SnapshotFixtures.DAIRY).put("trips", 2).put("last_purchased_at", SnapshotFixtures.EARLY)
 
+    /** A due suggestion (#163): the server already computed the cadence and the flag. */
+    private fun dueRecommendation(name: String, cadenceDays: Int) = recommendation(name)
+        .put("trips", 4).put("cadence_days", cadenceDays).put("due", true)
+
+    @Test fun aDueSuggestionSaysHowOftenItRunsOutAndCanBePutOffOnThisDeviceOnly() {
+        house.buyAgain = listOf(dueRecommendation("Arroz", 12), recommendation("Café"))
+        launch()
+        compose.onNodeWithTag("buy-again-due-Arroz").assertExists()
+        compose.onNodeWithText("costuma acabar a cada ~12 dias").assertExists()
+        compose.onNodeWithTag("buy-again-dismiss-Arroz").assertHeightIsAtLeast(48.dp)
+
+        compose.onNodeWithTag("buy-again-dismiss-Arroz").performScrollTo()
+            .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
+
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("buy-again-Arroz").fetchSemanticsNodes().isEmpty() }
+        compose.onNodeWithTag("buy-again-Café").assertExists()
+        // The other suggestion never had a label, and nothing was sent to the server.
+        compose.onNodeWithTag("buy-again-due-Café").assertDoesNotExist()
+        assertTrue(house.sent.isEmpty())
+
+        // "Agora não" is this device's own memory: it survives a restart of the app.
+        scenario!!.recreate()
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("buy-again-Arroz").assertDoesNotExist()
+        compose.onNodeWithTag("buy-again-Café").assertExists()
+    }
+
+    @Test fun aSuggestionWithoutACadenceKeepsTheOldChipWithoutALabel() {
+        house.buyAgain = listOf(recommendation("Leite"))
+        launch()
+        compose.onNodeWithTag("buy-again-Leite").assertExists()
+        compose.onNodeWithTag("buy-again-due-Leite").assertDoesNotExist()
+        compose.onNodeWithTag("buy-again-dismiss-Leite").assertDoesNotExist()
+    }
+
     @Test fun buyAgainShowsAtMostFiveShortcutsAndAddsWithoutErasingTheDraft() {
         house.buyAgain = listOf("Leite", "Pão", "Café", "Ovos", "Arroz", "Feijão").map(::recommendation)
         launch()

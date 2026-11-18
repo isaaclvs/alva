@@ -37,7 +37,16 @@ data class SnapshotTrip(val publicId: String, val finishedAtMicros: Long, val cr
 
 data class SnapshotHabitual(val publicId: String, val name: String, val normalizedName: String, val createdAtMicros: Long)
 
-data class SnapshotSuggestion(val name: String, val categoryPublicId: String?, val trips: Long, val lastPurchasedAtMicros: Long)
+data class SnapshotSuggestion(
+    val name: String,
+    val categoryPublicId: String?,
+    val trips: Long,
+    val lastPurchasedAtMicros: Long,
+    /** Median days between purchases; `null` when the archive is too short (#163). */
+    val cadenceDays: Int? = null,
+    /** Today is already past the median interval since the last purchase (#163). */
+    val due: Boolean = false,
+)
 
 data class SnapshotTombstone(val recordType: String, val publicId: String, val revision: Long)
 
@@ -193,14 +202,21 @@ object SnapshotParser {
         }
         unique(tombstones.map { Triple(it.recordType, it.publicId, it.revision) }, "tombstones")
 
-        // Additive in v1: older servers can omit recommendations. The server owns their order and ranking.
+        // Additive in v1: older servers can omit recommendations, and a suggestion without a cadence is
+        // just one the archive is too short for (#163). The server owns their order and ranking.
         val buyAgain = if (!root.has("buy_again")) emptyList() else array(root, "buy_again").map { (i, entry) ->
             val at = "buy_again[$i]"
             val category = if (entry.has("category_public_id") && entry.isNull("category_public_id")) null
                 else id(entry, "category_public_id", "$at.category_public_id").also { if (it !in categoryIds) broken("$at.category_public_id") }
+            val cadence = if (!entry.has("cadence_days") || entry.isNull("cadence_days")) null
+                else smallWhole(entry, "cadence_days", "$at.cadence_days")
+            val due = if (!entry.has("due") || entry.isNull("due")) false else bool(entry, "due", "$at.due")
             SnapshotSuggestion(string(entry, "name", "$at.name"), category,
                 whole(entry, "trips", "$at.trips").also { if (it < 1) shape("$at.trips") },
-                time(entry, "last_purchased_at", "$at.last_purchased_at"))
+                time(entry, "last_purchased_at", "$at.last_purchased_at"),
+                cadenceDays = cadence,
+                due = due,
+            )
         }
 
         return ServerSnapshot(
