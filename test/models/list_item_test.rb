@@ -23,6 +23,39 @@ class ListItemTest < ActiveSupport::TestCase
     assert_includes item.errors[:household], "must exist"
   end
 
+  test "accepts a name at the limit and refuses one character more" do
+    household = households(:home)
+    longest = ListItem.new(name: "x" * ListItem::MAX_NAME_LENGTH, household: household)
+    assert longest.valid?, longest.errors.full_messages.to_sentence
+
+    too_long = ListItem.new(name: "x" * (ListItem::MAX_NAME_LENGTH + 1), household: household)
+    assert_not too_long.valid?
+    assert too_long.errors.of_kind?(:name, :too_long)
+  end
+
+  test "the name limit is the same one HabitualItem applies" do
+    assert_equal HabitualItem::MAX_NAME_LENGTH, ListItem::MAX_NAME_LENGTH
+  end
+
+  test "a row saved before the limit still works and cannot be renamed over it" do
+    household = households(:home)
+    legacy = household.list_items.create!(name: "legado")
+    legacy.update_columns(name: "x" * (ListItem::MAX_NAME_LENGTH + 1), normalized_name: "x" * 150)
+
+    legacy.reload
+    assert legacy.valid?, legacy.errors.full_messages.to_sentence
+
+    # Renaming it is a new name, so the limit applies and nothing is written.
+    assert_not legacy.correct(name: "y" * (ListItem::MAX_NAME_LENGTH + 1), category_id: nil)
+    assert legacy.errors.of_kind?(:name, :too_long)
+
+    # Marking and archiving an old row must keep working.
+    legacy.toggle_purchased!
+    assert legacy.reload.purchased?
+    assert household.finish_shopping!
+    assert legacy.reload.shopping_trip.present?
+  end
+
   test "defaults to pending" do
     item = ListItem.create!(name: "Arroz", household: households(:home))
     assert item.pending?

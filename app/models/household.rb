@@ -122,10 +122,14 @@ class Household < ApplicationRecord
 
   # Names already split: the habits panel sends its list straight in, without
   # the 30-name limit of the text field. Still one shared change for the batch.
+  # Each name goes through the same cleaning as the add field cuts at
+  # (ItemNameSplitter.clean): stripped and cut at ListItem's limit, so a name
+  # coming from history or from an outside caller lands exactly as the same name
+  # typed would, like the Android planner. A blank one stays an invalid attempt.
   def add_item_names(names)
     batch_list_broadcasts do
       with_list_lock do
-        results = names.map { |name| add_one_item(name) }
+        results = names.map { |name| add_one_item(ItemNameSplitter.clean(name) || "") }
         record_shared_change! if results.any? { |result| result.outcome.in?(%i[created revived]) }
         results
       end

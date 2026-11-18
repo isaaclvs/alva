@@ -3,6 +3,11 @@ class ListItem < ApplicationRecord
 
   class StaleAction < StandardError; end
 
+  # A name is what fits on a row and in the PDF; 100 is also HabitualItem's
+  # limit. The add field cuts each name here (ItemNameSplitter) and the sync
+  # command rejects anything longer, so the ledger is never fed huge names.
+  MAX_NAME_LENGTH = 100
+
   belongs_to :household
   belongs_to :category, optional: true
   belongs_to :shopping_trip, optional: true
@@ -22,6 +27,10 @@ class ListItem < ApplicationRecord
   scope :archived, -> { where.not(shopping_trip_id: nil) }
 
   validates :name, presence: true
+  # Only a name that arrives now (a new row, or a rename) has to respect the
+  # limit: an item saved before it existed still has to be marked, corrected in
+  # category and archived like any other, instead of failing every write.
+  validates :name, length: { maximum: MAX_NAME_LENGTH }, if: :will_save_change_to_name?
   validate :not_already_pending, on: :create
   validate :not_renamed_to_a_pending_item, on: :update, if: :will_save_change_to_name?
 

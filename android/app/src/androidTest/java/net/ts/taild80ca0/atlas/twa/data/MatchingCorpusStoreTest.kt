@@ -90,7 +90,7 @@ class MatchingCorpusStoreTest {
     @Test
     fun everyAddExampleHasTheSameOutcomesAndFinalListAsRails() = runBlocking {
         val cases = corpus.getJSONArray("add").objects()
-        assertEquals(13, cases.size)
+        assertEquals(15, cases.size)
         for (case in cases) {
             val title = case.getString("title")
             val db = AlvaDatabaseFactory.create(InstrumentationRegistry.getInstrumentation().targetContext, null)
