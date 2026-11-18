@@ -1014,6 +1014,47 @@ dos habituais, do dicionário e dos tombstones que vêm junto. Coberto por
 depois de cada tabela enquanto outra conexão confirma mudanças em todas elas, e o
 documento tem de sair idêntico ao anterior.
 
+### Histórico de compras (`GET /api/v1/history`, issue #159)
+
+Endpoint aditivo para o app nativo online (#92): a tela "Compras" da PWA em
+JSON, somente leitura, uma página por mês. O serviço é o mesmo da PWA
+(`ShoppingHistory`), então ordem e conteúdo são os da tela.
+
+- `GET /api/v1/history` com `Authorization: Bearer <segredo>` de credencial
+  `sync`. A casa vem só da credencial. `?month=YYYY-MM` escolhe a página; sem o
+  parâmetro, ou com um mês sem viagem, vem o mês mais recente com histórico.
+  Só `GET` e sem sufixo de formato (`/history.json` e `POST` são 404).
+- Resposta `200`, `application/json`, `Cache-Control: no-store`, sem gravar
+  nada: a revisão da casa não se move.
+
+```json
+{
+  "month": "2026-11",
+  "months": [ { "key": "2026-11", "trip_count": 2 }, { "key": "2026-10", "trip_count": 1 } ],
+  "older_month": "2026-10",
+  "newer_month": null,
+  "trips": [
+    { "public_id": "…", "finished_at": "2026-11-12T21:30:00.000000Z", "items_count": 2,
+      "items": [ { "public_id": "…", "name": "Banana", "category_public_id": "…" } ] }
+  ]
+}
+```
+
+- `month` é o mês da página; `months` são todos os meses com viagem, mais
+  recentes primeiro, com a contagem de viagens; `older_month`/`newer_month` são
+  as páginas vizinhas (`null` quando não há). Sem histórico, tudo vazio e
+  `month` `null`.
+- O mês de uma viagem é o do `finished_at` no relógio da casa
+  (America/Sao_Paulo), não em UTC.
+- `trips` vêm mais recentes primeiro. `items` já vêm na ordem de exibição
+  (posição da categoria, depois nome sem acento/caixa); `category_public_id` é
+  `null` para item sem categoria. Datas em UTC ISO 8601 com microssegundos.
+- Repetir uma compra **não** tem comando novo: o cliente manda os nomes em
+  `add_items`, em lotes de até 30 (`ItemNameSplitter::MAX_NAMES`). Um APK antigo
+  continua funcionando, e o servidor resolve duplicados e compras que voltam.
+- Erros iguais aos do snapshot: `401 {"error":"unauthorized"}` e
+  `403 {"error":"forbidden_scope"}`.
+
 ### PDF da lista (`GET /api/v1/list.pdf`, issue #108)
 
 Endpoint aditivo para o app nativo online (#92): o mesmo PDF de `/lista.pdf` da

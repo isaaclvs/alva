@@ -47,6 +47,7 @@ documentos abaixo continuam válidos para quando ele voltar.
 - Acesso à casa no Android (senha uma vez, Keystore, backup, reconexão): `docs/plans/android-house-access.md`
 - Envio de comandos no Android (uma tentativa, recibos, teste contra Rails real): `docs/plans/android-command-transport.md`
 - Ciclo de sincronização no Android (snapshot, fila ordenada, abrir/retomar, dois aparelhos, limites): `docs/plans/android-sync-cycle.md`
+- Histórico de compras (leitura por mês, "Adicionar tudo de novo", API e tela nativa): `docs/plans/shopping-history.md`
 
 Fluxo de entrega da migração: branch curta criada da `main` atualizada e PR
 sempre para `main`, sem `staging`/`develop`/branch longa de migração; commits
@@ -350,10 +351,28 @@ Para a PWA/APK conectado em uso hoje:
 - Quantidade por item
 - Categorização com IA/fuzzy matching avançado
 - Criar, renomear ou reordenar categorias via UI
-- Tela de histórico de compras, notificações, integração com receitas
+- Notificações e integração com receitas
 - Publicação na Play Store
 
 Estas restrições descrevem o produto anterior. App Android nativo e modo offline
 deixaram de ser fora de escopo: a migração foi autorizada (ADR 0001) e é
 acompanhada pela issue #33, mantendo a PWA/APK atuais funcionando e sem novas
 features fora da paridade.
+
+O **histórico de compras** saiu de fora de escopo por decisão do dono em
+18/11/2026 (issue #159): a tela "Compras" (menu ⋯, somente leitura, paginada por
+mês) lista o que cada "Compra feita" arquivou e oferece "Adicionar tudo de novo"
+reaproveitando `Household#add_items`; `GET /api/v1/history` entrega o mesmo
+conteúdo ao app nativo, e repetir a compra usa o comando `add_items` que já
+existia. Continuam fora de escopo editar o histórico e gerar gráficos a partir
+dele. Detalhes em `docs/plans/shopping-history.md`.
+
+**Histórico de compras:** `ShoppingHistory` lê as `ShoppingTrip` da casa, uma
+página por mês do relógio da casa (`finished_at` em America/Sao_Paulo, não UTC),
+mais recentes primeiro, e agrupa os itens de cada viagem por categoria como a
+lista viva. `GET /compras` (menu ⋯ mostra "Compras") renderiza a tela e
+`POST /compras/:id/adicionar` ("Adicionar tudo de novo") passa os nomes da
+viagem por `Household#add_item_names`, com o mesmo resumo de adicionar no
+`#history_feedback` do aparelho que agiu. Nada no histórico é editável. O app
+nativo lê `GET /api/v1/history` (credencial `sync`, formato aditivo em v1) e
+repete a compra pelo comando `add_items`, em lotes de 30 nomes.

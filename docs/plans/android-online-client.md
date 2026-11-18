@@ -143,6 +143,27 @@ seleções sobreviventes durante releituras e navegação. O saver conserva esse
 campos na recriação da Activity. Mensagens vêm somente do resultado local da
 ação; adicionar habituais não preenche “Acabou de adicionar”.
 
+## Histórico de compras (#159)
+
+`HistoryScreen` (menu ⋯ → "Compras") é somente leitura: mostra o que cada "Compra
+feita" arquivou, uma página por mês, mais recentes primeiro.
+
+- **Leitura.** `HistoryTransport`/`HttpHistoryTransport` buscam
+  `GET /api/v1/history?month=YYYY-MM` com a credencial `sync`; `HistoryParser` é
+  estrito (corpo que não é o documento é rejeitado inteiro; campos extras são
+  ignorados). `OnlineRepository.history(month)` é separado de `state`: histórico
+  que falha nunca tira a lista da tela, e um mês sem viagem cai no mais recente.
+- **Repetir a compra.** `OnlineRepository.readdHistory(trip)` usa o comando
+  `add_items` que já existia, em lotes de 30 nomes — nenhum comando novo, então o
+  APK 2.0.4 continua funcionando. `HistoryReadd.Done` traz os resultados por
+  nome; `HistoryReadd.Failed` para no primeiro lote que não passou e mantém os
+  nomes que já entraram.
+- **Tela.** `HistoryScreenState` guarda a página, o mês, o erro e a viagem em
+  andamento; `forget()` faz a próxima abertura reler o mês mais recente. As datas
+  usam o relógio do aparelho (`HistoryDate`), o mesmo da casa. O resumo do
+  "Adicionar tudo de novo" (`OnlineMessages.added`) cai na linha de feedback do
+  Adicionar (`AddScreenState.notice`), igual ao de um add pelo campo.
+
 ## Como estender (#97–#109)
 
 1. Crie uma classe que implemente `OnlineAction` (em `OnlineActions.kt` ou num

@@ -61,6 +61,7 @@ Tela Compose ──ação──▶ OnlineRepository ──POST /commands──�
 | Compra feita + desfazer compra | — | comandos `finish_shopping`, `undo_shopping` (#51) | 2 (#103) |
 | Habituais (criar, remover, adicionar selecionados/todos) | snapshot traz a coleção | comandos de habituais (#104) | 3 (#105) |
 | Comprar de novo (até 5 atalhos) | `BuyAgainSuggestions` (HTML) | campo aditivo no snapshot (#106) | 3 (#107) |
+| Histórico de compras ("Compras", somente leitura, por mês, "Adicionar tudo de novo") | `ShoppingHistory`, `GET /compras`, `POST /compras/:id/adicionar` | — | 3 (#159) |
 | Exportar PDF | `/lista.pdf` com cookie | PDF com token na API v1 (#108) | 3 (#109) |
 | Menu ⋯ (tema, cor, PDF, sair) e tela aberta lembrada | cookies | — (DataStore no aparelho) | 3 (#109) |
 | Widget "Adicionar" e painel rápido | `/api/quick_add` | — | 4 (#110) |
@@ -111,5 +112,11 @@ para conferir; só a fase 4 substitui o app de uso.
 
 ## Fora de escopo agora
 
-Offline, fila local, resolução de conflitos, histórico além do que a PWA
-mostra, monetização, contas públicas, iOS.
+Offline, fila local, resolução de conflitos, edição do histórico (ele é somente
+leitura) e gráficos a partir dele, monetização, contas públicas, iOS.
+
+O **histórico de compras** deixou de ser fora de escopo (decisão do dono em
+18/11/2026, #159): a PWA ganhou a tela "Compras" (`GET /compras`, menu ⋯) e o
+app nativo lê o mesmo conteúdo por `GET /api/v1/history`, paginado por mês.
+Repetir uma compra usa o comando `add_items` existente — não há comando novo,
+então nenhum cliente antigo (APK 2.0.4) precisa mudar.
