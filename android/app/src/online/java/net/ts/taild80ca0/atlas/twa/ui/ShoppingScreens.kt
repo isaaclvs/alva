@@ -8,8 +8,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.platform.LocalFocusManager
@@ -56,9 +54,11 @@ fun ShoppingScreens(
     val state by repository.state.collectAsState()
     val editState = rememberEditItemState()
     var screen by rememberSaveable { mutableStateOf(preferences.screen) }
-    var feedback by remember { mutableStateOf<String?>(null) }
+    // The host's own failure line (#146): dismissible, in a card, and never older than the action that caused it.
+    val feedback = rememberFeedbackState()
     var toast by remember { mutableStateOf<ToastMessage?>(null) }
-    val addState = rememberAddScreenState(repository) { toast = it }
+    // The add screen's own toast (the undo of a removal from "Acabou de adicionar") is the host's undo toast too.
+    val addState = rememberAddScreenState(repository, showToast = { toast = it }, onActionStart = feedback::dismiss)
     val scope = rememberCoroutineScope()
     val keyboard = LocalSoftwareKeyboardController.current
     val context = LocalContext.current
@@ -76,7 +76,9 @@ fun ShoppingScreens(
     // Hosted here, with this scope and this state, so a mark, removal or correction sent from the Lista tab goes on
     // (and keeps its "sending" hint and its undo) when the person switches to Adicionar before the server answers.
     val listActions = rememberListActions(repository, editState,
-        showToast = { toast = it }, onFailure = { feedback = it },
+        // A success is the clearest sign the failure is over: the toast only comes from an answer that was taken.
+        showToast = { toast = it; feedback.dismiss() },
+        onFailure = { feedback.show(it) }, onActionStart = feedback::dismiss,
         onMarked = { if (shoppingMode) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove) },
         shoppingMode = { shoppingMode })
     DisposableEffect(shoppingMode, view) {
@@ -126,11 +128,14 @@ fun ShoppingScreens(
     var menuWorking by remember { mutableStateOf(false) }
     fun menuAction(action: suspend () -> String?) {
         if (menuWorking) return
+        feedback.dismiss()
         menuWorking = true
         scope.launch {
-            try { feedback = action() }
-            catch (_: IOException) { feedback = "Não foi possível salvar a preferência. Tente de novo." }
-            finally { menuWorking = false }
+            try {
+                action()?.let { problem -> feedback.show(problem) { menuAction(action) } }
+            } catch (_: IOException) {
+                feedback.show("Não foi possível salvar a preferência. Tente de novo.") { menuAction(action) }
+            } finally { menuWorking = false }
         }
     }
     val menu: @Composable () -> Unit = {
@@ -140,18 +145,21 @@ fun ShoppingScreens(
             exportPdf = exportPdf?.let { { menuAction(it) } },
             signOut = signOut?.let { { menuAction(it) } }, actions = accessActions)
     }
-    // The connection and feedback lines that sit under the header of either screen.
+    // The notices under the header of either screen, from the least to the most specific: the list may be out of
+    // date (warn), a command is still on its way, and the last action failed (danger, dismissible).
     val notices: @Composable (Dp) -> Unit = { gutter ->
-        // The latest reload failed but a list is on screen: say it may be out of date, and offer to read again.
-        ready?.problem?.let { problem ->
-            Row(Modifier.fillMaxWidth().padding(horizontal = gutter, vertical = 4.dp)) {
-                Text(problem.message, style = AlvaTheme.type.caption, color = AlvaTheme.colors.warn, modifier = Modifier.weight(1f)
-                    .testTag("connection-notice").semantics { liveRegion = LiveRegionMode.Polite })
-                TextButton(onClick = { scope.launch { repository.refresh() } }, modifier = Modifier.testTag("reload")) { Text("Atualizar") }
+        val problem = ready?.problem
+        val failure = feedback.current
+        if (problem != null || failure != null) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = gutter, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (problem != null) NoticeCard(problem.message, NoticeTone.Warn, "connection-notice") {
+                    NoticeAction("Atualizar", AlvaTheme.colors.inkSoft, Modifier.testTag("reload")) {
+                        scope.launch { repository.refresh() }
+                    }
+                }
+                if (failure != null) FeedbackBanner(failure, onDismiss = { feedback.dismiss(failure) })
             }
-        }
-        feedback?.let {
-            Text(it, maxLines = 3, modifier = Modifier.padding(horizontal = gutter).testTag("feedback").semantics { liveRegion = LiveRegionMode.Polite })
         }
     }
     Box(modifier.fillMaxSize()) {
@@ -163,7 +171,10 @@ fun ShoppingScreens(
                     current = if (screen == "list") AppScreen.List else AppScreen.Add, pending = pending,
                     onSelect = { selected ->
                         screen = selected.tag
-                        scope.launch { try { saveScreen(selected.tag) } catch (_: IOException) { feedback = "Não foi possível lembrar a tela. Tente de novo." } }
+                        scope.launch {
+                            try { saveScreen(selected.tag) }
+                            catch (_: IOException) { feedback.show("Não foi possível lembrar a tela. Tente de novo.") }
+                        }
                     },
                 )
             },
@@ -186,8 +197,8 @@ fun ShoppingScreens(
                     shownScreen == "list" -> ListScreen(
                         repository = repository, snapshot = ready.snapshot, editState = editState, filterState = listFilters,
                         onAddItems = { if (!shoppingMode) screen = "add" },
-                        onFailure = { feedback = it },
-                        showToast = { toast = it },
+                        onFailure = { feedback.show(it) },
+                        showToast = { toast = it; feedback.dismiss() },
                         notice = { notices(20.dp) },
                         headerActions = { menu() },
                         shoppingMode = shoppingMode,

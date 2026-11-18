@@ -234,7 +234,7 @@ class ShoppingScreensTest {
         press("start-shopping")
         house.commandSteps += Step.ServerError
         press("item-${item.id}")
-        waitForText("feedback", "O servidor não está disponível agora")
+        waitForText("feedback-message", "O servidor não está disponível agora")
         assertEquals(0, ticks.get())
         press("item-${item.id}")
         waitForText("toast-message", "Leite marcado")
@@ -284,7 +284,7 @@ class ShoppingScreensTest {
         openList()
         house.commandSteps += Step.Refuse(409, "precondition_failed")
         finishPurchase()
-        waitForText("feedback", "A lista mudou em outro aparelho")
+        waitForText("feedback-message", "A lista mudou em outro aparelho")
         assertEquals(2, house.rows.size)
         assertTrue(house.trips.isEmpty())
         compose.onNodeWithTag("toast-undo").assertDoesNotExist()
@@ -530,7 +530,7 @@ class ShoppingScreensTest {
         waitForText("list-summary", "1 pendente")
         house.commandSteps += listOf(Step.NetworkDown, Step.NetworkDown, Step.NetworkDown)
         compose.onNodeWithTag("item-${leite.id}").performClick()
-        waitForText("feedback", "Sem conexão com o servidor")
+        waitForText("feedback-message", "Sem conexão com o servidor")
         compose.onNodeWithTag("toast-undo").assertDoesNotExist()
         assertMarked(leite.id, false)
         assertEquals("pending", leite.status)
@@ -981,7 +981,7 @@ class ShoppingScreensTest {
         assertSending(leite.id, true)
 
         held.letGo()
-        waitForText("feedback", "Sem conexão com o servidor")
+        waitForText("feedback-message", "Sem conexão com o servidor")
         assertMarked(leite.id, false)
         assertSending(leite.id, false)
         compose.onNodeWithTag("toast-message").assertDoesNotExist()
@@ -1009,7 +1009,7 @@ class ShoppingScreensTest {
     @Test fun whenAnotherPhoneEditedTheItemFirstTheServerRefusesAndTheRowGoesBackToWhatItWas() {
         val leite = house.seed("Leite")
         markWhileHeld(leite, otherPhone = { leite.lock++ }, afterAnswer = {
-            waitForText("feedback", "A lista mudou em outro aparelho")
+            waitForText("feedback-message", "A lista mudou em outro aparelho")
             assertMarked(leite.id, false) // what was shown as sending was never true on the server
             compose.onNodeWithTag("toast-message").assertDoesNotExist()
             assertEquals("pending", leite.status)
@@ -1022,7 +1022,7 @@ class ShoppingScreensTest {
             waitForText("list-summary", "1 comprado")
             assertMarked(leite.id, true) // the server said "already purchased" (noop): the list is the server's
             compose.onNodeWithTag("toast-message").assertDoesNotExist()
-            compose.onNodeWithTag("feedback").assertDoesNotExist()
+            compose.onNodeWithTag("feedback-message").assertDoesNotExist()
         })
     }
 
@@ -1104,13 +1104,13 @@ class ShoppingScreensTest {
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
 
         held.letGo()
-        waitForText("feedback", "Sem conexão com o servidor")
+        waitForText("feedback-message", "Sem conexão com o servidor")
         press("nav-list")
         assertMarked(leite.id, false)
         assertSending(leite.id, false)
         compose.onNodeWithTag("item-${leite.id}").assertIsEnabled()
         compose.onNodeWithTag("toast-message").assertDoesNotExist()
-        compose.onAllNodesWithTag("feedback").assertCountEquals(1)
+        compose.onAllNodesWithTag("feedback-message").assertCountEquals(1)
         assertEquals("pending", leite.status)
     }
 
@@ -1229,8 +1229,42 @@ class ShoppingScreensTest {
 
         compose.onNodeWithTag("toast-undo").performClick()
 
-        waitForText("feedback", "A lista mudou em outro aparelho")
+        waitForText("feedback-message", "A lista mudou em outro aparelho")
         assertEquals("the other phone's state stands", "purchased", leite.status)
+    }
+
+    // ---- Failure feedback (#146) ---------------------------------------------------------------------------
+
+    @Test fun aFailureIsACardThatCanBeClosedAndTheNextActionClearsItToo() {
+        val leite = house.seed("Leite")
+        openList()
+        house.commandSteps += Step.ServerError
+        compose.onNodeWithTag("item-${leite.id}").performClick()
+        waitForText("feedback-message", "O servidor não está disponível agora")
+        // The failure sits in a card with a tone of its own and an explicit way out, not as bare text.
+        compose.onNodeWithTag("feedback-banner").assertExists()
+        compose.onNodeWithTag("feedback-close").assertHeightIsAtLeast(androidx.compose.ui.unit.Dp(48f))
+
+        compose.onNodeWithTag("feedback-close").performClick()
+        compose.onNodeWithTag("feedback-message").assertDoesNotExist()
+
+        // A failure nobody closed is dropped by the next action, so an old one cannot outlive the situation.
+        house.commandSteps += Step.ServerError
+        compose.onNodeWithTag("item-${leite.id}").performClick()
+        waitForText("feedback-message", "O servidor não está disponível agora")
+        compose.onNodeWithTag("item-${leite.id}").performClick()
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("feedback-message").fetchSemanticsNodes().isEmpty() }
+        waitForText("toast-message", "Leite marcado")
+    }
+
+    @Test fun aFailureGoesAwayByItselfAfterTheFeedbackWindow() {
+        val leite = house.seed("Leite")
+        openList()
+        house.commandSteps += Step.ServerError
+        compose.onNodeWithTag("item-${leite.id}").performClick()
+        waitForText("feedback-message", "O servidor não está disponível agora")
+        compose.waitUntil(FEEDBACK_MILLIS + 4_000) { compose.onAllNodesWithTag("feedback-message").fetchSemanticsNodes().isEmpty() }
+        assertEquals("pending", leite.status)
     }
 
     @Test fun theBottomNavigationHasPlusAndListPillsAndSwitchesScreens() {

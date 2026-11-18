@@ -126,6 +126,8 @@ class AddScreenState internal constructor(
     private val repository: OnlineRepository,
     private val scope: CoroutineScope,
     private val showToast: (ToastMessage) -> Unit = {},
+    /** Told when an add, a shortcut or a picker starts, so the host can drop a failure of the action before it. */
+    private val onActionStart: () -> Unit = {},
 ) {
     var draft by mutableStateOf(initialDraft)
 
@@ -156,6 +158,7 @@ class AddScreenState internal constructor(
 
     private fun send(action: OnlineAction, submitted: String?) {
         if (saving) return
+        onActionStart()
         saving = true
         scope.launch {
             try {
@@ -182,6 +185,7 @@ class AddScreenState internal constructor(
     /** The picker under "Acabou de adicionar": the category chosen by hand, which also teaches the dictionary. */
     fun correct(itemPublicId: String, category: Category) {
         if (itemPublicId in correcting) return
+        onActionStart()
         correcting += itemPublicId
         scope.launch {
             try {
@@ -261,20 +265,22 @@ class AddScreenState internal constructor(
 }
 
 @Composable
-fun rememberAddScreenState(repository: OnlineRepository, showToast: (ToastMessage) -> Unit = {}): AddScreenState {
+fun rememberAddScreenState(repository: OnlineRepository, showToast: (ToastMessage) -> Unit = {},
+    onActionStart: () -> Unit = {}): AddScreenState {
     val scope = rememberCoroutineScope()
     val latestToast by rememberUpdatedState(showToast)
+    val latestStart by rememberUpdatedState(onActionStart)
     return rememberSaveable(
         repository,
         saver = listSaver<AddScreenState, String>(
             save = { listOf(it.draft, it.habituals.draft, it.habituals.expanded.toString()) + it.habituals.selected },
-            restore = { saved -> AddScreenState(saved[0], repository, scope, { latestToast(it) }).also {
+            restore = { saved -> AddScreenState(saved[0], repository, scope, { latestToast(it) }) { latestStart() }.also {
                 it.habituals.draft = saved[1]
                 it.habituals.expanded = saved[2].toBoolean()
                 it.habituals.selected.addAll(saved.drop(3))
             } },
         ),
-    ) { AddScreenState("", repository, scope, { latestToast(it) }) }
+    ) { AddScreenState("", repository, scope, { latestToast(it) }) { latestStart() } }
 }
 
 /**
