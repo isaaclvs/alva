@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The dimension tokens of the app, for the XML layer (drawables and layouts of the
+  widget and the quick add panel). The same scale lives in Kotlin in
+  ui/theme/AlvaDimens.kt and in CSS in app/assets/tailwind/application.css;
+  PwaThemeParityTest reads this file and compares it with the Compose tokens, so a
+  value changed on one side alone fails the build. Never write a raw dp in a
+  drawable or layout: name one of these.
+-->
+<resources>
+    <!-- Radius scale, matching the CSS radius tokens. -->
+    <dimen name="alva_radius_xs">8dp</dimen>
+    <dimen name="alva_radius_control">12dp</dimen>
+    <dimen name="alva_radius_card">16dp</dimen>
+    <dimen name="alva_radius_pill">21dp</dimen>
+    <dimen name="alva_radius_capsule">26dp</dimen>
+    <dimen name="alva_radius_sheet">28dp</dimen>
+
+    <!-- Spacing scale, in steps of 4dp, matching the CSS spacing base. -->
+    <dimen name="alva_space_xs">4dp</dimen>
+    <dimen name="alva_space_sm">8dp</dimen>
+    <dimen name="alva_space_md">12dp</dimen>
+    <dimen name="alva_space_lg">16dp</dimen>
+    <dimen name="alva_space_xl">20dp</dimen>
+    <dimen name="alva_space_xxl">24dp</dimen>
+    <dimen name="alva_space_xxxl">32dp</dimen>
+    <dimen name="alva_space_huge">48dp</dimen>
+
+    <!-- Icon sizes, matching the CSS icon sizes. -->
+    <dimen name="alva_icon_inline">16dp</dimen>
+    <dimen name="alva_icon_bar">20dp</dimen>
+    <dimen name="alva_icon_action">24dp</dimen>
+
+    <!-- Sizes that are not spacing steps (the touch target is 48dp on Android;
+         the PWA asks for 44 CSS px). -->
+    <dimen name="alva_size_touch">48dp</dimen>
+    <dimen name="alva_size_check">22dp</dimen>
+    <dimen name="alva_size_check_shopping">28dp</dimen>
+    <dimen name="alva_size_chip">28dp</dimen>
+
+    <!-- The widget elevation, matching the CSS floating shadow (8dp in Compose). -->
+    <dimen name="alva_elevation_float">8dp</dimen>
+</resources>

@@ -4,7 +4,6 @@ import android.graphics.drawable.ColorDrawable
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
@@ -15,22 +14,29 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.unit.dp
 
 internal val LocalAlvaColors = staticCompositionLocalOf { AlvaPalettes.TealDark }
 
-/** Rounded corners the PWA uses: `rounded-xl` (controls), `rounded-2xl` (cards, fields), `rounded-full`. */
-object AlvaShapes {
-    val Control = RoundedCornerShape(12.dp)
-    val Card = RoundedCornerShape(16.dp)
-}
-
-/** Access to the tokens inside [AlvaTheme]: `AlvaTheme.colors.accent`, `AlvaTheme.type.row`. */
+/**
+ * Access to the tokens inside [AlvaTheme]: `AlvaTheme.colors.accent`, `AlvaTheme.type.row`,
+ * `AlvaTheme.space.lg`, `AlvaTheme.radius.card`, `AlvaTheme.icon.bar`. The dimension scales live in
+ * `AlvaDimens.kt` as plain objects, like [AlvaShapes], so screens name a token instead of a length.
+ */
 object AlvaTheme {
     val colors: AlvaColors
         @Composable @ReadOnlyComposable get() = LocalAlvaColors.current
     val type: AlvaTextStyles
         get() = AlvaTypographyTokens
+    val space: AlvaSpacing
+        get() = AlvaSpacing
+    val radius: AlvaRadius
+        get() = AlvaRadius
+    val elevation: AlvaElevation
+        get() = AlvaElevation
+    val icon: AlvaIconSize
+        get() = AlvaIconSize
+    val size: AlvaSize
+        get() = AlvaSize
 }
 
 /**

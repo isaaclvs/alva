@@ -2,6 +2,7 @@ package net.ts.taild80ca0.atlas.twa.ui.theme
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.unit.Dp
 import java.io.File
 import kotlin.math.abs
 import kotlin.math.cos
@@ -37,6 +38,14 @@ class PwaThemeParityTest {
         check(start >= 0) { "rule not found: $selector" }
         val body = css.substring(start + selector.length + 2).substringBefore("}")
         return Regex("""(--color-[\w-]+):\s*([^;]+);""").findAll(body).associate { it.groupValues[1] to it.groupValues[2].trim() }
+    }
+
+    /** Every custom property of the first `@theme` block, whatever its family. */
+    private fun themeTokens(): Map<String, String> {
+        val start = application.indexOf("@theme {")
+        check(start >= 0) { "@theme not found" }
+        val body = application.substring(start + "@theme {".length).substringBefore("\n}")
+        return Regex("""(--[\w-]+):\s*([^;]+);""").findAll(body).associate { it.groupValues[1] to it.groupValues[2].trim() }
     }
 
     /** The cascade of application.css and pink_light.css for one combination. */
@@ -81,6 +90,117 @@ class PwaThemeParityTest {
             "accent", "accent-strong", "accent-ink", "accent-soft", "warn", "danger")
         assertEquals(covered, block(application, "@theme").keys.map { it.removePrefix("--color-") }.toSet())
     }
+
+    // ---- The dimension scales: one source of numbers for the PWA, Compose and the XML layer. ----
+
+    private val tokens by lazy { themeTokens() }
+
+    /** A CSS length in px/rem as a Compose dp (1rem = 16px, the browser's default and the app's base). */
+    private fun cssDp(label: String, value: String): Float {
+        val match = Regex("""([\d.]+)(px|rem)""").matchEntire(value.trim()) ?: error("unsupported length for $label: $value")
+        return match.groupValues[1].toFloat() * if (match.groupValues[2] == "rem") 16f else 1f
+    }
+
+    private fun assertDp(label: String, css: String, actual: Dp) =
+        assertEquals("$label: the CSS says ${cssDp(label, css)}dp but Compose has ${actual.value}dp",
+            cssDp(label, css), actual.value, 0.01f)
+
+    /** `alva_dimens.xml`: the tokens the XML drawables and layouts use, so those never hard-code a length. */
+    private val xmlDimens by lazy {
+        val text = repoFile("android/app/src/main/res/values/alva_dimens.xml").readText()
+        Regex("""<dimen name="([\w]+)">([\d.]+)dp</dimen>""").findAll(text).associate { it.groupValues[1] to it.groupValues[2].toFloat() }
+    }
+
+    private fun assertXmlDimen(name: String, expected: Float) =
+        assertEquals("R.dimen.$name", expected, xmlDimens[name] ?: error("R.dimen.$name is missing from alva_dimens.xml"), 0.01f)
+
+    @Test fun theRadiusScaleIsTheSameOnEverySide() {
+        val radii = listOf(
+            "xs" to AlvaRadius.xs, "control" to AlvaRadius.control, "card" to AlvaRadius.card,
+            "pill" to AlvaRadius.pill, "capsule" to AlvaRadius.capsule, "sheet" to AlvaRadius.sheet,
+        )
+        for ((name, dp) in radii) {
+            assertDp("--radius-$name", tokens.getValue("--radius-$name"), dp)
+            assertXmlDimen("alva_radius_$name", dp.value)
+        }
+        assertEquals(setOf(8f, 12f, 16f, 21f, 26f, 28f), radii.map { it.second.value }.toSet())
+        // The shapes are built from the radii: a shape is `RoundedCornerShape` of its token, not a literal.
+        for ((shape, dp) in listOf(
+            AlvaShapes.Chip to AlvaRadius.xs, AlvaShapes.Control to AlvaRadius.control, AlvaShapes.Card to AlvaRadius.card,
+            AlvaShapes.Pill to AlvaRadius.pill, AlvaShapes.Capsule to AlvaRadius.capsule, AlvaShapes.Sheet to AlvaRadius.sheet,
+        )) assertEquals("shape of $dp", androidx.compose.foundation.shape.RoundedCornerShape(dp), shape)
+        assertEquals(androidx.compose.foundation.shape.CircleShape, AlvaShapes.Full)
+    }
+
+    @Test fun theSpacingScaleIsTheSameOnEverySide() {
+        val steps = listOf(
+            "xs" to AlvaSpacing.xs, "sm" to AlvaSpacing.sm, "md" to AlvaSpacing.md, "lg" to AlvaSpacing.lg,
+            "xl" to AlvaSpacing.xl, "xxl" to AlvaSpacing.xxl, "xxxl" to AlvaSpacing.xxxl, "huge" to AlvaSpacing.huge,
+        )
+        // 4, 8, 12, 16, 20, 24, 32, 48: every step is a multiple of the 4px base the CSS names.
+        assertEquals(listOf(4f, 8f, 12f, 16f, 20f, 24f, 32f, 48f), steps.map { it.second.value })
+        val base = tokens.getValue("--spacing")
+        assertEquals("the base of the scale", 4f, cssDp("--spacing", base), 0.01f)
+        for ((name, dp) in steps) assertXmlDimen("alva_space_$name", dp.value)
+    }
+
+    @Test fun theIconSizesAndStrokesAreTheSameOnEverySide() {
+        assertDp("--size-icon-inline", tokens.getValue("--size-icon-inline"), AlvaIconSize.Inline)
+        assertDp("--size-icon-bar", tokens.getValue("--size-icon-bar"), AlvaIconSize.Bar)
+        assertDp("--size-icon-action", tokens.getValue("--size-icon-action"), AlvaIconSize.Action)
+        assertXmlDimen("alva_icon_inline", AlvaIconSize.Inline.value)
+        assertXmlDimen("alva_icon_bar", AlvaIconSize.Bar.value)
+        assertXmlDimen("alva_icon_action", AlvaIconSize.Action.value)
+        // One stroke for the 20-unit glyphs, read from the CSS the views pass to `stroke-width`.
+        assertEquals(1.75f, tokens.getValue("--stroke-icon").toFloat(), 0.001f)
+        assertEquals(AlvaIconSize.Stroke, tokens.getValue("--stroke-icon").toFloat(), 0.001f)
+    }
+
+    @Test fun theControlSizesAreTheSameOnEverySide() {
+        assertDp("--size-check", tokens.getValue("--size-check"), AlvaSize.Check)
+        assertDp("--size-check-shopping", tokens.getValue("--size-check-shopping"), AlvaSize.CheckShopping)
+        assertDp("--size-chip", tokens.getValue("--size-chip"), AlvaSize.Chip)
+        assertXmlDimen("alva_size_check", AlvaSize.Check.value)
+        assertXmlDimen("alva_size_check_shopping", AlvaSize.CheckShopping.value)
+        assertXmlDimen("alva_size_chip", AlvaSize.Chip.value)
+        // The minimum touch target is the platform's own floor, never below it: 44 CSS px, 48dp.
+        assertEquals(44f, cssDp("--size-touch", tokens.getValue("--size-touch")), 0.01f)
+        assertXmlDimen("alva_size_touch", AlvaSize.TouchMin.value)
+        assertTrue("the Android touch target is at least the PWA's", AlvaSize.TouchMin.value >= 44f)
+        assertTrue("48dp is Material's minimum", AlvaSize.TouchMin.value >= 48f)
+    }
+
+    @Test fun theContentColumnsAreTheSame() {
+        assertDp("--container-content", tokens.getValue("--container-content"), AlvaSize.Content)
+        // The checklist search spans the 960px shell: `--container-search` is 58rem, 928px.
+        assertEquals(928f, cssDp("--container-search", tokens.getValue("--container-search")), 0.01f)
+        assertEquals(AlvaSize.Content - AlvaSpacing.lg * 2, AlvaSize.Toast)
+    }
+
+    @Test fun theFloatingElevationIsOneNumberOnBothSides() {
+        val shadow = tokens.getValue("--shadow-float")
+        // `0 4px 20px rgb(0 0 0 / 0.18)`: one blur and one alpha, the values Compose paints.
+        assertTrue("--shadow-float is a 20px blur with alpha .18: $shadow", shadow.contains("0 4px 20px") && shadow.contains("0.18"))
+        assertEquals(8f, AlvaElevation.Float.value, 0.01f)
+        assertEquals(0.18f, AlvaElevation.FloatAlpha, 0.001f)
+        assertEquals(0f, AlvaElevation.None.value, 0.01f)
+        assertXmlDimen("alva_elevation_float", AlvaElevation.Float.value)
+    }
+
+    @Test fun theTitleAndRowTextTokensMatchTheComposeTypography() {
+        val t = AlvaTypographyTokens
+        assertDp("--text-title", tokens.getValue("--text-title"), Dp(t.pageTitle.fontSize.value))
+        assertEquals("--text-title tracking", tracking(tokens.getValue("--text-title--letter-spacing")), t.pageTitle.letterSpacing.value, 0.0005f)
+        assertEquals("--text-title line height", 1.2f, tokens.getValue("--text-title--line-height").toFloat(), 0.001f)
+        assertDp("--text-row", tokens.getValue("--text-row"), Dp(t.row.fontSize.value))
+        assertEquals("--text-row line height", 1.5f, tokens.getValue("--text-row--line-height").toFloat(), 0.001f)
+        assertEquals("the row keeps the 1.5 line height", t.row.fontSize.value * 1.5f, t.row.lineHeight.value, 0.01f)
+    }
+
+    /** A CSS tracking such as `-0.045em` as the em fraction Compose's `em` uses. */
+    private fun tracking(css: String): Float =
+        css.trim().removeSuffix("em").toFloatOrNull() ?: error("unsupported tracking: $css")
+
 
     @Test fun systemBarsUseThePwaThemeColorOfEachCombination() {
         val helper = repoFile("app/helpers/application_helper.rb").readText()

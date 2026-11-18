@@ -30,6 +30,57 @@
     from { background-color: var(--color-accent-soft); }
     to { background-color: transparent; }
   }
+
+  /* The spacing base: every `p-*`/`gap-*`/`size-*` utility multiplies it, and
+     Compose's `AlvaSpacing` names the same 4dp steps. */
+  --spacing: 0.25rem;
+
+  /* Radii. `rounded-xs`, `rounded-control`, `rounded-card`, `rounded-pill`,
+     `rounded-capsule` and `rounded-sheet` replace the ad-hoc `rounded-lg`,
+     `rounded-xl`, `rounded-2xl` and `.9rem`/`.6rem` values of the views. */
+  --radius-xs: 8px;
+  --radius-control: 12px;
+  --radius-card: 16px;
+  --radius-pill: 21px;
+  --radius-capsule: 26px;
+  --radius-sheet: 28px;
+
+  /* Elevation. Flat elements keep no shadow; the floating ones (navigation
+     capsule, toast) share one blur and one alpha. The Compose side paints the
+     same elevation as `AlvaElevation.Float`. */
+  --shadow-float: 0 4px 20px rgb(0 0 0 / 0.18);
+
+  /* Sizes that are not spacing steps: the minimum touch target, the row check
+     (28px inside the checklist) and the category chip. */
+  --size-touch: 44px;
+  --size-check: 22px;
+  --size-check-shopping: 28px;
+  --size-chip: 28px;
+
+  /* Icon sizes: inline with text, in a bar/menu, and the primary action. Every
+     outline glyph shares one stroke, in its own view box: `--stroke-icon` for a
+     20-unit icon, `--stroke-check` for the small 12–16 unit tick/chevron and
+     `--stroke-action` for the heavy glyph of the add button. */
+  --size-icon-inline: 16px;
+  --size-icon-bar: 20px;
+  --size-icon-action: 24px;
+  --stroke-icon: 1.75;
+  --stroke-check: 2;
+  --stroke-action: 2.5;
+
+  /* The content column of the phone layout and the width of the checklist's
+     floating search, both centered on the canvas. */
+  --container-content: 28rem;
+  --container-search: 58rem;
+
+  /* Titles and rows of the approved prototype: a title slightly smaller than
+     `text-2xl` (1.5rem) and a row slightly smaller than `text-base`, so neither
+     side copies `1.75rem`/`0.95rem` from the other. */
+  --text-title: 1.75rem;
+  --text-title--line-height: 1.2;
+  --text-title--letter-spacing: -0.045em;
+  --text-row: 0.95rem;
+  --text-row--line-height: 1.5;
 }
 
 html {
@@ -94,12 +145,12 @@ html[data-shopping-mode="on"] .app-navigation {
 }
 html[data-shopping-mode="on"] .shopping-toggle {
   min-height: 3.5rem;
-  padding-block: 1rem;
-  padding-right: 1rem;
+  padding-block: calc(var(--spacing) * 4);
+  padding-right: calc(var(--spacing) * 4);
 }
 html[data-shopping-mode="on"] .shopping-check {
-  width: 1.75rem;
-  height: 1.75rem;
+  width: var(--size-check-shopping);
+  height: var(--size-check-shopping);
 }
 /* The fixed search occupies the lower edge in the focused checklist. */
 
@@ -161,44 +212,54 @@ html[data-shopping-mode="on"] #list_search_panel > .relative {
   bottom: calc(env(safe-area-inset-bottom) + 1rem);
   left: 1rem;
   right: 1rem;
-  max-width: 58rem;
+  max-width: var(--container-search);
   margin-inline: auto;
   z-index: 20;
-  box-shadow: 0 4px 20px rgb(0 0 0 / .08);
+  box-shadow: var(--shadow-float);
 }
 .shopping-category > ul { border: 0; background: transparent; border-radius: 0; }
 
 /* The approved app prototype: a quieter frame, flat aisles and a distinct
-   primary input, using the existing device theme and color preferences. */
-.add-screen-content { padding-bottom: .5rem; }
-#add_screen_title { font-size: 1.75rem; font-weight: 600; letter-spacing: -.045em; }
-#add_screen header > .flex { gap: .6rem; }
-#list_screen_title, #shopping_title { font-size: 1.75rem; letter-spacing: -.045em; line-height: 1.2; }
-.list-screen-header { padding: 1.5rem 1.25rem 1rem; }
-.list-brand-row { padding-bottom: .25rem; }
-#list_summary > p { font-size: .8rem; margin-top: .4rem; }
+   primary input, using the existing device theme and color preferences. The
+   title and row sizes are the `--text-title`/`--text-row` tokens, and the radii
+   are the `--radius-*` ones, so the Compose side can read the same numbers. */
+.add-screen-content { padding-bottom: calc(var(--spacing) * 2); }
+#add_screen_title { font-size: var(--text-title); font-weight: 600; letter-spacing: var(--text-title--letter-spacing); }
+#add_screen header > .flex { gap: calc(var(--spacing) * 2); }
+#list_screen_title, #shopping_title {
+  font-size: var(--text-title); letter-spacing: var(--text-title--letter-spacing); line-height: var(--text-title--line-height);
+}
+.list-screen-header { padding: calc(var(--spacing) * 6) calc(var(--spacing) * 5) calc(var(--spacing) * 4); }
+.list-brand-row { padding-bottom: var(--spacing); }
+#list_summary > p { font-size: .8rem; margin-top: calc(var(--spacing) * 2); }
 #list_summary > [role="progressbar"] { display: none; }
-#list_summary > button { margin-top: 1.25rem; border-radius: .9rem; }
-#list_search_panel { border: 0; padding-top: .25rem; gap: .25rem; }
-#list_search_panel input[type="search"] { min-height: 3rem; border-radius: .9rem; padding-left: 2.6rem; }
+#list_summary > button { margin-top: calc(var(--spacing) * 5); border-radius: var(--radius-control); }
+#list_search_panel { border: 0; padding-top: var(--spacing); gap: var(--spacing); }
+#list_search_panel input[type="search"] {
+  min-height: calc(var(--spacing) * 12); border-radius: var(--radius-control); padding-left: calc(var(--spacing) * 10);
+}
+/* The magnifier is drawn here, not an `<svg>`: it keeps the spacing base (12px),
+   which is what its 0.8rem drew before, instead of the 16px inline icon size. */
 #list_search_panel > .relative::before {
   content: ""; pointer-events: none; position: absolute; left: 1rem; top: 50%;
-  width: .8rem; height: .8rem; border: 1.5px solid var(--color-ink-soft);
+  width: calc(var(--spacing) * 3); height: calc(var(--spacing) * 3); border: 1.5px solid var(--color-ink-soft);
   border-radius: 50%; transform: translateY(-65%); z-index: 1;
 }
 #list_search_panel > .relative::after {
   content: ""; pointer-events: none; position: absolute; left: 1.75rem; top: 57%;
-  width: .4rem; height: 1.5px; background: var(--color-ink-soft); transform: rotate(45deg); z-index: 1;
+  width: calc(var(--spacing) * 2); height: 1.5px; background: var(--color-ink-soft); transform: rotate(45deg); z-index: 1;
 }
 .list-filter-options label { font-size: .75rem; }
 .list-filter-options > span { font-size: .65rem; }
-.shopping-categories { padding-inline: 1.25rem; }
-.shopping-category { margin-bottom: 1.6rem; }
-.shopping-category > h2 { letter-spacing: .04em; font-size: .65rem; padding-bottom: .5rem; }
+.shopping-categories { padding-inline: calc(var(--spacing) * 5); }
+.shopping-category { margin-bottom: calc(var(--spacing) * 6); }
+.shopping-category > h2 { letter-spacing: .04em; font-size: .65rem; padding-bottom: calc(var(--spacing) * 2); }
 .shopping-category > h2 > span:last-child { font-size: .65rem; }
-.shopping-toggle { padding-left: .35rem; font-size: .9rem; }
-.shopping-toggle > span:last-child { font-size: .95rem; }
-.shopping-check { border-width: 1.5px; width: 1.4rem; height: 1.4rem; }
+.shopping-toggle { padding-left: var(--spacing); font-size: .9rem; }
+.shopping-toggle > span:last-child { font-size: var(--text-row); line-height: var(--text-row--line-height); }
+.shopping-check {
+  border-width: 1.5px; width: var(--size-check); height: var(--size-check);
+}
 
 /* A tap has to show its result before the server answers, or a slow network
    makes the row look dead and invites a second tap. mutation_controller.js
@@ -231,11 +292,11 @@ li[data-mutation-in-flight],
 li:has(> turbo-frame[busy]),
 li:has(> turbo-frame[aria-busy="true"]) { opacity: .6; }
 .navigation-items > button[aria-current="page"] { color: var(--color-accent-strong); background: var(--color-accent-soft); }
-.navigation-items > button { min-height: 2.8rem; border-radius: .85rem; font-size: .8rem; }
+.navigation-items > button { min-height: calc(var(--spacing) * 11); border-radius: var(--radius-control); font-size: .8rem; }
 html[data-shopping-mode="on"] #list_summary > [role="progressbar"] { display: block; }
-html[data-shopping-mode="on"] .list-brand-row { margin-bottom: 1rem; }
-html[data-shopping-mode="on"] .list-finish { position: static; padding-bottom: 1rem; background: none; }
-html[data-shopping-mode="on"] #list_search_panel > .relative { background: var(--color-surface); border-radius: .9rem; }
+html[data-shopping-mode="on"] .list-brand-row { margin-bottom: calc(var(--spacing) * 4); }
+html[data-shopping-mode="on"] .list-finish { position: static; padding-bottom: calc(var(--spacing) * 4); background: none; }
+html[data-shopping-mode="on"] #list_search_panel > .relative { background: var(--color-surface); border-radius: var(--radius-control); }
 @media (min-width: 1024px) {
   .app-shell { padding-top: 0; padding-bottom: 0; }
   .app-navigation { top: 0; bottom: 0; padding: 2.5rem 1rem; border-right: 1px solid var(--color-line); }
@@ -259,13 +320,14 @@ html[data-shopping-mode="on"] #list_search_panel > .relative { background: var(-
 .list-screen-header { position: relative; flex-shrink: 0; }
 #list_items { flex: 1; min-height: 0; overflow-y: auto; align-content: start; }
 
-/* Muted category cues share a single rounded outline style. */
+/* Muted category cues share a single rounded outline style: the chip is
+   `--size-chip` with the `--radius-xs` corner, its glyph `--size-icon-inline`. */
 .category-icon {
   display: inline-grid; place-items: center; flex-shrink: 0;
-  width: 1.75rem; height: 1.75rem; border-radius: .6rem;
+  width: var(--size-chip); height: var(--size-chip); border-radius: var(--radius-xs);
   color: var(--color-ink-soft); background: var(--color-surface-2);
 }
-.category-icon svg { width: 1.05rem; height: 1.05rem; }
+.category-icon svg { width: var(--size-icon-inline); height: var(--size-icon-inline); }
 .category-icon[data-tone="produce"] { --category-hue: 148; }
 .category-icon[data-tone="dairy"] { --category-hue: 240; }
 .category-icon[data-tone="frozen"] { --category-hue: 260; }
