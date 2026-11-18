@@ -128,14 +128,14 @@ fun HistoryScreen(
     }
 
     Column(modifier.fillMaxSize().testTag("history-screen")) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Box(Modifier.size(48.dp).clickable(interactionSource = remember { MutableInteractionSource() },
+        Column(Modifier.fillMaxWidth().padding(horizontal = AlvaSpacing.xl, vertical = AlvaSpacing.lg)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AlvaSpacing.xs)) {
+                Box(Modifier.size(AlvaSize.TouchMin).clickable(interactionSource = remember { MutableInteractionSource() },
                     indication = null, role = Role.Button, onClick = onBack)
                     .semantics { contentDescription = "Voltar para a lista" }
                     .testTag("history-back"), contentAlignment = Alignment.Center) { BackIcon() }
                 Column(Modifier.weight(1f)) {
-                    Text("Compras", style = AlvaTheme.type.pageTitle.copy(lineHeight = 33.6.sp), color = AlvaTheme.colors.ink,
+                    Text("Compras", style = AlvaTheme.type.pageTitle, color = AlvaTheme.colors.ink,
                         modifier = Modifier.testTag("history-title").semantics { heading() })
                     Text("O que já foi comprado, por mês.", style = AlvaTheme.type.caption, color = AlvaTheme.colors.inkFaint)
                 }
@@ -147,7 +147,7 @@ fun HistoryScreen(
             )
         }
         state.problem?.let { problem ->
-            NoticeCard(problem.message, NoticeTone.Warn, "history-problem", Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) {
+            NoticeCard(problem.message, NoticeTone.Warn, "history-problem", Modifier.padding(horizontal = AlvaSpacing.xl, vertical = AlvaSpacing.xs)) {
                 NoticeAction("Tentar de novo", AlvaTheme.colors.inkSoft, Modifier.testTag("history-reload")) { load(state.month) }
             }
         }
@@ -160,8 +160,9 @@ fun HistoryScreen(
                 Text("Abrindo as compras…", color = AlvaTheme.colors.inkSoft, modifier = Modifier.testTag("history-loading"))
             }
             page.isEmpty -> EmptyHistory(onBack)
-            else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            else -> LazyColumn(Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = AlvaSpacing.xl, end = AlvaSpacing.xl, top = AlvaSpacing.sm, bottom = AlvaSpacing.xxl),
+                verticalArrangement = Arrangement.spacedBy(AlvaSpacing.md)) {
                 items(page.trips, key = { it.publicId }) { trip ->
                     HistoryTripCard(
                         trip = trip, categories = categories, zone = zone,
@@ -186,7 +187,7 @@ fun HistoryScreen(
 /** "Mês anterior" / the month / "Próximo mês": one page at a time, 48dp of touch. */
 @Composable
 private fun MonthNavigation(month: String, older: String?, newer: String?, enabled: Boolean, onSelect: (String) -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(top = AlvaSpacing.md), verticalAlignment = Alignment.CenterVertically) {
         MonthStep("Mês anterior", older, enabled, onSelect, "history-older", Alignment.CenterStart)
         Text(HistoryDate.monthLabel(month), style = AlvaTheme.type.bodySmall.copy(fontWeight = FontWeight.SemiBold),
             color = AlvaTheme.colors.ink, textAlign = TextAlign.Center, modifier = Modifier.weight(1f).testTag("history-month"))
@@ -205,12 +206,12 @@ private fun RowScope.MonthStep(
 ) {
     if (target == null) {
         // No page on that side: the space stays, so the month keeps its place.
-        Spacer(Modifier.widthIn(min = 96.dp))
+        Spacer(Modifier.widthIn(min = AlvaSize.MonthButton))
         return
     }
-    Box(Modifier.heightIn(min = 48.dp).widthIn(min = 96.dp).testTag(tag)
+    Box(Modifier.heightIn(min = AlvaSize.TouchMin).widthIn(min = AlvaSize.MonthButton).testTag(tag)
         .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, enabled = enabled, role = Role.Button) { onSelect(target) }
-        .padding(horizontal = 8.dp), contentAlignment = align) {
+        .padding(horizontal = AlvaSpacing.sm), contentAlignment = align) {
         Text(label, style = AlvaTheme.type.bodySmall.copy(fontWeight = FontWeight.Medium),
             color = if (enabled) AlvaTheme.colors.accentStrong else AlvaTheme.colors.inkFaint)
     }
@@ -234,10 +235,10 @@ private fun HistoryTripCard(
     val groups = remember(trip, categories) { HistoryGroups.of(categories, trip) }
     Column(Modifier.fillMaxWidth().background(colors.surface, AlvaShapes.Card).border(1.dp, colors.line, AlvaShapes.Card)
         .testTag("history-trip-${trip.publicId}")) {
-        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp)
+        Row(Modifier.fillMaxWidth().heightIn(min = AlvaSize.TouchMin)
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, role = Role.Button) { open = !open }
             .pressedSurface(remember { MutableInteractionSource() }, colors.surface2)
-            .padding(start = 16.dp, top = 12.dp, bottom = 12.dp, end = 12.dp)
+            .padding(start = AlvaSpacing.lg, top = AlvaSpacing.md, bottom = AlvaSpacing.md, end = AlvaSpacing.md)
             .semantics { contentDescription = if (open) "Recolher a compra" else "Abrir a compra" }
             .testTag("history-trip-summary-${trip.publicId}"),
             verticalAlignment = Alignment.CenterVertically) {
@@ -252,8 +253,8 @@ private fun HistoryTripCard(
         if (open) {
             Column(Modifier.fillMaxWidth()) {
                 groups.forEach { group ->
-                    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.fillMaxWidth().padding(start = AlvaSpacing.lg, end = AlvaSpacing.lg, top = AlvaSpacing.md),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AlvaSpacing.sm)) {
                         CategoryIcon(group.categoryName)
                         Text(group.label, style = AlvaTheme.type.sectionLabel, color = colors.inkSoft,
                             modifier = Modifier.weight(1f).testTag("history-category-${group.label}"))
@@ -263,10 +264,11 @@ private fun HistoryTripCard(
                         Text(item.name, style = AlvaTheme.type.row, color = colors.ink,
                             modifier = Modifier.fillMaxWidth()
                                 .then(if (index == 0) Modifier else Modifier.rowDivider(colors.line).padding(top = 1.dp))
-                                .padding(horizontal = 16.dp, vertical = 8.dp))
+                                .padding(horizontal = AlvaSpacing.lg, vertical = AlvaSpacing.sm))
                     }
                 }
-                Box(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp)) {
+                Box(Modifier.fillMaxWidth()
+                    .padding(start = AlvaSpacing.lg, end = AlvaSpacing.lg, top = AlvaSpacing.md, bottom = AlvaSpacing.lg)) {
                     ReadAgainButton(enabled = enabled, reading = reading, onClick = onReadd)
                 }
             }
@@ -277,7 +279,7 @@ private fun HistoryTripCard(
 @Composable
 private fun ReadAgainButton(enabled: Boolean, reading: Boolean, onClick: () -> Unit) {
     val colors = AlvaTheme.colors
-    Box(Modifier.fillMaxWidth().heightIn(min = 48.dp)
+    Box(Modifier.fillMaxWidth().heightIn(min = AlvaSize.TouchMin)
         .background(colors.accentSoft, AlvaShapes.Control)
         .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, enabled = enabled && !reading,
             role = Role.Button, onClick = onClick)
@@ -290,16 +292,16 @@ private fun ReadAgainButton(enabled: Boolean, reading: Boolean, onClick: () -> U
 
 @Composable
 private fun EmptyHistory(onBack: () -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 64.dp).testTag("history-empty"),
+    Column(Modifier.fillMaxWidth().padding(horizontal = AlvaSpacing.xl, vertical = AlvaSpacing.huge).testTag("history-empty"),
         horizontalAlignment = Alignment.CenterHorizontally) {
         Text("🧾", fontSize = 36.sp, lineHeight = 40.sp)
         Text("Nenhuma compra registrada ainda.", style = AlvaTheme.type.body, color = AlvaTheme.colors.inkSoft,
-            textAlign = TextAlign.Center, modifier = Modifier.padding(top = 12.dp))
+            textAlign = TextAlign.Center, modifier = Modifier.padding(top = AlvaSpacing.md))
         Text("Ao tocar em Compra feita, o que foi comprado aparece aqui.", style = AlvaTheme.type.bodySmall,
-            color = AlvaTheme.colors.inkFaint, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp))
+            color = AlvaTheme.colors.inkFaint, textAlign = TextAlign.Center, modifier = Modifier.padding(top = AlvaSpacing.xs))
         Text("Voltar para a lista", style = AlvaTheme.type.button.copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline),
             color = AlvaTheme.colors.accentStrong,
-            modifier = Modifier.padding(top = 12.dp).heightIn(min = 48.dp)
+            modifier = Modifier.padding(top = AlvaSpacing.md).heightIn(min = AlvaSize.TouchMin)
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, role = Role.Button, onClick = onBack)
                 .testTag("history-empty-back"))
     }
@@ -308,7 +310,7 @@ private fun EmptyHistory(onBack: () -> Unit) {
 @Composable
 private fun BackIcon() {
     val color = AlvaTheme.colors.inkSoft
-    androidx.compose.foundation.Canvas(Modifier.size(20.dp)) {
+    androidx.compose.foundation.Canvas(Modifier.size(AlvaIconSize.Bar)) {
         val unit = size.width / 20f
         val path = androidx.compose.ui.graphics.Path().apply {
             moveTo(12.5f * unit, 4f * unit); lineTo(6.5f * unit, 10f * unit); lineTo(12.5f * unit, 16f * unit)
@@ -322,7 +324,7 @@ private fun BackIcon() {
 @Composable
 private fun Chevron(open: Boolean) {
     val color = AlvaTheme.colors.inkFaint
-    androidx.compose.foundation.Canvas(Modifier.size(16.dp)) {
+    androidx.compose.foundation.Canvas(Modifier.size(AlvaIconSize.Inline)) {
         val unit = size.width / 16f
         val path = androidx.compose.ui.graphics.Path().apply {
             if (open) { moveTo(4f * unit, 10f * unit); lineTo(8f * unit, 6f * unit); lineTo(12f * unit, 10f * unit) }
