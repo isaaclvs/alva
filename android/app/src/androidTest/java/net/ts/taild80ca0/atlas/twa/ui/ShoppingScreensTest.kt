@@ -109,7 +109,7 @@ class ShoppingScreensTest {
         }
         assertWholeSnapshotCounts()
 
-        compose.onNodeWithTag("pending-only").performClick()
+        press("pending-only")
         compose.onNodeWithTag("pending-only").assertIsOn()
         compose.onNodeWithTag("item-${boughtBread.id}").assertDoesNotExist()
         compose.onNodeWithTag("item-${milk.id}").assertExists()
@@ -141,12 +141,12 @@ class ShoppingScreensTest {
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("item-${bread.id}").fetchSemanticsNodes().isNotEmpty() }
         assertEquals(listOf("set_item_state", "undo_item_state"), commandTypes())
 
-        compose.onNodeWithTag("pending-only").performClick()
+        press("pending-only")
         compose.onNodeWithTag("pending-only").assertIsOff()
         compose.onNodeWithTag("item-${boughtBread.id}").assertExists()
         assertEquals(2, house.sent.size)
 
-        compose.onNodeWithTag("pending-only").performClick()
+        press("pending-only")
         press("exit-shopping")
         compose.onNodeWithTag("nav-add").assertExists()
         press("nav-list")
@@ -717,7 +717,7 @@ class ShoppingScreensTest {
         compose.onNodeWithTag("item-${pending.id}").assertExists()
         compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasTestTag("item-${bought.id}"))
         compose.onNodeWithTag("item-${bought.id}").assertExists()
-        compose.onNodeWithTag("pending-only").performClick()
+        press("pending-only")
         compose.onNodeWithTag("item-${bought.id}").assertDoesNotExist()
         compose.onNodeWithTag("category-count-Laticínios").assertTextEquals("1/2")
         compose.onNodeWithTag("list-summary").assertTextEquals("1 pendente · 1 comprado")
@@ -729,7 +729,7 @@ class ShoppingScreensTest {
     @Test fun noResultsAndClearSearchKeepThePendingChoice() {
         house.seed("Leite")
         openList()
-        compose.onNodeWithTag("pending-only").performClick()
+        press("pending-only")
         compose.onNodeWithTag("list-search").performTextInput("arroz")
         compose.onNodeWithTag("list-search").performImeAction()
         compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasTestTag("filter-empty"))
