@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Launcher shortcut "Lista": the Alva mark of the app (docs/brand/mark.svg), lines in ink and check in accent. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:fillColor="#09090B"
+        android:pathData="M12,0 L36,0 Q48,0 48,12 L48,36 Q48,48 36,48 L12,48 Q0,48 0,36 L0,12 Q0,0 12,0 Z" />
+    <path
+        android:pathData="M9.6,28.3 L17.5,28.3 M28.6,28.3 L40.6,28.3 M15.4,34.6 L34.6,34.6 M20.2,40.4 L29.8,40.4"
+        android:strokeColor="#F4F4F5"
+        android:strokeWidth="3.1"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M16.4,21.2 L23.1,28.3 L35.5,12.5"
+        android:strokeColor="#2DD4BF"
+        android:strokeWidth="4.3"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

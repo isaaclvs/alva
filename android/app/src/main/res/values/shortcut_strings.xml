@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Labels of the launcher shortcuts (res/xml/shortcuts.xml), in the PWA's words. The short label is what the
+         launcher shows under the icon on a long press; the long label is used where there is more room. -->
+    <string name="shortcut_add_short">Adicionar item</string>
+    <string name="shortcut_add_long">Adicionar um item à lista</string>
+    <string name="shortcut_list_short">Lista</string>
+    <string name="shortcut_list_long">Abrir a lista de compras</string>
+    <string name="shortcut_shopping_short">Modo compras</string>
+    <string name="shortcut_shopping_long">Iniciar as compras agora</string>
+</resources>
