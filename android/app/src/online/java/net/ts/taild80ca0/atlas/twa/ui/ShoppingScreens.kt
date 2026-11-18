@@ -129,12 +129,17 @@ fun ShoppingScreens(
     val ready = state as? OnlineState.Ready
     val items = remember(ready?.snapshot) { ready?.snapshot?.liveItems().orEmpty() }
 
-    // The "Modo compras" launcher shortcut (#158) starts the checklist after the first snapshot, exactly as its
-    // button does. With nothing on the list there is nothing to check, so the Lista stays as it is.
+    // The "Modo compras" launcher shortcut (#158) starts the checklist once, after the first snapshot, exactly as
+    // its button does. With nothing on the list there is nothing to check, so the Lista stays as it is; leaving
+    // shopping mode afterwards is the person's own choice and the shortcut does not undo it.
+    var shortcutShoppingApplied by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(startShopping, ready) {
-        if (startShopping && !shopping.active && items.isNotEmpty()) {
-            listFilters.value = ListFilters(pendingOnly = true)
-            shopping.start()
+        if (startShopping && !shortcutShoppingApplied && ready != null) {
+            shortcutShoppingApplied = true
+            if (!shopping.active && items.isNotEmpty()) {
+                listFilters.value = ListFilters(pendingOnly = true)
+                shopping.start()
+            }
         }
     }
 
