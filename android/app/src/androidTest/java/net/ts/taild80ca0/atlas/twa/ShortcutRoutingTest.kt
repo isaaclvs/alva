@@ -6,6 +6,7 @@ import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.CoroutineScope
@@ -61,10 +62,12 @@ class ShortcutRoutingTest {
         AccessGraph.install(access, online = OnlineRepository(OnlineAccess.of(access), house, house, scope, pause = {}))
     }
 
-    private fun follow(destination: String): ActivityScenario<*> {
+    private fun follow(destination: String): OnlineRepository {
         install()
+        val repository = AccessGraph.onlineRepository(context)!!
         val intent = Shortcuts.intent(context, "alva-shortcut://$destination")!!
-        return ActivityScenario.launch<android.app.Activity>(intent).also { scenario = it }
+        ActivityScenario.launch<android.app.Activity>(intent).also { scenario = it }
+        return repository
     }
 
     private fun waitFor(tag: String) = compose.waitUntil(10_000) {
@@ -100,6 +103,18 @@ class ShortcutRoutingTest {
         compose.onNodeWithTag("exit-shopping").assertDoesNotExist()
         compose.onNodeWithTag("start-shopping").assertDoesNotExist()
         assertEquals(0L, context.getSharedPreferences(SHOPPING_PREFERENCES, 0).getLong("until", 0))
+    }
+
+    @Test fun leavingTheShoppingModeTheShortcutStartedIsNotUndoneByTheNextRefresh() {
+        house.seed("Leite")
+        val repository = follow(Shortcuts.SHOPPING_MODE)
+        waitFor("exit-shopping")
+        compose.onNodeWithTag("exit-shopping").performClick()
+        compose.onNodeWithTag("start-shopping").assertExists()
+        runBlocking { repository.refresh() }
+        compose.waitForIdle()
+        compose.onNodeWithTag("exit-shopping").assertDoesNotExist()
+        compose.onNodeWithTag("start-shopping").assertExists()
     }
 
     @Test fun theAddShortcutTypedInOpensThePanelWithTheFieldReady() {
