@@ -27,6 +27,8 @@ Rails.application.routes.draw do
       get "snapshot", to: "snapshots#show", format: false, defaults: { format: :json }
       # The PWA's /lista.pdf for a device credential: same PDF, bearer instead of cookie.
       get "list.pdf", to: "list_exports#show", format: false
+      # Read-only shopping history, one month per page; additive to v1.
+      get "history", to: "history#index", format: false, defaults: { format: :json }
     end
   end
 
