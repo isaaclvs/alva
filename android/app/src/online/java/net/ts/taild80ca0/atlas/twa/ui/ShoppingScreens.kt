@@ -55,7 +55,6 @@ fun ShoppingScreens(
 ) {
     val state by repository.state.collectAsState()
     val editState = rememberEditItemState()
-    val listFilters = rememberListFilterState()
     var screen by rememberSaveable { mutableStateOf(preferences.screen) }
     val addState = rememberAddScreenState(repository)
     var feedback by remember { mutableStateOf<String?>(null) }
@@ -65,6 +64,9 @@ fun ShoppingScreens(
     val context = LocalContext.current
     val shopping = remember { ShoppingMode(context.getSharedPreferences(SHOPPING_PREFERENCES, android.content.Context.MODE_PRIVATE)) }
     val shoppingMode = shopping.active
+    // The checklist starts with the bought items out of the way (also when the saved mode is restored after a
+    // restart); the chip in the footer says how many are hidden and brings them back.
+    val listFilters = rememberListFilterState(ListFilters(pendingOnly = shoppingMode))
     val focus = LocalFocusManager.current
     val shownScreen = if (shoppingMode) "list" else screen
     val haptics = LocalHapticFeedback.current
@@ -189,12 +191,19 @@ fun ShoppingScreens(
                         notice = { notices(20.dp) },
                         headerActions = { menu() },
                         shoppingMode = shoppingMode,
+                        onExitShopping = if (shoppingMode) { {
+                            shopping.exit(); screen = "list"; listFilters.value = ListFilters(); focus.clearFocus(); keyboard?.hide()
+                        } } else null,
                         afterSummary = {
-                            if (shoppingMode) Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.End) {
-                                TextButton(onClick = { shopping.exit(); screen = "list"; listFilters.value = ListFilters(); focus.clearFocus(); keyboard?.hide() }, modifier = Modifier.testTag("exit-shopping")) { Text("Sair das compras") }
-                            } else if (items.isNotEmpty()) {
+                            if (!shoppingMode && items.isNotEmpty()) {
                                 Button(onClick = {
-                                    if (editState.itemId == null) { focus.clearFocus(); keyboard?.hide(); shopping.start() }
+                                    if (editState.itemId == null) {
+                                        focus.clearFocus(); keyboard?.hide()
+                                        // The checklist starts with the bought items out of the way: the chip in the
+                                        // footer says how many are hidden and brings them back.
+                                        listFilters.value = ListFilters(pendingOnly = true)
+                                        shopping.start()
+                                    }
                                     else editState.focusRequest++
                                 }, colors = ButtonDefaults.buttonColors(containerColor = AlvaTheme.colors.accentSoft, contentColor = AlvaTheme.colors.accentStrong),
                                     shape = AlvaShapes.Control, modifier = Modifier.fillMaxWidth().padding(top = 12.dp).testTag("start-shopping")

@@ -12,10 +12,13 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -70,6 +73,8 @@ fun ListScreen(
     editState: EditItemState = rememberEditItemState(),
     filterState: ListFilterState = rememberListFilterState(),
     shoppingMode: Boolean = false,
+    /** Leaving the checklist, offered beside its title: the mode is a device preference, so the host owns it. */
+    onExitShopping: (() -> Unit)? = null,
     rowActions: @Composable RowScope.(ListItem, () -> Unit) -> Unit = { _, _ -> },
     onMarked: () -> Unit = {},
     onShoppingFooterHeightChanged: (Int) -> Unit = {},
@@ -79,16 +84,30 @@ fun ListScreen(
     val items = remember(snapshot) { snapshot.liveItems() }
     val filters = filterState.value
     val searchFocus = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    // The shopping checklist keeps the search field closed until the magnifier asks for it, so the rows get the room.
+    var searchOpen by rememberSaveable(shoppingMode) { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
+    // The field only exists while open, so the focus request waits for it to be attached.
+    LaunchedEffect(searchOpen, shoppingMode) {
+        if (!shoppingMode) return@LaunchedEffect
+        if (searchOpen) searchFocus.requestFocus() else { focusManager.clearFocus(); keyboard?.hide() }
+    }
     val visibleItems = remember(items, filters) { filters.apply(items) }
     val visibleIds = remember(visibleItems) { visibleItems.map { it.publicId }.toSet() }
-    val groups = remember(snapshot.categories, items, visibleIds) {
-        ListGroups.of(snapshot.categories, items).filter { group -> group.items.any { it.publicId in visibleIds } }
+    val groups = remember(snapshot.categories, items, visibleIds, filters.query, shoppingMode) {
+        val all = ListGroups.of(snapshot.categories, items)
+        // A search only keeps the sections it matched. While shopping, hiding the bought rows still leaves every
+        // section heading on screen with its "restantes"/"tudo pego", so nothing vanishes without a word.
+        if (shoppingMode && filters.query.isEmpty()) all
+        else all.filter { group -> group.items.any { it.publicId in visibleIds } }
     }
     val pending = items.count { it.status == ItemStatus.PENDING }
     val purchased = items.size - pending
 
     val header: @Composable () -> Unit = {
-        Column(Modifier.fillMaxWidth().padding(start = if (shoppingMode) 20.dp else 0.dp, end = if (shoppingMode) 20.dp else 0.dp, top = 24.dp, bottom = 16.dp)) {
+        Column(Modifier.fillMaxWidth().padding(start = if (shoppingMode) 20.dp else 0.dp, end = if (shoppingMode) 20.dp else 0.dp,
+            top = if (shoppingMode) 12.dp else 24.dp, bottom = if (shoppingMode) 12.dp else 16.dp)) {
             if (!shoppingMode) {
                 BrandHeader(Modifier.padding(bottom = 4.dp))
                 Spacer(Modifier.height(18.9.dp))
@@ -99,6 +118,11 @@ fun ListScreen(
                 if (!shoppingMode) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     SearchButton(searchFocus)
                     headerActions()
+                } else onExitShopping?.let { exit ->
+                    // Beside the title, not in a row of its own: 48dp of touch target, as the PWA's text link.
+                    Text("Sair das compras", style = AlvaTheme.type.button, color = AlvaTheme.colors.inkSoft,
+                        modifier = Modifier.clickable(role = Role.Button, onClick = exit)
+                            .padding(horizontal = 8.dp, vertical = 14.dp).testTag("exit-shopping"))
                 }
             }
             Text(
@@ -157,9 +181,19 @@ fun ListScreen(
         }
         if (shoppingMode) Column(Modifier.fillMaxWidth().testTag("shopping-footer")
             .onSizeChanged { onShoppingFooterHeightChanged(it.height) }
-            .padding(horizontal = 16.dp, vertical = 8.dp)) {
-            if (purchased > 0) FinishShoppingButton(purchased, enabled = !actions.finishing && !actions.anyBusy) { actions.finishShopping(snapshot) }
-            ListSearchFilters(filterState, searchFocus, shoppingMode = true)
+            .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp)) {
+            if (searchOpen) ListSearchField(filterState, searchFocus, Modifier.padding(bottom = 8.dp))
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ShoppingSearchToggle(filtering = filters.query.isNotEmpty()) {
+                    searchOpen = !searchOpen
+                }
+                ShoppingBoughtChip(purchased, filters.pendingOnly) {
+                    filterState.value = filters.copy(pendingOnly = !filters.pendingOnly)
+                }
+                if (purchased > 0) FinishShoppingAction(enabled = !actions.finishing && !actions.anyBusy,
+                    onClick = { actions.finishShopping(snapshot) }, modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(vertical = 10.dp))
+            }
         }
     }
 }
