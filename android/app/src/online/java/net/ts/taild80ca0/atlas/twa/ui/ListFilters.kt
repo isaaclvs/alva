@@ -1,5 +1,7 @@
 package net.ts.taild80ca0.atlas.twa.ui
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -103,6 +105,7 @@ internal fun ListSearchField(state: ListFilterState, focus: FocusRequester, modi
 internal fun ListSearchFilters(state: ListFilterState, focus: FocusRequester) {
     val c = AlvaTheme.colors
     val filters = state.value
+    val animations = alvaAnimationsEnabled()
     Column(Modifier.fillMaxWidth().padding(top = AlvaSpacing.md).testTag("list-filters"),
         verticalArrangement = Arrangement.spacedBy(AlvaSpacing.md)) {
         ListSearchField(state, focus)
@@ -110,17 +113,36 @@ internal fun ListSearchFilters(state: ListFilterState, focus: FocusRequester) {
             Row(Modifier.heightIn(min = AlvaSize.TouchMin).toggleable(filters.pendingOnly, role = Role.Switch,
                 onValueChange = { state.value = filters.copy(pendingOnly = it) }).testTag("pending-only"),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AlvaSpacing.sm)) {
-                Canvas(Modifier.size(AlvaSpacing.xxxl + AlvaSpacing.xs, AlvaSize.Check)) {
-                    val u = size.width / 36f
-                    drawRoundRect(if (filters.pendingOnly) c.accent else c.surface2, cornerRadius = CornerRadius(11*u))
-                    drawRoundRect(if (filters.pendingOnly) c.accent else c.inkFaint, cornerRadius = CornerRadius(11*u), style = Stroke(u))
-                    drawCircle(if (filters.pendingOnly) c.accentInk else c.inkSoft, 8*u, Offset((if (filters.pendingOnly) 25 else 11)*u, 11*u))
-                }
+                PendingSwitch(filters.pendingOnly, animations)
                 Text("Só pendentes", style = AlvaTheme.type.bodySmall, color = c.inkSoft)
             }
             // The A–Z hint describes the grouped list.
             Text("Seções · A–Z", style = AlvaTheme.type.caption, color = c.inkFaint)
         }
+    }
+}
+
+/**
+ * The "Só pendentes" switch: the track fills and the thumb travels in `switch`, the same 150ms the PWA's
+ * `.pending-switch` uses. The values are read before the canvas draws, so the animation is a Compose state
+ * and the drawing itself stays a plain function.
+ */
+@Composable
+private fun PendingSwitch(on: Boolean, animations: Boolean) {
+    val c = AlvaTheme.colors
+    val fill by animateColorAsState(if (on) c.accent else c.surface2,
+        animationSpec = AlvaMotion.spec(animations, AlvaMotion.Switch), label = "switch-fill")
+    val rim by animateColorAsState(if (on) c.accent else c.inkFaint,
+        animationSpec = AlvaMotion.spec(animations, AlvaMotion.Switch), label = "switch-rim")
+    val thumb by animateColorAsState(if (on) c.accentInk else c.inkSoft,
+        animationSpec = AlvaMotion.spec(animations, AlvaMotion.Switch), label = "switch-thumb")
+    val travel by animateFloatAsState(if (on) 25f else 11f,
+        animationSpec = AlvaMotion.spec(animations, AlvaMotion.Switch), label = "switch-travel")
+    Canvas(Modifier.size(AlvaSpacing.xxxl + AlvaSpacing.xs, AlvaSize.Check)) {
+        val u = size.width / 36f
+        drawRoundRect(fill, cornerRadius = CornerRadius(11*u))
+        drawRoundRect(rim, cornerRadius = CornerRadius(11*u), style = Stroke(u))
+        drawCircle(thumb, 8*u, Offset(travel*u, 11*u))
     }
 }
 

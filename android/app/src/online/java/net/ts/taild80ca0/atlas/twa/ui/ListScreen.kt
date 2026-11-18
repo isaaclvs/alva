@@ -106,6 +106,8 @@ fun ListScreen(
     }
     val pending = items.count { it.status == ItemStatus.PENDING }
     val purchased = items.size - pending
+    // One read of the device's animation scale for the whole screen; every spec below snaps when it is off.
+    val animations = alvaAnimationsEnabled()
 
     val header: @Composable () -> Unit = {
         Column(Modifier.fillMaxWidth()
@@ -136,12 +138,15 @@ fun ListScreen(
             )
             if (shoppingMode && items.isNotEmpty()) {
                 val bought = items.size - pending
+                // The share grows in `slow`, the measured move of the scale (the PWA's 300ms width transition).
+                val share by animateFloatAsState(bought.toFloat() / items.size,
+                    animationSpec = AlvaMotion.spec(animations, AlvaMotion.Slow), label = "shopping-progress")
                 Box(Modifier.fillMaxWidth().padding(top = AlvaSpacing.sm).height(AlvaSpacing.xs).background(AlvaTheme.colors.surface2, AlvaShapes.Full)
                     .testTag("shopping-progress").semantics {
                         contentDescription = "Itens comprados"
                         progressBarRangeInfo = ProgressBarRangeInfo(bought.toFloat(), 0f..items.size.toFloat())
                     }) {
-                    Box(Modifier.fillMaxWidth(bought.toFloat() / items.size).fillMaxHeight().background(AlvaTheme.colors.accent, AlvaShapes.Full))
+                    Box(Modifier.fillMaxWidth(share).fillMaxHeight().background(AlvaTheme.colors.accent, AlvaShapes.Full))
                 }
             }
             afterSummary()
