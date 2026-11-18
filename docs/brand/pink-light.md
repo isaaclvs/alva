@@ -9,7 +9,8 @@ A paleta rosa clara usa canvas quase branco, superfícies brancas e acentos rosa
 | surface-2 | `#f6edf2` |
 | line | `#eadde4` |
 | ink | `#30242c` |
-| ink-soft / ink-faint | `#806d78` |
+| ink-soft | `#66535e` |
+| ink-faint | `#786570` |
 | accent | `#b73570` |
 | accent-strong | `#922955` |
 | accent-ink | `#ffffff` |
@@ -25,8 +26,11 @@ Razões calculadas pela fórmula WCAG 2.x para luminância relativa sRGB. Texto 
 | --- | ---: |
 | ink / canvas | 14.1:1 |
 | ink / surface | 14.9:1 |
-| ink-soft / canvas | 4.6:1 |
-| ink-soft / surface | 4.8:1 |
+| ink-soft / canvas | 6.7:1 |
+| ink-soft / surface | 7.1:1 |
+| ink-soft / surface-2 (chip "Outros") | 6.2:1 |
+| ink-faint / canvas | 5.1:1 |
+| ink-faint / surface-2 (contador) | 4.7:1 |
 | branco / accent (botão primário) | 5.6:1 |
 | branco / accent-strong (estado forte) | 7.9:1 |
 | warn / canvas | 6.5:1 |
@@ -34,4 +38,4 @@ Razões calculadas pela fórmula WCAG 2.x para luminância relativa sRGB. Texto 
 | accent / accent-soft | 4.7:1 |
 | line / surface (limite visual) | 1.3:1 |
 
-`line` serve como separador sutil, não como única indicação de controle ou estado. `ink-faint` mantém contraste de texto normal para usos legíveis.
+`line` serve como separador sutil, não como única indicação de controle ou estado. `ink`, `ink-soft` e `ink-faint` formam três níveis de texto distintos, e todo par texto/fundo usado nas duas telas fica em pelo menos 4.5:1 — `test/theme_contrast_test.rb` percorre esses pares nos quatro temas (escuro/claro × teal/rosa) e falha se algum cair abaixo disso.
