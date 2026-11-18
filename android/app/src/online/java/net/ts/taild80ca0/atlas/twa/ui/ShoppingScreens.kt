@@ -177,8 +177,8 @@ fun ShoppingScreens(
         val problem = ready?.problem
         val failure = feedback.current
         if (problem != null || failure != null || slowSending) {
-            Column(Modifier.fillMaxWidth().padding(horizontal = gutter, vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = gutter, vertical = AlvaSpacing.xs),
+                verticalArrangement = Arrangement.spacedBy(AlvaSpacing.sm)) {
                 if (problem != null) NoticeCard(problem.message, NoticeTone.Warn, "connection-notice") {
                     NoticeAction("Atualizar", AlvaTheme.colors.inkSoft, Modifier.testTag("reload")) {
                         scope.launch { repository.refresh() }
@@ -211,10 +211,10 @@ fun ShoppingScreens(
             Box(Modifier.fillMaxSize().padding(padding)) {
             Column(Modifier.fillMaxSize().testTag("shopping-home")) {
                 when {
-                    state is OnlineState.Failed -> Column(Modifier.padding(horizontal = 20.dp, vertical = 20.dp)) {
+                    state is OnlineState.Failed -> Column(Modifier.padding(horizontal = AlvaSpacing.xl, vertical = AlvaSpacing.xl)) {
                         BrandHeader(trailing = menu)
                         Text((state as OnlineState.Failed).problem.message, modifier = Modifier.testTag("load-failed")
-                            .padding(vertical = 8.dp))
+                            .padding(vertical = AlvaSpacing.sm))
                         Button(onClick = { scope.launch { repository.refresh() } }, modifier = Modifier.testTag("reload")) { Text("Tentar de novo") }
                     }
                     historyOpen -> HistoryScreen(
@@ -225,16 +225,16 @@ fun ShoppingScreens(
                             addState.notice(historyReaddToast(result))
                         },
                     )
-                    ready == null -> Column(Modifier.padding(horizontal = 20.dp, vertical = 20.dp)) {
+                    ready == null -> Column(Modifier.padding(horizontal = AlvaSpacing.xl, vertical = AlvaSpacing.xl)) {
                         BrandHeader(trailing = menu)
-                        Text("Abrindo sua lista…", modifier = Modifier.padding(top = 16.dp).testTag("loading"))
+                        Text("Abrindo sua lista…", modifier = Modifier.padding(top = AlvaSpacing.lg).testTag("loading"))
                     }
                     shownScreen == "list" -> ListScreen(
                         repository = repository, snapshot = ready.snapshot, editState = editState, filterState = listFilters,
                         onAddItems = { if (!shoppingMode) screen = "add" },
                         onFailure = { feedback.show(it) },
                         showToast = { toast = it; feedback.dismiss() },
-                        notice = { notices(20.dp) },
+                        notice = { notices(AlvaSpacing.xl) },
                         headerActions = { menu() },
                         shoppingMode = shoppingMode,
                         onExitShopping = if (shoppingMode) { {
@@ -252,7 +252,7 @@ fun ShoppingScreens(
                                     }
                                     else editState.focusRequest++
                                 }, colors = ButtonDefaults.buttonColors(containerColor = AlvaTheme.colors.accentSoft, contentColor = AlvaTheme.colors.accentStrong),
-                                    shape = AlvaShapes.Control, modifier = Modifier.fillMaxWidth().padding(top = 12.dp).testTag("start-shopping")
+                                    shape = AlvaShapes.Control, modifier = Modifier.fillMaxWidth().padding(top = AlvaSpacing.md).testTag("start-shopping")
                                         .semantics { if (editState.itemId != null) disabled() }) { Text("Iniciar compras", style = AlvaTheme.type.button) }
                                 if (editState.itemId != null) Text("Salve ou cancele a edição para iniciar as compras.", color = AlvaTheme.colors.warn,
                                     style = AlvaTheme.type.caption, modifier = Modifier.testTag("shopping-edit-hint"))
@@ -262,8 +262,9 @@ fun ShoppingScreens(
                         actions = listActions,
                         onShoppingFooterHeightChanged = { shoppingFooterHeight = it },
                     )
-                    else -> Column(Modifier.fillMaxSize().padding(horizontal = 20.dp).padding(top = 20.dp)) {
-                        BrandHeader(markSize = 28.dp, gap = 9.6.dp, markBox = 36.dp, trailing = menu)
+                    else -> Column(Modifier.fillMaxSize().padding(horizontal = AlvaSpacing.xl).padding(top = AlvaSpacing.xl)) {
+                        BrandHeader(markSize = AlvaSize.Chip, gap = AlvaSpacing.sm,
+                            markBox = AlvaSpacing.xxxl + AlvaSpacing.xs, trailing = menu)
                         notices(0.dp)
                         AddScreen(addState, ready.snapshot, Modifier.weight(1f).fillMaxWidth(),
                             buyAgainDismissed = preferences.buyAgainDismissed,
@@ -281,7 +282,8 @@ fun ShoppingScreens(
             // centered, only on the device that acted.
             toast?.let { current ->
                 Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                    .padding(start = 16.dp, end = 16.dp, bottom = if (shoppingMode) with(density) { shoppingFooterHeight.toDp() } + 12.dp else 12.dp),
+                    .padding(start = AlvaSpacing.lg, end = AlvaSpacing.lg,
+                        bottom = if (shoppingMode) with(density) { shoppingFooterHeight.toDp() } + AlvaSpacing.md else AlvaSpacing.md),
                     contentAlignment = Alignment.Center) {
                     UndoToast(current.text, current.actionLabel, onAction = {
                         toast = null

@@ -5,7 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -35,13 +34,14 @@ internal fun HouseMenu(saved: DevicePreferences, list: Boolean, working: Boolean
             DropdownMenuItem(text = { Text(if (saved.dark) "Tema claro" else "Tema escuro", style = AlvaTheme.type.bodySmall) },
                 leadingIcon = { MenuIcon(if (saved.dark) SUN else MOON) }, enabled = !working,
                 onClick = { open = false; toggleTheme() }, modifier = Modifier.testTag("toggle-theme"))
-            Row(Modifier.width(224.dp).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.width(AlvaSize.MenuWidth).padding(horizontal = AlvaSpacing.md, vertical = AlvaSpacing.sm),
+                verticalAlignment = Alignment.CenterVertically) {
                 Text("Cor", Modifier.weight(1f), color = colors.inkSoft, style = AlvaTheme.type.bodySmall)
                 listOf(AlvaColor.Teal to "Teal", AlvaColor.Pink to "Rosa").forEach { (color, label) ->
-                    Box(Modifier.size(32.dp).border(2.dp, if (color == saved.color) colors.accent else Color.Transparent, CircleShape)
+                    Box(Modifier.size(AlvaSpacing.xxxl).border(2.dp, if (color == saved.color) colors.accent else Color.Transparent, AlvaShapes.Full)
                         .selectable(color == saved.color, enabled = !working, role = Role.RadioButton) { open = false; selectColor(color) }
                         .testTag("color-${color.name}").semantics { contentDescription = "Cor $label" }, contentAlignment = Alignment.Center) {
-                        Box(Modifier.size(20.dp).background(if (color == AlvaColor.Teal) Color(0xff0f766e) else Color(0xffb73570), CircleShape))
+                        Box(Modifier.size(AlvaSize.Swatch).background(if (color == AlvaColor.Teal) Color(0xff0f766e) else Color(0xffb73570), AlvaShapes.Full))
                     }
                 }
             }
@@ -53,7 +53,7 @@ internal fun HouseMenu(saved: DevicePreferences, list: Boolean, working: Boolean
             if (signOut != null) DropdownMenuItem(text = { Text("Sair", style = AlvaTheme.type.bodySmall) }, enabled = !working,
                 onClick = { open = false; signOut() }, modifier = Modifier.testTag("sign-out"))
             // Existing connection diagnostic remains available to development/test callers.
-            if (actions != null) Column(Modifier.widthIn(max = 280.dp).padding(12.dp)) { actions() }
+            if (actions != null) Column(Modifier.widthIn(max = AlvaSize.MenuHelper).padding(AlvaSpacing.md)) { actions() }
         }
     }
 }
@@ -67,10 +67,10 @@ private const val DOWNLOAD = "M10 3v9m0 0-3.5-3.5 M10 12l3.5-3.5 M4 14v1.5A1.5 1
 private fun MenuIcon(data: String) {
     val color = AlvaTheme.colors.inkSoft
     val path = remember(data) { PathParser().parsePathString(data).toPath() }
-    Canvas(Modifier.size(20.dp)) {
+    Canvas(Modifier.size(AlvaIconSize.Bar)) {
         val unit = size.width / 20f
         withTransform({ scale(unit, unit, pivot = Offset.Zero) }) {
-            drawPath(path, color, style = Stroke(1.75f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+            drawPath(path, color, style = Stroke(AlvaIconSize.Stroke, cap = StrokeCap.Round, join = StrokeJoin.Round))
         }
     }
 }

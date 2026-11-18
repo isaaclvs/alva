@@ -2,7 +2,6 @@ package net.ts.taild80ca0.atlas.twa.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -30,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import net.ts.taild80ca0.atlas.twa.data.list.ItemStatus
@@ -106,37 +106,40 @@ fun ListScreen(
     val purchased = items.size - pending
 
     val header: @Composable () -> Unit = {
-        Column(Modifier.fillMaxWidth().padding(start = if (shoppingMode) 20.dp else 0.dp, end = if (shoppingMode) 20.dp else 0.dp,
-            top = if (shoppingMode) 12.dp else 24.dp, bottom = if (shoppingMode) 12.dp else 16.dp)) {
+        Column(Modifier.fillMaxWidth()
+            .padding(start = if (shoppingMode) AlvaSpacing.xl else 0.dp, end = if (shoppingMode) AlvaSpacing.xl else 0.dp,
+                top = if (shoppingMode) AlvaSpacing.md else AlvaSpacing.xxl,
+                bottom = if (shoppingMode) AlvaSpacing.md else AlvaSpacing.lg)) {
             if (!shoppingMode) {
-                BrandHeader(Modifier.padding(bottom = 4.dp))
-                Spacer(Modifier.height(18.9.dp))
+                BrandHeader(Modifier.padding(bottom = AlvaSpacing.xs))
+                Spacer(Modifier.height(AlvaSpacing.xl))
             }
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(if (shoppingMode) "Em compras" else "Lista de compras", style = AlvaTheme.type.pageTitle.copy(lineHeight = 33.6.sp), color = AlvaTheme.colors.ink,
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AlvaSpacing.sm)) {
+                Text(if (shoppingMode) "Em compras" else "Lista de compras", style = AlvaTheme.type.pageTitle, color = AlvaTheme.colors.ink,
                     modifier = Modifier.weight(1f).testTag("list-title"))
-                if (!shoppingMode) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (!shoppingMode) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AlvaSpacing.xs)) {
                     SearchButton(searchFocus)
                     headerActions()
                 } else onExitShopping?.let { exit ->
-                    // Beside the title, not in a row of its own: 48dp of touch target, as the PWA's text link.
+                    // Beside the title, not in a row of its own: the same 48dp touch target as the PWA's text link.
                     Text("Sair das compras", style = AlvaTheme.type.button, color = AlvaTheme.colors.inkSoft,
-                        modifier = Modifier.clickable(role = Role.Button, onClick = exit)
-                            .padding(horizontal = 8.dp, vertical = 14.dp).testTag("exit-shopping"))
+                        modifier = Modifier.heightIn(min = AlvaSize.TouchMin)
+                            .clickable(role = Role.Button, onClick = exit)
+                            .padding(horizontal = AlvaSpacing.sm, vertical = AlvaSpacing.md).testTag("exit-shopping"))
                 }
             }
             Text(
-                ListGroups.summary(pending, items.size - pending), style = AlvaTheme.type.summary.copy(lineHeight = 18.sp),
-                color = AlvaTheme.colors.inkSoft, modifier = Modifier.padding(top = 7.7.dp).testTag("list-summary"),
+                ListGroups.summary(pending, items.size - pending), style = AlvaTheme.type.summary,
+                color = AlvaTheme.colors.inkSoft, modifier = Modifier.padding(top = AlvaSpacing.sm).testTag("list-summary"),
             )
             if (shoppingMode && items.isNotEmpty()) {
                 val bought = items.size - pending
-                Box(Modifier.fillMaxWidth().padding(top = 8.dp).height(4.dp).background(AlvaTheme.colors.surface2, CircleShape)
+                Box(Modifier.fillMaxWidth().padding(top = AlvaSpacing.sm).height(AlvaSpacing.xs).background(AlvaTheme.colors.surface2, AlvaShapes.Full)
                     .testTag("shopping-progress").semantics {
                         contentDescription = "Itens comprados"
                         progressBarRangeInfo = ProgressBarRangeInfo(bought.toFloat(), 0f..items.size.toFloat())
                     }) {
-                    Box(Modifier.fillMaxWidth(bought.toFloat() / items.size).fillMaxHeight().background(AlvaTheme.colors.accent, CircleShape))
+                    Box(Modifier.fillMaxWidth(bought.toFloat() / items.size).fillMaxHeight().background(AlvaTheme.colors.accent, AlvaShapes.Full))
                 }
             }
             afterSummary()
@@ -146,12 +149,13 @@ fun ListScreen(
     Column(modifier.fillMaxSize().testTag("list-screen")) {
         if (shoppingMode) header()
         notice()
-        LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp)) {
+        LazyColumn(Modifier.weight(1f).fillMaxWidth(),
+            contentPadding = PaddingValues(start = AlvaSpacing.xl, end = AlvaSpacing.xl, top = AlvaSpacing.sm, bottom = AlvaSpacing.xxl)) {
             if (!shoppingMode) item(key = "header") { header() }
             if (groups.isEmpty()) item(key = "empty") {
                 if (filters.active) Text("Nenhum item encontrado.", style = AlvaTheme.type.body, color = AlvaTheme.colors.inkSoft,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp).testTag("filter-empty")
+                    modifier = Modifier.fillMaxWidth().padding(vertical = AlvaSpacing.huge).testTag("filter-empty")
                         .semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite })
                 else if (!shoppingMode) EmptyList(onAddItems)
                 else Text("Nada na lista por enquanto.", color = AlvaTheme.colors.inkSoft)
@@ -173,7 +177,7 @@ fun ListScreen(
                         }
                     })
                 }
-                item(key = "gap-$key") { Spacer(Modifier.height(25.6.dp)) }
+                item(key = "gap-$key") { Spacer(Modifier.height(AlvaSpacing.xxl)) }
             }
             if (!shoppingMode && purchased > 0) item(key = "finish-shopping") {
                 FinishShoppingButton(purchased, enabled = !actions.finishing && !actions.anyBusy) { actions.finishShopping(snapshot) }
@@ -181,9 +185,9 @@ fun ListScreen(
         }
         if (shoppingMode) Column(Modifier.fillMaxWidth().testTag("shopping-footer")
             .onSizeChanged { onShoppingFooterHeightChanged(it.height) }
-            .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp)) {
-            if (searchOpen) ListSearchField(filterState, searchFocus, Modifier.padding(bottom = 8.dp))
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            .padding(start = AlvaSpacing.lg, end = AlvaSpacing.lg, top = AlvaSpacing.xs, bottom = AlvaSpacing.sm)) {
+            if (searchOpen) ListSearchField(filterState, searchFocus, Modifier.padding(bottom = AlvaSpacing.sm))
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AlvaSpacing.sm)) {
                 ShoppingSearchToggle(filtering = filters.query.isNotEmpty()) {
                     searchOpen = !searchOpen
                 }
@@ -192,7 +196,7 @@ fun ListScreen(
                 }
                 if (purchased > 0) FinishShoppingAction(enabled = !actions.finishing && !actions.anyBusy,
                     onClick = { actions.finishShopping(snapshot) }, modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(vertical = 10.dp))
+                    contentPadding = PaddingValues(vertical = AlvaSpacing.md))
             }
         }
     }
@@ -201,14 +205,15 @@ fun ListScreen(
 /** `.shopping-category > h2`: category chip, name, and "x/y" once something in it is bought. */
 @Composable
 private fun CategoryHeading(group: ListGroup, shoppingMode: Boolean = false) {
-    Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, bottom = 14.dp).testTag("category-${group.label}"),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(Modifier.fillMaxWidth().padding(start = AlvaSpacing.xs, end = AlvaSpacing.xs, bottom = AlvaSpacing.md)
+        .testTag("category-${group.label}"),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AlvaSpacing.sm)) {
         CategoryIcon(group.label)
         Text(group.label, style = AlvaTheme.type.sectionLabel, color = AlvaTheme.colors.inkSoft, modifier = Modifier.weight(1f))
         if (shoppingMode || group.purchased > 0) Text(
             if (shoppingMode) { if (group.purchased == group.items.size) "tudo pego" else "${group.items.size - group.purchased} restantes" } else "${group.purchased}/${group.items.size}",
             // `h2 > span:last-child` is the (hidden) shopping span, so the count keeps text-xs; it inherits the 0.04em tracking.
-            style = AlvaTheme.type.caption.copy(fontWeight = FontWeight.Medium, letterSpacing = 0.416.sp, fontFeatureSettings = "tnum"),
+            style = AlvaTheme.type.caption.copy(fontWeight = FontWeight.Medium, letterSpacing = 0.04.em, fontFeatureSettings = "tnum"),
             color = AlvaTheme.colors.inkFaint,
             modifier = Modifier.testTag("category-count-${group.label}")
                 .semantics { contentDescription = "${group.purchased} de ${group.items.size} comprados" },
@@ -246,14 +251,15 @@ internal fun ListRow(
                 .pressedSurface(source, AlvaTheme.colors.surface2)
                 .toggleable(value = bought, enabled = enabled, role = Role.Checkbox, interactionSource = source, indication = null,
                     onValueChange = { onToggle() })
-                .padding(start = 5.6.dp, top = if (shoppingMode) 16.dp else 12.dp, bottom = if (shoppingMode) 16.dp else 12.dp),
+                .padding(start = AlvaSpacing.xs, top = if (shoppingMode) AlvaSpacing.lg else AlvaSpacing.md,
+                    bottom = if (shoppingMode) AlvaSpacing.lg else AlvaSpacing.md),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(AlvaSpacing.md),
         ) {
-            AlvaCheck(checked = bought, modifier = if (shoppingMode) Modifier.size(28.dp) else Modifier)
-            // `text-base` keeps a 1.5 line height, so at the 0.95rem the row is 22.8dp tall, not 24.
+            AlvaCheck(checked = bought, modifier = if (shoppingMode) Modifier.size(AlvaSize.CheckShopping) else Modifier)
+            // `--text-row` keeps the 1.5 line height of `text-base`, so the row is 22.8dp tall, not 24.
             Text(
-                item.name, style = AlvaTheme.type.row.copy(lineHeight = 22.8.sp),
+                item.name, style = AlvaTheme.type.row,
                 color = if (bought) AlvaTheme.colors.inkFaint else AlvaTheme.colors.ink,
                 textDecoration = if (bought) TextDecoration.LineThrough else null,
                 modifier = Modifier.weight(1f),
@@ -266,14 +272,15 @@ internal fun ListRow(
 /** `list-empty`: shown when nothing is on the live list. */
 @Composable
 private fun EmptyList(onAddItems: () -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(vertical = 64.dp).testTag("list-empty"), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(Modifier.fillMaxWidth().padding(vertical = AlvaSpacing.huge).testTag("list-empty"),
+        horizontalAlignment = Alignment.CenterHorizontally) {
         Text("🛒", fontSize = 36.sp, lineHeight = 40.sp)
         Text("Nada na lista por enquanto.", style = AlvaTheme.type.body, color = AlvaTheme.colors.inkSoft,
-            textAlign = TextAlign.Center, modifier = Modifier.padding(top = 12.dp))
+            textAlign = TextAlign.Center, modifier = Modifier.padding(top = AlvaSpacing.md))
         Text(
             "Adicionar itens",
             style = AlvaTheme.type.button.copy(textDecoration = TextDecoration.Underline), color = AlvaTheme.colors.accentStrong,
-            modifier = Modifier.padding(top = 12.dp).clickable(role = Role.Button, onClick = onAddItems).testTag("empty-add"),
+            modifier = Modifier.padding(top = AlvaSpacing.md).clickable(role = Role.Button, onClick = onAddItems).testTag("empty-add"),
         )
     }
 }
