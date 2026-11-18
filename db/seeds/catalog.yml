@@ -1,82 +1,326 @@
 # Category => known items. Key order defines category position in the UI.
 # "Outros" is also the fallback for items with no match in this dictionary.
+# Synonyms are welcome ("Pasta de dente" next to "Creme dental", "Miojo" next
+# to "Macarrão instantâneo"): what matters is matching the name people type.
+# Accents, case and plurals need no duplicate here — TextNormalizer folds them
+# ("Bananas" matches "Banana"), so only names that really differ earn a line.
 Hortifruti:
   - Banana
+  - Banana prata
   - Maçã
   - Laranja
   - Limão
   - Mamão
+  - Manga
+  - Abacaxi
+  - Melancia
+  - Melão
+  - Uva
+  - Pera
+  - Goiaba
+  - Morango
+  - Kiwi
+  - Tangerina
+  - Ameixa
+  - Pêssego
+  - Coco
+  - Maracujá
   - Tomate
+  - Tomate cereja
   - Cebola
   - Alho
   - Batata
+  - Batata doce
+  - Batata-doce
   - Cenoura
   - Alface
+  - Rúcula
+  - Couve
+  - Repolho
+  - Brócolis
   - Abobrinha
+  - Pepino
+  - Pimentão
+  - Beterraba
+  - Chuchu
+  - Berinjela
+  - Quiabo
+  - Mandioca
+  - Inhame
+  - Gengibre
+  - Cheiro verde
+  - Cheiro-verde
+  - Salsinha
+  - Cebolinha
+  - Coentro
+  - Manjericão
+  - Espinafre
+  - Milho verde
 Laticínios:
   - Leite
-  - Queijo
-  - Manteiga
-  - Iogurte
-  - Requeijão
-  - Creme de leite
+  - Leite desnatado
+  - Leite em pó
   - Leite condensado
-Mercearia:
-  - Café
-  - Açúcar
-  - Arroz
-  - Feijão
-  - Macarrão
-  - Óleo
-  - Azeite
-  - Sal
-  - Farinha de trigo
-  - Molho de tomate
-  - Achocolatado
-  - Biscoito
-  - Ovos
+  - Creme de leite
+  - Iogurte
+  - Iogurte natural
+  - Queijo
+  - Queijo minas
+  - Queijo ralado
+  - Requeijão
+  - Manteiga
+  - Margarina
+  - Nata
+  - Coalhada
+  - Bebida láctea
+  - Doce de leite
+Frios e congelados:
+  - Presunto
+  - Mussarela
+  - Mortadela
+  - Salame
+  - Peito de peru
+  - Apresuntado
+  - Queijo prato
+  - Salsicha
+  - Lombo defumado
+  - Sorvete
+  - Picolé
+  - Açaí
+  - Pizza congelada
+  - Lasanha congelada
+  - Hambúrguer
+  - Nuggets
+  - Batata frita congelada
+  - Pão de queijo congelado
+  - Polpa de fruta
+  - Ervilha congelada
+  - Legumes congelados
 Açougue:
   - Frango
+  - Frango inteiro
+  - Filé de frango
+  - Sobrecoxa
+  - Coxa de frango
   - Carne moída
   - Bife
   - Costela
   - Linguiça
+  - Linguiça toscana
   - Bacon
   - Peixe
+  - Tilápia
+  - Camarão
+  - Picanha
+  - Alcatra
+  - Contrafilé
+  - Patinho
+  - Maminha
+  - Cupim
+  - Carne de porco
+  - Lombo
+  - Pernil
+  - Fígado
+  - Moela
 Padaria:
   - Pão
   - Pão francês
   - Pão de forma
+  - Pão integral
   - Pão de queijo
+  - Pão doce
+  - Pão de hambúrguer
+  - Pão de hot dog
+  - Pão sírio
   - Torrada
   - Bolo
+  - Rosca
+  - Croissant
+  - Sonho
+  - Torta
+  - Salgado
+  - Broa
+Mercearia:
+  - Café
+  - Café solúvel
+  - Açúcar
+  - Açúcar mascavo
+  - Adoçante
+  - Arroz
+  - Arroz integral
+  - Feijão
+  - Feijão preto
+  - Lentilha
+  - Grão de bico
+  - Grão-de-bico
+  - Macarrão
+  - Macarrão instantâneo
+  - Miojo
+  - Óleo
+  - Azeite
+  - Vinagre
+  - Sal
+  - Sal grosso
+  - Farinha de trigo
+  - Farinha de mandioca
+  - Farofa
+  - Fubá
+  - Cuscuz
+  - Tapioca
+  - Aveia
+  - Granola
+  - Cereal matinal
+  - Ovos
+  - Molho de tomate
+  - Extrato de tomate
+  - Ketchup
+  - Maionese
+  - Mostarda
+  - Shoyu
+  - Molho de pimenta
+  - Caldo de carne
+  - Caldo de legumes
+  - Tempero
+  - Orégano
+  - Canela
+  - Pimenta do reino
+  - Pimenta-do-reino
+  - Achocolatado
+  - Chocolate
+  - Chocolate em pó
+  - Biscoito
+  - Biscoito recheado
+  - Bolacha
+  - Salgadinho
+  - Pipoca
+  - Pipoca de microondas
+  - Pipoca de micro-ondas
+  - Amendoim
+  - Castanha
+  - Nozes
+  - Uva passa
+  - Uva-passa
+  - Ameixa seca
+  - Mel
+  - Geleia
+  - Atum
+  - Sardinha
+  - Milho em conserva
+  - Ervilha
+  - Palmito
+  - Azeitona
+  - Cogumelo
+  - Leite de coco
+  - Coco ralado
+  - Fermento
+  - Bicarbonato
+  - Gelatina
+  - Pudim
+  - Sopa instantânea
 Bebidas:
   - Água
+  - Água com gás
+  - Água tônica
+  - Água de coco
   - Refrigerante
   - Suco
+  - Suco de uva
+  - Chá
+  - Chá gelado
   - Cerveja
   - Vinho
+  - Espumante
+  - Vodka
+  - Cachaça
+  - Whisky
+  - Gin
+  - Energético
+  - Isotônico
+  - Refresco em pó
+  - Gelo
 Limpeza:
   - Detergente
   - Sabão em pó
+  - Sabão em barra
+  - Sabão líquido
   - Amaciante
   - Água sanitária
+  - Cloro
   - Desinfetante
   - Multiuso
+  - Limpador de vidro
+  - Lustra móveis
+  - Lustra-móveis
+  - Odorizador
+  - Inseticida
   - Esponja
   - Saco de lixo
+  - Lava louças
+  - Lava-louças
+  - Papel toalha
+  - Guardanapo
+  - Papel alumínio
+  - Filme plástico
+  - Álcool
+  - Pano de chão
+  - Rodo
+  - Vassoura
+  - Balde
 Higiene:
   - Papel higiênico
+  - Lenço de papel
   - Sabonete
+  - Sabonete líquido
   - Shampoo
   - Condicionador
+  - Creme para pentear
+  - Máscara de cabelo
   - Creme dental
+  - Pasta de dente
   - Escova de dente
   - Fio dental
+  - Enxaguante bucal
   - Desodorante
+  - Absorvente
+  - Hidratante
+  - Protetor solar
+  - Perfume
+  - Espuma de barbear
+  - Aparelho de barbear
+  - Cotonete
+Farmácia:
+  - Dipirona
+  - Paracetamol
+  - Ibuprofeno
+  - Antialérgico
+  - Vitamina
+  - Curativo
+  - Álcool em gel
+  - Algodão
+  - Soro fisiológico
+  - Termômetro
+  - Máscara
+  - Fralda
+  - Lenço umedecido
+  - Pomada para assadura
+Pet:
+  - Ração
+  - Ração para gato
+  - Ração para cachorro
+  - Ração úmida
+  - Sachê
+  - Petisco para cachorro
+  - Areia para gato
+  - Tapete higiênico
+  - Shampoo para pet
+  - Antipulgas
+  - Vermífugo
+  - Coleira
+  - Brinquedo para pet
 Outros:
   - Pilha
   - Lâmpada
   - Fósforo
   - Vela
   - Carvão
+  - Gás

@@ -43,4 +43,38 @@ class SeedsTest < ActiveSupport::TestCase
     normalized = CATALOG.values.flatten.map { |name| TextNormalizer.call(name) }
     assert_equal normalized.uniq.size, normalized.size
   end
+
+  test "keeps the everyday Brazilian basket out of Outros" do
+    # The first three waves of the roadmap issue #148: names that used to fall
+    # through to the fallback and needed a manual fix.
+    expected = {
+      "Presunto" => "Frios e congelados", "Mussarela" => "Frios e congelados",
+      "Sorvete" => "Frios e congelados", "Salsicha" => "Frios e congelados",
+      "Margarina" => "Laticínios", "Leite em pó" => "Laticínios",
+      "Maionese" => "Mercearia", "Ketchup" => "Mercearia", "Cuscuz" => "Mercearia",
+      "Tapioca" => "Mercearia", "Pipoca" => "Mercearia", "Fubá" => "Mercearia",
+      "Pimentão" => "Hortifruti", "Melancia" => "Hortifruti", "Abacaxi" => "Hortifruti",
+      "Coentro" => "Hortifruti",
+      "Papel toalha" => "Limpeza", "Lava-louças" => "Limpeza", "Álcool" => "Limpeza",
+      "Cloro" => "Limpeza",
+      "Absorvente" => "Higiene", "Fralda" => "Farmácia", "Dipirona" => "Farmácia",
+      "Ração" => "Pet"
+    }
+
+    expected.each do |name, category|
+      assert_equal category, ItemCategorizer.call(name)&.name, name
+    end
+  end
+
+  test "has enough names in each category for the basket to land right" do
+    assert_operator CATALOG.values.flatten.size, :>=, 250
+  end
+
+  test "every seeded category has an icon and a PDF color" do
+    missing_icon = Category.pluck(:name) - ListItemsHelper::CATEGORY_ICONS.keys - [ ItemCategorizer::FALLBACK_CATEGORY ]
+    missing_color = Category.pluck(:name) - ListPdf::CATEGORY_COLORS.keys - [ ItemCategorizer::FALLBACK_CATEGORY ]
+
+    assert_empty missing_icon
+    assert_empty missing_color
+  end
 end
