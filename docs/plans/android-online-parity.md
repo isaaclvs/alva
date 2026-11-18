@@ -65,6 +65,7 @@ Tela Compose ──ação──▶ OnlineRepository ──POST /commands──�
 | Exportar PDF | `/lista.pdf` com cookie | PDF com token na API v1 (#108) | 3 (#109) |
 | Menu ⋯ (tema, cor, PDF, sair) e tela aberta lembrada | cookies | — (DataStore no aparelho) | 3 (#109) |
 | Widget "Adicionar" e painel rápido | `/api/quick_add` | — | 4 (#110) |
+| Atalhos do launcher (Adicionar, Lista, Modo compras) | — (o TWA os tinha) | — | 5 (#158) |
 
 ## Fases
 
@@ -97,6 +98,12 @@ a ser o app nativo, com o **mesmo identificador e a mesma chave** do Alva 1.3:
 instala por cima, como atualização (versão 2.0.0, código 5). Na primeira
 abertura pede a senha da casa uma vez. Validação nos dois celulares antes de
 publicar o APK em `/downloads` (#111).
+
+**Fase 5 — Detalhes de uso diário**
+Atalhos do launcher (long press no ícone): Adicionar item, Lista e Modo compras
+(#158). Os três passam por `ShortcutsActivity`, que só traduz o URI do
+`shortcuts.xml` para a tela que já existe; sem a casa pareada, Adicionar cai na
+tela de entrada e os outros dois abrem a Lista normalmente.
 
 Cada fase termina com o APK debug ("Alva Dev") instalável nos dois celulares
 para conferir; só a fase 4 substitui o app de uso.
