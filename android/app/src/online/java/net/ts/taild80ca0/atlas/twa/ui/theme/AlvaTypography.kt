@@ -44,7 +44,7 @@ class AlvaTextStyles(
     val caption: TextStyle,
     /** The add field, `text-lg`. */
     val input: TextStyle,
-    /** A list row, `.shopping-toggle > span:last-child` (0.95rem). */
+    /** A list row, `.shopping-toggle > span:last-child` (`--text-row`: 0.95rem, 1.5 line height). */
     val row: TextStyle,
     /** Category heading above a group (`.shopping-category > h2`). */
     val sectionLabel: TextStyle,
@@ -67,7 +67,7 @@ val AlvaTypographyTokens = AlvaTextStyles(
     bodySmall = style(14f, 20f),
     caption = style(12f, 16f),
     input = style(18f, 28f),
-    row = style(15.2f, 24f),
+    row = style(15.2f, 22.8f),
     sectionLabel = style(10.4f, 15f, FontWeight.SemiBold, 0.04.em),
     summary = style(12.8f, 18f),
     navigation = style(12.8f, 18f),

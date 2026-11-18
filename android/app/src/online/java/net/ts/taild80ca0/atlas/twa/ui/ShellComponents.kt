@@ -8,8 +8,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -44,6 +42,11 @@ import androidx.compose.ui.unit.sp
 import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaColor
 import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaShapes
 import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaTheme
+import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaElevation
+import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaIconSize
+import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaRadius
+import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaSize
+import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaSpacing
 
 /**
  * The PWA's `active:bg-surface-2`: the color shows only while the element is pressed. Elements built with this use
@@ -64,7 +67,7 @@ private fun DrawScope.strokePaths(paths: List<androidx.compose.ui.graphics.Path>
 
 /** `_brand_mark`: the horizon and list lines and the check, all in the accent color (the span is `text-accent`). */
 @Composable
-fun BrandMark(modifier: Modifier = Modifier, size: Dp = 32.dp) {
+fun BrandMark(modifier: Modifier = Modifier, size: Dp = AlvaSpacing.xxxl) {
     val accent = AlvaTheme.colors.accent
     val lines = remember { PathParser().parsePathString("M18 57H34.5M57.5 57H82M30 70H70M40 82H60").toPath() }
     val check = remember { PathParser().parsePathString("M32 42L46 57L72 24").toPath() }
@@ -85,7 +88,7 @@ fun BrandMark(modifier: Modifier = Modifier, size: Dp = 32.dp) {
  */
 @Composable
 fun BrandHeader(
-    modifier: Modifier = Modifier, markSize: Dp = 32.dp, gap: Dp = 10.dp, markBox: Dp = markSize,
+    modifier: Modifier = Modifier, markSize: Dp = AlvaSpacing.xxxl, gap: Dp = AlvaSpacing.sm, markBox: Dp = markSize,
     trailing: @Composable () -> Unit = {},
 ) {
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -95,25 +98,25 @@ fun BrandHeader(
                 Text("Alva", style = AlvaTheme.type.brand.copy(lineHeight = 17.5.sp), color = AlvaTheme.colors.ink,
                     modifier = Modifier.testTag("brand-name"))
                 Text("Nossa casa", style = AlvaTheme.type.caption.copy(lineHeight = 15.sp), color = AlvaTheme.colors.inkFaint,
-                    modifier = Modifier.padding(top = 2.dp))
+                    modifier = Modifier.padding(top = AlvaSpacing.xs / 2))
             }
         }
         trailing()
     }
 }
 
-/** The ⋯ button of both headers (`size-10`, round, `text-ink-soft`). It only opens what the caller puts in the menu. */
+/** The ⋯ button of both headers ([AlvaSize.IconButton], round, `text-ink-soft`). It only opens what the caller puts in the menu. */
 @Composable
 fun MoreButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
     val color = AlvaTheme.colors.inkSoft
     val source = remember { MutableInteractionSource() }
     Box(
-        modifier.size(40.dp).clip(CircleShape).pressedSurface(source, AlvaTheme.colors.surface2)
+        modifier.size(AlvaSize.IconButton).clip(AlvaShapes.Full).pressedSurface(source, AlvaTheme.colors.surface2)
             .clickable(interactionSource = source, indication = null, role = Role.Button, onClick = onClick)
             .semantics { contentDescription = "Mais opções" },
         contentAlignment = Alignment.Center,
     ) {
-        Canvas(Modifier.size(20.dp)) {
+        Canvas(Modifier.size(AlvaIconSize.Bar)) {
             val scale = size.width / 20f
             listOf(4.5f, 10f, 15.5f).forEach { drawCircle(color, 1.5f * scale, Offset(it * scale, 10f * scale)) }
         }
@@ -125,8 +128,8 @@ fun MoreButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
 fun ListCounter(pending: Int, modifier: Modifier = Modifier) {
     val c = AlvaTheme.colors
     Box(
-        modifier.defaultMinSize(minWidth = 20.dp).background(if (pending > 0) c.accent else c.surface2, CircleShape)
-            .padding(horizontal = 6.dp, vertical = 1.dp)
+        modifier.defaultMinSize(minWidth = AlvaSpacing.xl).background(if (pending > 0) c.accent else c.surface2, AlvaShapes.Full)
+            .padding(horizontal = AlvaSpacing.sm, vertical = 1.dp)
             .semantics { contentDescription = "$pending ${if (pending == 1) "pendente" else "pendentes"}" },
         contentAlignment = Alignment.Center,
     ) {
@@ -145,18 +148,18 @@ enum class AppScreen(val tag: String, val label: String) {
     Add("add", "Adicionar"), List("list", "Lista");
 }
 
-/** Geometry of the floating navigation capsule (approved prototype, variant A). */
+/** Geometry of the floating navigation capsule (approved prototype, variant A), from the shared tokens. */
 object FloatingNavigation {
     /** Space at the sides of the capsule: the canvas stays visible there. */
-    val SideMargin = 16.dp
+    val SideMargin = AlvaSpacing.lg
     /** Space between the capsule and the system gesture/navigation area, and above it between it and the content. */
-    val EdgeGap = 8.dp
-    val InnerPadding = 6.dp
-    val CapsuleRadius = 26.dp
-    val PillRadius = 21.dp
+    val EdgeGap = AlvaSpacing.sm
+    val InnerPadding = AlvaSpacing.sm
+    val CapsuleRadius = AlvaRadius.capsule
+    val PillRadius = AlvaRadius.pill
     /** Touch target of each tab; it grows with the font, never below this. */
-    val MinTabHeight = 48.dp
-    val MaxWidth = 448.dp
+    val MinTabHeight = AlvaSize.TouchMin
+    val MaxWidth = AlvaSize.Content
     const val CapsuleTag = "bottom-navigation"
 }
 
@@ -170,7 +173,7 @@ object FloatingNavigation {
 @Composable
 fun BottomNavigation(current: AppScreen, pending: Int, onSelect: (AppScreen) -> Unit, modifier: Modifier = Modifier) {
     val c = AlvaTheme.colors
-    val capsule = RoundedCornerShape(FloatingNavigation.CapsuleRadius)
+    val capsule = AlvaShapes.Capsule
     Box(
         modifier.fillMaxWidth()
             .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.displayCutout)
@@ -181,13 +184,15 @@ fun BottomNavigation(current: AppScreen, pending: Int, onSelect: (AppScreen) -> 
     ) {
         Row(
             Modifier.widthIn(max = FloatingNavigation.MaxWidth).fillMaxWidth().height(IntrinsicSize.Min)
-                .shadow(8.dp, capsule, ambientColor = Color.Black.copy(alpha = 0.15f), spotColor = Color.Black.copy(alpha = 0.15f))
+                .shadow(AlvaElevation.Float, capsule,
+                    ambientColor = Color.Black.copy(alpha = AlvaElevation.FloatAlpha),
+                    spotColor = Color.Black.copy(alpha = AlvaElevation.FloatAlpha))
                 .background(c.surface, capsule).border(1.dp, c.line, capsule)
                 .padding(FloatingNavigation.InnerPadding)
                 .selectableGroup()
                 .semantics { contentDescription = "Navegação do app" }
                 .testTag(FloatingNavigation.CapsuleTag),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(AlvaSpacing.xs),
         ) {
             AppScreen.entries.forEach { screen ->
                 val selected = screen == current
@@ -198,13 +203,13 @@ fun BottomNavigation(current: AppScreen, pending: Int, onSelect: (AppScreen) -> 
                 }
                 Row(
                     Modifier.weight(1f).fillMaxHeight().heightIn(min = FloatingNavigation.MinTabHeight)
-                        .clip(RoundedCornerShape(FloatingNavigation.PillRadius))
+                        .clip(AlvaShapes.Pill)
                         .background(if (selected) c.accentSoft else Color.Transparent)
                         .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, role = Role.Tab) { onSelect(screen) }
                         .semantics { this.selected = selected }
                         .testTag("nav-${screen.tag}")
-                        .padding(horizontal = 8.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                        .padding(horizontal = AlvaSpacing.sm, vertical = AlvaSpacing.sm),
+                    horizontalArrangement = Arrangement.spacedBy(AlvaSpacing.sm, Alignment.CenterHorizontally),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     NavIcon(screen, tint)
@@ -223,12 +228,12 @@ private fun NavIcon(screen: AppScreen, tint: Color) {
         if (screen == AppScreen.Add) listOf(PathParser().parsePathString("M10 4v12M4 10h12").toPath())
         else listOf(PathParser().parsePathString("M7 5.5h9M7 10h9M7 14.5h9").toPath())
     }
-    Canvas(Modifier.size(20.dp)) {
-        strokePaths(paths, 20f, tint, if (screen == AppScreen.Add) 2f else 1.75f)
+    Canvas(Modifier.size(AlvaIconSize.Bar)) {
+        strokePaths(paths, 20f, tint, if (screen == AppScreen.Add) AlvaIconSize.Stroke + 0.25f else AlvaIconSize.Stroke)
         if (screen == AppScreen.List) {
             val scale = size.width / 20f
             listOf(5.5f, 10f, 14.5f).forEach {
-                drawCircle(tint, 0.75f * scale, Offset(3.75f * scale, it * scale), style = Stroke(1.75f * scale))
+                drawCircle(tint, 0.75f * scale, Offset(3.75f * scale, it * scale), style = Stroke(AlvaIconSize.Stroke * scale))
             }
         }
     }
@@ -242,12 +247,14 @@ private fun NavIcon(screen: AppScreen, tint: Color) {
 fun UndoToast(message: String, actionLabel: String, onAction: () -> Unit, modifier: Modifier = Modifier) {
     val c = AlvaTheme.colors
     Row(
-        modifier.widthIn(max = 448.dp - 32.dp)
-            .shadow(8.dp, AlvaShapes.Card, ambientColor = Color.Black.copy(alpha = 0.2f), spotColor = Color.Black.copy(alpha = 0.2f))
+        modifier.widthIn(max = AlvaSize.Toast)
+            .shadow(AlvaElevation.Float, AlvaShapes.Card,
+                ambientColor = Color.Black.copy(alpha = AlvaElevation.FloatAlpha),
+                spotColor = Color.Black.copy(alpha = AlvaElevation.FloatAlpha))
             .background(c.surface2, AlvaShapes.Card).border(1.dp, c.line, AlvaShapes.Card)
-            .padding(start = 16.dp, top = 4.dp, bottom = 4.dp, end = 4.dp)
+            .padding(start = AlvaSpacing.lg, top = AlvaSpacing.xs, bottom = AlvaSpacing.xs, end = AlvaSpacing.xs)
             .semantics { liveRegion = LiveRegionMode.Polite },
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(AlvaSpacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(message, style = AlvaTheme.type.bodySmall, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -255,9 +262,9 @@ fun UndoToast(message: String, actionLabel: String, onAction: () -> Unit, modifi
         Text("·", style = AlvaTheme.type.bodySmall, color = c.inkFaint)
         Text(
             actionLabel, style = AlvaTheme.type.bodySmall.copy(fontWeight = FontWeight.SemiBold), color = c.accentStrong,
-            modifier = Modifier.clip(RoundedCornerShape(12.dp))
+            modifier = Modifier.clip(AlvaShapes.Control)
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, role = Role.Button, onClick = onAction)
-                .padding(horizontal = 12.dp, vertical = 10.dp).testTag("toast-undo"),
+                .padding(horizontal = AlvaSpacing.md, vertical = AlvaSpacing.md).testTag("toast-undo"),
         )
     }
 }

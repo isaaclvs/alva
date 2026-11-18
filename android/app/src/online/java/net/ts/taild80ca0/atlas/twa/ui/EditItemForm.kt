@@ -60,8 +60,8 @@ fun rememberEditItemState() = rememberSaveable(saver = EditItemState.Saver) { Ed
 @Composable
 internal fun EditItemButton(name: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val color = AlvaTheme.colors.inkFaint
-    IconButton(onClick = onClick, modifier = modifier.size(44.dp).semantics { contentDescription = "Corrigir $name" }) {
-        Canvas(Modifier.size(20.dp)) {
+    IconButton(onClick = onClick, modifier = modifier.size(AlvaSize.TouchMin).semantics { contentDescription = "Corrigir $name" }) {
+        Canvas(Modifier.size(AlvaIconSize.Bar)) {
             val u = size.width / 20f
             drawLine(color, Offset(5*u, 14*u), Offset(14*u, 5*u), 2*u, StrokeCap.Round)
             drawLine(color, Offset(14*u, 5*u), Offset(17*u, 8*u), 2*u, StrokeCap.Round)
@@ -78,12 +78,12 @@ internal fun EditItemForm(state: EditItemState, categories: List<Category>, onCa
     val colors = AlvaTheme.colors
     val focus = remember { FocusRequester() }
     var menu by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxWidth().background(colors.surface).padding(12.dp).testTag("edit-form-${state.itemId}"),
-        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.fillMaxWidth().background(colors.surface).padding(AlvaSpacing.md).testTag("edit-form-${state.itemId}"),
+        verticalArrangement = Arrangement.spacedBy(AlvaSpacing.sm)) {
         BasicTextField(state.name, onValueChange = { state.name = it }, singleLine = true, enabled = !state.saving,
             textStyle = AlvaTheme.type.body.copy(color = colors.ink), cursorBrush = SolidColor(colors.accent),
             modifier = Modifier.fillMaxWidth().background(colors.canvas, AlvaShapes.Control)
-                .border(1.dp, colors.line, AlvaShapes.Control).padding(horizontal = 12.dp, vertical = 8.dp)
+                .border(1.dp, colors.line, AlvaShapes.Control).padding(horizontal = AlvaSpacing.md, vertical = AlvaSpacing.sm)
                 .focusRequester(focus).semantics { contentDescription = "Nome" }.testTag("edit-name"))
         Box {
             OutlinedButton(onClick = { menu = true }, enabled = !state.saving, shape = AlvaShapes.Control,
@@ -100,7 +100,7 @@ internal fun EditItemForm(state: EditItemState, categories: List<Category>, onCa
         }
         state.error?.let { Text(it, style = AlvaTheme.type.bodySmall, color = colors.danger,
             modifier = Modifier.testTag("edit-error").semantics { liveRegion = LiveRegionMode.Polite }) }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(AlvaSpacing.sm)) {
             remove?.invoke()
             Spacer(Modifier.weight(1f))
             TextButton(onClick = onCancel, enabled = !state.saving, modifier = Modifier.testTag("edit-cancel")) { Text("Cancelar", color = colors.inkSoft) }

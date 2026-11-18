@@ -43,6 +43,9 @@ import kotlinx.coroutines.delay
 import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaColors
 import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaShapes
 import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaTheme
+import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaIconSize
+import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaSize
+import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaSpacing
 
 /**
  * One failure on screen: the message, an optional way to run the same action again, and an [id] that tells two
@@ -100,11 +103,11 @@ fun NoticeCard(
 ) {
     val c = AlvaTheme.colors
     Column(modifier.fillMaxWidth().background(c.surface2, AlvaShapes.Card).border(1.dp, c.line, AlvaShapes.Card)
-        .padding(start = 12.dp, top = 10.dp, end = 4.dp, bottom = 0.dp)) {
+        .padding(start = AlvaSpacing.md, top = AlvaSpacing.md, end = AlvaSpacing.xs, bottom = 0.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             NoticeIcon(tone)
             Text(message, style = AlvaTheme.type.bodySmall, color = c.ink, maxLines = 4, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 8.dp, end = 8.dp).weight(1f)
+                modifier = Modifier.padding(start = AlvaSpacing.sm, end = AlvaSpacing.sm).weight(1f)
                     .testTag(tag).semantics { liveRegion = LiveRegionMode.Polite })
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically, content = actions)
@@ -120,9 +123,9 @@ enum class NoticeTone(val color: (AlvaColors) -> Color) {
 /** A text action of a [NoticeCard]: 48dp tall, no ripple, no Material button chrome. */
 @Composable
 fun NoticeAction(label: String, color: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Box(modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
+    Box(modifier.heightIn(min = AlvaSize.TouchMin).clip(AlvaShapes.Control)
         .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, role = Role.Button, onClick = onClick)
-        .padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
+        .padding(horizontal = AlvaSpacing.md), contentAlignment = Alignment.Center) {
         Text(label, style = AlvaTheme.type.bodySmall.copy(fontWeight = FontWeight.SemiBold), color = color)
     }
 }
@@ -131,7 +134,7 @@ fun NoticeAction(label: String, color: Color, modifier: Modifier = Modifier, onC
 @Composable
 private fun NoticeIcon(tone: NoticeTone) {
     val color = tone.color(AlvaTheme.colors)
-    Canvas(Modifier.size(16.dp).clearAndSetSemantics { }) {
+    Canvas(Modifier.size(AlvaIconSize.Inline).clearAndSetSemantics { }) {
         val unit = size.width / 16f
         drawCircle(color, 6.5f * unit, center = center, style = Stroke(1.5f * unit))
         drawLine(color, Offset(8f * unit, 4.5f * unit), Offset(8f * unit, 9f * unit), 1.5f * unit, StrokeCap.Round)
