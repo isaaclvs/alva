@@ -249,6 +249,21 @@ marcar vibra rapidamente quando o aparelho suporta. Iniciar
 e sair só mudam a tela: nada é alterado nos itens nem finalizado. Compra feita
 mantém o modo. `screen#show` ignora trocas de tela enquanto o modo está ativo.
 
+**Marcar é otimista:** o toque na linha já mostra o estado pedido antes da
+resposta (`mutation_controller.js`). O botão da linha (`_row`) troca de
+`aria-pressed` na hora, a linha ganha `data-mutation-in-flight` e `aria-busy` e
+fica a 60% de opacidade, e o `#mutation_progress` do layout anuncia "Marcado,
+enviando" ou "Desmarcado, enviando" — as mesmas palavras do `pendingStatus` do
+Android (`ui/ListScreen.kt`); a região fica fora da linha porque `aria-busy`
+esconde as regiões vivas de dentro dela. Quem decide a aparência é o
+`aria-pressed` no CSS, então o desenho confirmado continua sendo o do servidor.
+Se a resposta falhar, o estado otimista é revertido antes do aviso. Um segundo
+toque na mesma ação em voo é um no-op silencioso (sem o falso erro "Aguarde a
+resposta…"); o aviso de espera só fica para uma tentativa anterior cujo
+resultado ainda é desconhecido. O lápis de edição não precisa de JS: o Turbo
+marca o `turbo-frame` da linha de `busy` enquanto o formulário de correção
+carrega, e o mesmo CSS escurece a linha.
+
 **Tema:** escuro (padrão) e claro, alternados pelo item do menu ⋯ em cada tela e salvos
 por aparelho no cookie `theme` (`<html data-theme>` vem do servidor). As cores
 são tokens semânticos em `app/assets/tailwind/application.css` (`canvas`,
