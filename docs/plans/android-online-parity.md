@@ -47,6 +47,7 @@ Tela Compose ──ação──▶ OnlineRepository ──POST /commands──�
 | Entrar com a senha da casa | pareamento `/api/v1/devices` | — | 0 (#95) |
 | Temas escuro/claro, cores teal/rosa, Nunito Sans | — (tokens no CSS) | — | 0 (#93) |
 | Raios, espaçamento, elevação, tamanhos de ícone e de controle | tokens no `@theme` do CSS | — (tokens no cliente) | 0 (#166) |
+| Movimento (durações, easings, animação desligada pelo sistema) | tokens no `@theme` do CSS | — (tokens no cliente) | 0 (#168) |
 | Tempo real entre os dois celulares | ActionCable `/api/v1/cable` | — | 0 (#94) |
 | Adicionar (vírgula/linha, até 30, dedup) | `add_items` | — | 1 (#97) |
 | Sugestão de nomes ao digitar (datalist) | snapshot (dicionário + itens vivos e arquivados) | `NameSuggestions` no cliente, mesma fonte e ordenação | 1 (#156) |
