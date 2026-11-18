@@ -10,4 +10,5 @@
     <string name="quick_add_multiple_hint">Vários produtos? Separe por vírgula.</string>
     <string name="quick_add_success_symbol">✓</string>
     <string name="quick_add_success_hint">Pronto. Pode continuar o seu dia.</string>
+    <string name="quick_add_undo_label">Desfazer</string>
 </resources>

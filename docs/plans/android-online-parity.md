@@ -49,7 +49,7 @@ Tela Compose ──ação──▶ OnlineRepository ──POST /commands──�
 | Tempo real entre os dois celulares | ActionCable `/api/v1/cable` | — | 0 (#94) |
 | Adicionar (vírgula/linha, até 30, dedup) | `add_items` | — | 1 (#97) |
 | Dica de duplicado ao digitar | catálogo no snapshot | — | 1 (#97) |
-| "Acabou de adicionar" com troca de categoria | `add_items` + `correct_item` | — | 1 (#97) |
+| "Acabou de adicionar" com troca de categoria e "×" (desfazer) | `add_items` + `correct_item` + `remove_item`/`undo_remove` | — | 1 (#97, #144) |
 | Categorias com contagem | snapshot | — | 1 (#98) |
 | Marcar/desmarcar | `set_item_state` | — | 1 (#98) |
 | Desfazer marcação (toast) | — | comando `undo_item_state` (#96) | 1 (#98) |

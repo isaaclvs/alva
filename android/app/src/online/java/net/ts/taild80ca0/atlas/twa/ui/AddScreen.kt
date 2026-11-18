@@ -35,6 +35,7 @@ import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -84,7 +85,10 @@ import net.ts.taild80ca0.atlas.twa.online.OnlineMessages
 import net.ts.taild80ca0.atlas.twa.online.OnlineRepository
 import net.ts.taild80ca0.atlas.twa.online.OnlineAction
 import net.ts.taild80ca0.atlas.twa.online.OnlineState
+import net.ts.taild80ca0.atlas.twa.online.RemoveItem
+import net.ts.taild80ca0.atlas.twa.online.UndoRemove
 import net.ts.taild80ca0.atlas.twa.online.addedItems
+import net.ts.taild80ca0.atlas.twa.online.categoryLabel
 import net.ts.taild80ca0.atlas.twa.online.liveItems
 import net.ts.taild80ca0.atlas.twa.sync.ServerSnapshot
 import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaShapes
@@ -106,6 +110,9 @@ data class AddFeedback(val text: String, val tone: Tone, val id: Long) {
     }
 }
 
+/** One row of "Acabou de adicionar": the item and whether this add created it. */
+data class RecentAdd(val itemPublicId: String, val name: String, val undoable: Boolean)
+
 /**
  * Everything the Adicionar screen remembers: the draft, what the last add said, what this device just added and
  * the actions in flight. It lives above the screen (see [rememberAddScreenState]) so that switching to the list
@@ -118,6 +125,7 @@ class AddScreenState internal constructor(
     initialDraft: String,
     private val repository: OnlineRepository,
     private val scope: CoroutineScope,
+    private val showToast: (ToastMessage) -> Unit = {},
 ) {
     var draft by mutableStateOf(initialDraft)
 
@@ -128,14 +136,17 @@ class AddScreenState internal constructor(
         private set
 
     /** The items this device just added or revived, newest first, at most [RECENT_LIMIT] (`recent_adds_controller.js`). */
-    var recent by mutableStateOf<List<String>>(emptyList())
+    var recent by mutableStateOf<List<RecentAdd>>(emptyList())
         private set
 
     private val correcting = mutableStateListOf<String>()
+    private val removing = mutableStateListOf<String>()
     val habituals = HabitualPanelState(repository, scope)
     private var feedbackCount = 0L
 
     fun isCorrecting(itemPublicId: String) = itemPublicId in correcting
+
+    fun isRemoving(itemPublicId: String) = itemPublicId in removing
 
     /** Sends what is in the field. The text leaves the field only when the server took it. */
     fun submit() = send(AddItems.fromText(draft), draft)
@@ -182,6 +193,48 @@ class AddScreenState internal constructor(
         }
     }
 
+    /**
+     * Takes back what this device's add put on the list (`remove_item`, the Lista's own command) and offers the
+     * toast's "Desfazer" (`undo_remove`), which restores the item from the server's removal record. Only a row
+     * this add created has the button: a revived item is a bought one that came back, so removing it would delete
+     * history instead of the add.
+     */
+    fun remove(itemPublicId: String) {
+        if (itemPublicId in removing) return
+        val row = recent.firstOrNull { it.itemPublicId == itemPublicId }
+        val name = row?.name ?: nameOf(itemPublicId)
+        removing += itemPublicId
+        scope.launch {
+            try {
+                when (val result = repository.execute(RemoveItem(itemPublicId))) {
+                    is ActionResult.Success -> {
+                        forget(itemPublicId)
+                        showToast(ToastMessage("${name ?: "Item"} removido", "Desfazer") {
+                            if (repository.execute(UndoRemove(result.receipt.commandId)) is ActionResult.Success) {
+                                // The row comes back first; the reload inside the undo already has the item.
+                                if (row != null && recent.none { it.itemPublicId == itemPublicId }) {
+                                    recent = listOf(row) + recent
+                                }
+                            } else {
+                                say(OnlineMessages.failure(result), AddFeedback.Tone.Problem)
+                            }
+                        })
+                    }
+                    else -> say(OnlineMessages.failure(result), AddFeedback.Tone.Problem)
+                }
+            } finally {
+                removing -= itemPublicId
+            }
+        }
+    }
+
+    private fun nameOf(itemPublicId: String) =
+        (repository.state.value as? OnlineState.Ready)?.snapshot?.listItems?.firstOrNull { it.publicId == itemPublicId }?.name
+
+    private fun forget(itemPublicId: String) {
+        recent = recent.filterNot { it.itemPublicId == itemPublicId }
+    }
+
     /** The PWA's toast removes the message after a few seconds; a problem stays until the next add. */
     internal fun dismiss(feedback: AddFeedback) {
         if (this.feedback?.id == feedback.id) this.feedback = null
@@ -193,9 +246,11 @@ class AddScreenState internal constructor(
 
     /** `turbo_stream.prepend`: the last name typed goes first; only the newest three stay. */
     private fun remember(added: List<AddedItem>) {
-        val fresh = added.filter { it.outcome != AddOutcome.DUPLICATE }.map { it.itemPublicId }.reversed().distinct()
+        val fresh = added.filter { it.outcome != AddOutcome.DUPLICATE }.reversed().distinctBy { it.itemPublicId }
         if (fresh.isEmpty()) return
-        recent = (fresh.take(RECENT_LIMIT) + recent.filterNot { it in fresh }).take(RECENT_LIMIT)
+        val rows = fresh.map { RecentAdd(it.itemPublicId, name = it.name, undoable = it.outcome == AddOutcome.CREATED) }
+        recent = (rows.take(RECENT_LIMIT) + recent.filterNot { row -> fresh.any { it.itemPublicId == row.itemPublicId } })
+            .take(RECENT_LIMIT)
     }
 
     companion object {
@@ -206,19 +261,20 @@ class AddScreenState internal constructor(
 }
 
 @Composable
-fun rememberAddScreenState(repository: OnlineRepository): AddScreenState {
+fun rememberAddScreenState(repository: OnlineRepository, showToast: (ToastMessage) -> Unit = {}): AddScreenState {
     val scope = rememberCoroutineScope()
+    val latestToast by rememberUpdatedState(showToast)
     return rememberSaveable(
         repository,
         saver = listSaver<AddScreenState, String>(
             save = { listOf(it.draft, it.habituals.draft, it.habituals.expanded.toString()) + it.habituals.selected },
-            restore = { saved -> AddScreenState(saved[0], repository, scope).also {
+            restore = { saved -> AddScreenState(saved[0], repository, scope, { latestToast(it) }).also {
                 it.habituals.draft = saved[1]
                 it.habituals.expanded = saved[2].toBoolean()
                 it.habituals.selected.addAll(saved.drop(3))
             } },
         ),
-    ) { AddScreenState("", repository, scope) }
+    ) { AddScreenState("", repository, scope, { latestToast(it) }) }
 }
 
 /**
@@ -259,9 +315,10 @@ fun AddScreen(
     // bottom, so the field and its button stay in view and what was added scrolls away above them.
     Column(modifier.verticalScroll(rememberScrollState(), reverseScrolling = true), verticalArrangement = Arrangement.Bottom) {
         Column(Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 20.dp)) {
-            val rows = remember(state.recent, items) { state.recent.mapNotNull { id -> items.firstOrNull { it.publicId == id } } }
+            val rows = remember(state.recent, items) { state.recent.mapNotNull { row -> items.firstOrNull { it.publicId == row.itemPublicId } } }
+            val undoable = remember(state.recent) { state.recent.filter { it.undoable }.map { it.itemPublicId }.toSet() }
             if (rows.isNotEmpty()) {
-                RecentAdds(state, rows, snapshot.categories)
+                RecentAdds(state, rows, undoable, snapshot.categories)
                 Spacer(Modifier.height(24.dp))
             }
             Text("O que está faltando em casa?", style = type.pageTitle.copy(lineHeight = 32.sp), color = colors.ink,
@@ -308,11 +365,6 @@ fun AddScreen(
         focus.requestFocus()
         keyboard?.show()
     }
-}
-
-private fun ServerSnapshot.categoryLabel(itemPublicId: String): String {
-    val item = listItems.firstOrNull { it.publicId == itemPublicId }
-    return categories.firstOrNull { it.publicId == item?.categoryPublicId }?.name ?: AddScreenState.NO_CATEGORY
 }
 
 /** `#list_item_form`: `rounded-2xl border-line bg-surface`, accent border and a 4px `accent-soft` ring on focus. */
@@ -372,7 +424,7 @@ private fun AddField(state: AddScreenState, focus: FocusRequester) {
 
 /** `#recent_adds`: what this device just added, each with the category it landed in and a picker to fix it. */
 @Composable
-private fun RecentAdds(state: AddScreenState, rows: List<ListItem>, categories: List<Category>) {
+private fun RecentAdds(state: AddScreenState, rows: List<ListItem>, undoable: Set<String>, categories: List<Category>) {
     val colors = AlvaTheme.colors
     Column(Modifier.testTag("recent-adds")) {
         Text("Acabou de adicionar", style = AlvaTheme.type.caption.copy(fontWeight = FontWeight.Medium), color = colors.inkFaint,
@@ -390,10 +442,29 @@ private fun RecentAdds(state: AddScreenState, rows: List<ListItem>, categories: 
                     Text(item.name, style = AlvaTheme.type.bodySmall, color = colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f))
                     CategoryPicker(item, category, categories, enabled = !state.isCorrecting(item.publicId)) { state.correct(item.publicId, it) }
+                    // Only a name this add created: a revived one is a bought item that came back.
+                    if (item.publicId in undoable) {
+                        RecentRemoveButton(item, enabled = !state.isRemoving(item.publicId)) { state.remove(item.publicId) }
+                    }
                     Check(colors.accent)
                 }
             }
         }
+    }
+}
+
+/** The `×` at the end of a row of "Acabou de adicionar": takes back what this add created, with the toast's undo. */
+@Composable
+private fun RecentRemoveButton(item: ListItem, enabled: Boolean, onRemove: () -> Unit) {
+    val colors = AlvaTheme.colors
+    Box(
+        Modifier.size(28.dp).clip(RoundedCornerShape(8.dp))
+            .clickable(enabled = enabled, role = Role.Button, onClickLabel = "Remover ${item.name}", onClick = onRemove)
+            .semantics { contentDescription = "Remover ${item.name}"; if (!enabled) disabled() }
+            .testTag("recent-remove-${item.publicId}"),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text("×", style = AlvaTheme.type.bodySmall.copy(fontWeight = FontWeight.Medium), color = colors.inkFaint)
     }
 }
 

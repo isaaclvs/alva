@@ -48,13 +48,19 @@ class QuickPanelTest {
     }
     private fun await(condition: (QuickAddActivity) -> Boolean) {
         val deadline = System.currentTimeMillis() + 10_000
+        var last = ""
         do {
+            // The panel closes by itself after a confirmation: an expectation that was not met by then never will be.
+            if (scenario!!.state == androidx.lifecycle.Lifecycle.State.DESTROYED) fail("Quick panel closed before the expected state (saw: $last)")
             var done = false
-            scenario!!.onActivity { done = condition(it) }
+            scenario!!.onActivity {
+                last = "${it.findViewById<TextView>(R.id.quick_add_success_message)?.text} / ${it.findViewById<TextView>(R.id.quick_add_status)?.text}"
+                done = condition(it)
+            }
             if (done) return
             Thread.sleep(50)
         } while (System.currentTimeMillis() < deadline)
-        fail("Quick panel did not reach the expected state")
+        fail("Quick panel did not reach the expected state (saw: $last)")
     }
     @After fun cleanup() {
         scenario?.close(); AccessGraph.install(null); scope.cancel()
@@ -100,7 +106,7 @@ class QuickPanelTest {
         onView(withId(R.id.quick_add_product)).check(matches(withText("Leite, Pão")))
         house.commandSteps.clear()
         onView(withId(R.id.quick_add_product)).perform(pressImeActionButton())
-        await { it.findViewById<TextView>(R.id.quick_add_success_message).text == "Adicionado à lista" }
+        await { it.findViewById<TextView>(R.id.quick_add_success_message).text == "2 itens adicionados" }
         assertEquals(listOf("Leite", "Pão"), house.rows.map { it.name })
     }
     @Test fun rotationRetainsTheInFlightSendAndRejectsAnotherImeSubmission() {
@@ -121,7 +127,7 @@ class QuickPanelTest {
         }
         assertEquals(1, calls.get())
         release.complete(Unit)
-        await { it.findViewById<TextView>(R.id.quick_add_success_message).text == "Adicionado à lista" }
+        await { it.findViewById<TextView>(R.id.quick_add_success_message).text == "2 itens adicionados" }
         assertEquals(2, house.rows.size)
     }
     @Test fun revokedAccessKeepsTheDraftAndReauthorizationRestoresThePanel() {
@@ -138,15 +144,39 @@ class QuickPanelTest {
         onView(withId(R.id.quick_add_product)).check(matches(withText("Leite")))
         onView(withId(R.id.quick_add_product)).perform(closeSoftKeyboard())
         onView(withId(R.id.quick_add_submit)).perform(scrollTo(), click())
-        await { it.findViewById<TextView>(R.id.quick_add_success_message).text == "Adicionado à lista" }
+        await { it.findViewById<TextView>(R.id.quick_add_success_message).text == "Leite adicionado em Laticínios" }
         assertEquals(1, house.rows.size)
     }
 
-    @Test fun duplicateConfirmsAndClosesAfterOneAndAHalfSeconds() {
+    @Test fun aSingleNewNameIsConfirmedWithItsCategoryAndCanBeUndone() {
+        launch()
+        onView(withId(R.id.quick_add_product)).perform(replaceText("Leite"), pressImeActionButton())
+        await { it.findViewById<TextView>(R.id.quick_add_success_message).text == "Leite adicionado em Laticínios" }
+        onView(withId(R.id.quick_add_success_undo)).check(matches(withEffectiveVisibility(Visibility.VISIBLE)))
+        onView(withId(R.id.quick_add_success_undo)).perform(scrollTo(), click())
+        await { house.rows.isEmpty() }
+        // The field is back, empty, for the name that was meant.
+        await { it.findViewById<EditText>(R.id.quick_add_product).isShown }
+        onView(withId(R.id.quick_add_product)).check(matches(withText("")))
+        onView(withId(R.id.quick_add_success_undo)).check(matches(withEffectiveVisibility(Visibility.GONE)))
+        assertEquals(listOf("add_items", "remove_item"), house.sent.map { org.json.JSONObject(it.second).getString("type") })
+    }
+
+    @Test fun theUndoIsNotOfferedForARevivedOrAlreadyThereName() {
+        house.seed("Leite", status = "purchased")
+        launch()
+        onView(withId(R.id.quick_add_product)).perform(replaceText("Leite"), pressImeActionButton())
+        await { it.findViewById<TextView>(R.id.quick_add_success_message).text == "Leite voltou para a lista" }
+        onView(withId(R.id.quick_add_success_undo)).check(matches(withEffectiveVisibility(Visibility.GONE)))
+        assertEquals(1, house.rows.size)
+    }
+
+    @Test fun duplicateConfirmsAndClosesAfterAFewSeconds() {
         house.seed("Leite")
         launch()
         onView(withId(R.id.quick_add_product)).perform(replaceText("Leite"), pressImeActionButton())
-        await { it.findViewById<TextView>(R.id.quick_add_success_message).text == "Já estava na lista" }
+        await { it.findViewById<TextView>(R.id.quick_add_success_message).text == "Leite já está na lista" }
+        onView(withId(R.id.quick_add_success_undo)).check(matches(withEffectiveVisibility(Visibility.GONE)))
         val deadline = System.currentTimeMillis() + 4_000
         while (scenario!!.state != androidx.lifecycle.Lifecycle.State.DESTROYED && System.currentTimeMillis() < deadline) Thread.sleep(50)
         assertEquals(androidx.lifecycle.Lifecycle.State.DESTROYED, scenario!!.state)

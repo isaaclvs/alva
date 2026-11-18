@@ -17,7 +17,7 @@ etapa de transição.
 | --- | --- | --- | --- | --- |
 | Adicionar item | Campo aceita vírgula/ponto e vírgula/linha, máx. 30, dedup por nome normalizado | Implementado em debug: campo via `ShoppingListStore`, gravando local primeiro | `add_items` idempotente | #43 |
 | Dica de duplicado ao digitar | `duplicate_hint_controller.js` compara com pendentes (sem acento/caixa) | Mesma dica sobre o banco local (`DuplicateHint`, consumido pela tela debug na #43) | Só dica; servidor decide | #42 |
-| Acabou de adicionar | Itens criados/revividos com seletor de categoria (`from=recent`) | Retorno local implementado em debug; seletor de correção fica para #48 | Resposta HTTP, nunca broadcast | #43 |
+| Acabou de adicionar | Itens criados/revividos com seletor de categoria (`from=recent`); o "×" tira o que este add criou, com o Desfazer do toast | Retorno local implementado em debug; seletor de correção fica para #48 | Resposta HTTP, nunca broadcast; `remove_item` + `undo_remove` | #43, #144 |
 | Categorização automática | `ItemCategorizer` sobre `CatalogItem`, fallback "Outros" | Módulo Kotlin equivalente (`data/matching`), corpus compartilhado, dicionário no Room | Dicionário sincronizado | #42 |
 | Corrigir nome/categoria | Lápis troca a linha; categoria à mão ensina o dicionário | Mesmo formulário local, rascunho preservado | `correct_item` + `learn` | #47, #48 |
 | Aprender categoria | `CatalogItem` `learned: true`, `db:seed` não sobrescreve | Grava localmente e envia aprendizado | Precondição de revisão do dicionário | #42, #47 |

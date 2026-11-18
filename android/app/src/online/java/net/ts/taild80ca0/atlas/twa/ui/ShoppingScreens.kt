@@ -56,9 +56,9 @@ fun ShoppingScreens(
     val state by repository.state.collectAsState()
     val editState = rememberEditItemState()
     var screen by rememberSaveable { mutableStateOf(preferences.screen) }
-    val addState = rememberAddScreenState(repository)
     var feedback by remember { mutableStateOf<String?>(null) }
     var toast by remember { mutableStateOf<ToastMessage?>(null) }
+    val addState = rememberAddScreenState(repository) { toast = it }
     val scope = rememberCoroutineScope()
     val keyboard = LocalSoftwareKeyboardController.current
     val context = LocalContext.current
