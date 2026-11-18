@@ -5,6 +5,13 @@ updates:
   schedule:
     interval: weekly
   open-pull-requests-limit: 10
+  # One PR per week for everything that is not a major: several open PRs nobody
+  # has time to merge is worse than one that can be reviewed in a minute. A major
+  # still gets its own PR, because it is the one that may need code changes.
+  groups:
+    bundler-minor-patch:
+      patterns: [ "*" ]
+      update-types: [ "minor", "patch" ]
   ignore:
     # json 3 breaks ActiveSupport::JSON.decode (see the pin in the Gemfile);
     # revisit when Rails supports it.
@@ -18,3 +25,18 @@ updates:
   schedule:
     interval: weekly
   open-pull-requests-limit: 10
+  groups:
+    github-actions-minor-patch:
+      patterns: [ "*" ]
+      update-types: [ "minor", "patch" ]
+# The Android app had no coverage at all: its Gradle dependencies and plugins
+# were only ever updated by hand.
+- package-ecosystem: gradle
+  directory: "/android"
+  schedule:
+    interval: weekly
+  open-pull-requests-limit: 10
+  groups:
+    gradle-minor-patch:
+      patterns: [ "*" ]
+      update-types: [ "minor", "patch" ]
