@@ -61,6 +61,7 @@ Tela Compose ──ação──▶ OnlineRepository ──POST /commands──�
 | Compra feita + desfazer compra | — | comandos `finish_shopping`, `undo_shopping` (#51) | 2 (#103) |
 | Habituais (criar, remover, adicionar selecionados/todos) | snapshot traz a coleção | comandos de habituais (#104) | 3 (#105) |
 | Comprar de novo (até 5 atalhos) | `BuyAgainSuggestions` (HTML) | campo aditivo no snapshot (#106) | 3 (#107) |
+| Comprar de novo por cadência ("costuma acabar a cada ~N dias", "Agora não") | `BuyAgainSuggestions` (mediana sobre `archived_items` + `shopping_trips.finished_at`) | `cadence_days`/`due` aditivos no `buy_again` (#163) | 3 (#163) |
 | Histórico de compras ("Compras", somente leitura, por mês, "Adicionar tudo de novo") | `ShoppingHistory`, `GET /compras`, `POST /compras/:id/adicionar` | — | 3 (#159) |
 | Exportar PDF | `/lista.pdf` com cookie | PDF com token na API v1 (#108) | 3 (#109) |
 | Menu ⋯ (tema, cor, PDF, sair) e tela aberta lembrada | cookies | — (DataStore no aparelho) | 3 (#109) |
