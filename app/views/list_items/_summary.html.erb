@@ -5,7 +5,7 @@
   <% if items.any? %>
     <%= tag.div class: "mt-2 h-1 overflow-hidden rounded-full bg-surface-2", role: "progressbar",
           aria: { label: "Itens comprados", valuemin: 0, valuemax: items.size, valuenow: purchased_count } do %>
-      <div class="h-full rounded-full bg-accent transition-[width] duration-300"
+      <div class="shopping-progress-fill h-full rounded-full bg-accent"
            style="width: <%= purchased_count * 100 / items.size %>%"></div>
     <% end %>
     <%# The screen's main action. shopping_controller.js disables it
