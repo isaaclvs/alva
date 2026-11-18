@@ -54,6 +54,9 @@ class FeedbackMessage(val text: String, val id: Long, val retry: (() -> Unit)? =
 /** How long a failure stays if nobody closes it: long enough to read, short enough not to become furniture. */
 const val FEEDBACK_MILLIS = 8_000L
 
+/** How long a command may take before the screen says it is still on its way. */
+const val SLOW_COMMAND_MILLIS = 2_500L
+
 /**
  * The dismissible failure of the screens. Only one is shown at a time (the newest). It goes away when the person
  * closes it, when the next action starts ([dismiss]), when the auto-hide of [FEEDBACK_MILLIS] runs out, or when a
@@ -154,4 +157,28 @@ fun FeedbackBanner(message: FeedbackMessage, onDismiss: () -> Unit, modifier: Mo
         message.retry?.let { retry -> NoticeAction(retryLabel, c.accentStrong, Modifier.testTag("feedback-retry"), retry) }
         NoticeAction("Fechar", c.inkSoft, Modifier.testTag("feedback-close"), onDismiss)
     }
+}
+
+/**
+ * True when [active] has been going on for [delayMillis]: a command that is slow (the transport waits up to 10 s
+ * to connect and 30 s for the answer, and retries twice) says so instead of leaving the screen still. It goes
+ * false as soon as [active] ends, so the answer removes the hint by itself.
+ */
+@Composable
+fun rememberSlowCommand(active: Boolean, delayMillis: Long = SLOW_COMMAND_MILLIS): Boolean {
+    var slow by remember { mutableStateOf(false) }
+    LaunchedEffect(active, delayMillis) {
+        slow = false
+        if (!active) return@LaunchedEffect
+        delay(delayMillis)
+        slow = true
+    }
+    return slow && active
+}
+
+/** "Ainda enviando…", in the notice area of either screen, while [rememberSlowCommand] says a command is slow. */
+@Composable
+fun SendingHint(modifier: Modifier = Modifier) {
+    Text("Ainda enviando…", style = AlvaTheme.type.caption, color = AlvaTheme.colors.inkSoft,
+        modifier = modifier.testTag("sending-hint").semantics { liveRegion = LiveRegionMode.Polite })
 }

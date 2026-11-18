@@ -145,12 +145,17 @@ fun ShoppingScreens(
             exportPdf = exportPdf?.let { { menuAction(it) } },
             signOut = signOut?.let { { menuAction(it) } }, actions = accessActions)
     }
+    // A command that is taking longer than a moment says so (the transport waits up to 10 s to connect and 30 s for
+    // the answer, and retries twice): the hint goes away with the answer, whichever tab is open.
+    val sending = listActions.anyBusy || listActions.finishing || addState.saving || addState.habituals.busy ||
+        editState.saving || menuWorking
+    val slowSending = rememberSlowCommand(sending)
     // The notices under the header of either screen, from the least to the most specific: the list may be out of
     // date (warn), a command is still on its way, and the last action failed (danger, dismissible).
     val notices: @Composable (Dp) -> Unit = { gutter ->
         val problem = ready?.problem
         val failure = feedback.current
-        if (problem != null || failure != null) {
+        if (problem != null || failure != null || slowSending) {
             Column(Modifier.fillMaxWidth().padding(horizontal = gutter, vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (problem != null) NoticeCard(problem.message, NoticeTone.Warn, "connection-notice") {
@@ -158,6 +163,7 @@ fun ShoppingScreens(
                         scope.launch { repository.refresh() }
                     }
                 }
+                if (slowSending) SendingHint()
                 if (failure != null) FeedbackBanner(failure, onDismiss = { feedback.dismiss(failure) })
             }
         }
