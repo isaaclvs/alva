@@ -7,6 +7,8 @@ import androidx.compose.ui.graphics.toArgb
 import net.ts.taild80ca0.atlas.twa.preferences.DevicePreferencesStore
 import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaColors
 import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaPalettes
+import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaRadius
+import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaSpacing
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -123,7 +125,7 @@ class QuickAddActivity : ComponentActivity() {
             if (border) setStroke(resources.displayMetrics.density.toInt().coerceAtLeast(1), palette.line.toArgb())
         }
         val root = findViewById<View>(R.id.quick_add_panel)
-        root.background = shape(palette.surface.toArgb(), 25f)
+        root.background = shape(palette.surface.toArgb(), AlvaRadius.capsule.value)
         val regular = ResourcesCompat.getFont(this, R.font.nunito_sans_regular)
         val bold = ResourcesCompat.getFont(this, R.font.nunito_sans_bold)
         fun textStyles(view: View) {
@@ -140,16 +142,16 @@ class QuickAddActivity : ComponentActivity() {
         findViewById<TextView>(R.id.quick_add_brand).setTextColor(palette.accent.toArgb())
         findViewById<View>(R.id.quick_add_handle).setBackgroundColor(palette.line.toArgb())
         findViewById<EditText>(R.id.quick_add_product).apply {
-            background = shape(palette.canvas.toArgb(), 14f, border = true)
+            background = shape(palette.canvas.toArgb(), AlvaRadius.control.value, border = true)
             setTextColor(palette.ink.toArgb())
             setHintTextColor(palette.inkFaint.toArgb())
         }
         findViewById<Button>(R.id.quick_add_submit).apply {
-            background = shape(palette.accent.toArgb(), 14f)
+            background = shape(palette.accent.toArgb(), AlvaRadius.control.value)
             setTextColor(palette.accentInk.toArgb())
         }
         findViewById<TextView>(R.id.quick_add_success_icon).apply {
-            background = shape(palette.accentSoft.toArgb(), 28f)
+            background = shape(palette.accentSoft.toArgb(), AlvaRadius.sheet.value)
             setTextColor(palette.accent.toArgb())
         }
         findViewById<Button>(R.id.quick_add_success_undo).setTextColor(palette.accent.toArgb())
@@ -161,8 +163,8 @@ class QuickAddActivity : ComponentActivity() {
         super.onStart()
         window.setGravity(Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
         val density = resources.displayMetrics.density
-        window.setLayout(resources.displayMetrics.widthPixels - (24 * density).toInt(), WindowManager.LayoutParams.WRAP_CONTENT)
-        window.attributes = window.attributes.apply { y = (12 * density).toInt() }
+        window.setLayout(resources.displayMetrics.widthPixels - (AlvaSpacing.xxl.value * density).toInt(), WindowManager.LayoutParams.WRAP_CONTENT)
+        window.attributes = window.attributes.apply { y = (AlvaSpacing.md.value * density).toInt() }
     }
     override fun onResume() {
         super.onResume()

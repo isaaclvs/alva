@@ -10,8 +10,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -96,34 +94,41 @@ internal fun WidgetConfiguration(
     }
     val chosen = selected.mapNotNull { id -> habituals.find { it.publicId == id } }
     Column(Modifier.fillMaxSize().background(c.canvas).windowInsetsPadding(WindowInsets.safeDrawing).imePadding()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp).heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = AlvaSpacing.md).heightIn(min = AlvaSpacing.huge + AlvaSpacing.sm),
+            verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = back, modifier = Modifier.semantics { contentDescription = "Voltar" }) { Text("‹", fontSize = 28.sp, lineHeight = 36.sp) }
             Text("Configurar atalhos", fontSize = 16.sp, lineHeight = 21.sp, fontWeight = FontWeight.Bold, color = c.ink, modifier = Modifier.weight(1f))
-            Text("alva", color = c.accent, fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(end = 10.dp))
+            Text("alva", color = c.accent, fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(end = AlvaSpacing.md))
         }
         HorizontalDivider(color = c.line)
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(AlvaSpacing.xl),
+            verticalArrangement = Arrangement.spacedBy(AlvaSpacing.md)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("PRÉVIA NA TELA INICIAL", color = c.inkSoft, fontSize = 10.sp, lineHeight = 13.sp, modifier = Modifier.weight(1f))
-                Row(Modifier.background(c.surface, CircleShape).padding(3.dp)) {
+                Row(Modifier.background(c.surface, AlvaShapes.Full).padding(AlvaSpacing.xs)) {
                     listOf(true to "2 × 2", false to "4 × 2").forEach { (small, label) ->
                         Text(label, fontSize = 11.sp, lineHeight = 14.sp, color = if (compact == small) c.accent else c.inkSoft,
                             fontWeight = FontWeight.Bold,
-                            modifier = Modifier.background(if (compact == small) c.accentSoft else c.surface, CircleShape)
-                                .clickable { compact = small }.padding(horizontal = 12.dp, vertical = 9.dp))
+                            modifier = Modifier.background(if (compact == small) c.accentSoft else c.surface, AlvaShapes.Full)
+                                .clickable { compact = small }.padding(horizontal = AlvaSpacing.md, vertical = AlvaSpacing.sm))
                     }
                 }
             }
-            Box(Modifier.fillMaxWidth().background(c.surface2.copy(alpha = .5f), RoundedCornerShape(24.dp)).padding(14.dp), contentAlignment = Alignment.Center) {
-                Column(Modifier.width(if (compact) 190.dp else 340.dp).background(c.canvas, RoundedCornerShape(22.dp))
-                    .border(1.dp, c.line, RoundedCornerShape(22.dp)).padding(13.dp).testTag("widget-preview")) {
+            Box(Modifier.fillMaxWidth().background(c.surface2.copy(alpha = .5f), AlvaShapes.Capsule).padding(AlvaSpacing.md),
+                contentAlignment = Alignment.Center) {
+                Column(Modifier.width(if (compact) AlvaSize.WidgetPreviewCompact else AlvaSize.WidgetPreviewWide)
+                    .background(c.canvas, AlvaShapes.Pill)
+                    .border(1.dp, c.line, AlvaShapes.Pill).padding(AlvaSpacing.md).testTag("widget-preview")) {
                     Text(name.ifBlank { "Atalhos de casa" }, fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold, color = c.ink)
-                    Spacer(Modifier.height(9.dp))
-                    if (chosen.isEmpty()) Text("Escolha os atalhos abaixo", color = c.inkSoft, fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.padding(vertical = 18.dp))
+                    Spacer(Modifier.height(AlvaSpacing.sm))
+                    if (chosen.isEmpty()) Text("Escolha os atalhos abaixo", color = c.inkSoft, fontSize = 12.sp, lineHeight = 16.sp,
+                        modifier = Modifier.padding(vertical = AlvaSpacing.xl))
                     chosen.take(if (compact) 4 else 8).chunked(if (compact) 2 else 4).forEach { row ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(AlvaSpacing.xs), modifier = Modifier.fillMaxWidth().padding(bottom = AlvaSpacing.sm)) {
                             row.forEach { habit ->
-                                Column(Modifier.weight(1f).background(c.accentSoft, RoundedCornerShape(14.dp)).padding(horizontal = 4.dp, vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Column(Modifier.weight(1f).background(c.accentSoft, AlvaShapes.Control)
+                                    .padding(horizontal = AlvaSpacing.xs, vertical = AlvaSpacing.sm), horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text("+", fontSize = 22.sp, lineHeight = 29.sp, color = c.accent)
                                     Text(habit.name, fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight.Bold, color = c.ink, maxLines = 2)
                                 }
@@ -136,7 +141,7 @@ internal fun WidgetConfiguration(
             Spacer(Modifier.height(2.dp))
             Text("Nome do widget", color = c.ink, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold)
             OutlinedTextField(value = name, onValueChange = { name = it.take(40) }, singleLine = true,
-                modifier = Modifier.fillMaxWidth().testTag("widget-name").semantics { contentDescription = "Nome do widget" }, shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth().testTag("widget-name").semantics { contentDescription = "Nome do widget" }, shape = AlvaShapes.Control,
                 textStyle = LocalTextStyle.current.copy(fontSize = 15.sp, lineHeight = 20.sp),
                 colors = OutlinedTextFieldDefaults.colors(unfocusedContainerColor = c.surface, focusedContainerColor = c.surface, unfocusedBorderColor = c.line))
             Spacer(Modifier.height(2.dp))
@@ -149,7 +154,7 @@ internal fun WidgetConfiguration(
             error?.let { Text(it, color = c.danger, fontSize = 12.sp, lineHeight = 16.sp) }
             if (!loaded && problem == null) Text("Carregando habituais…", color = c.inkSoft, fontSize = 13.sp, lineHeight = 17.sp)
             if (loaded && habituals.isEmpty()) Text("Salve seus itens frequentes nos habituais do Alva.", color = c.inkSoft, fontSize = 13.sp, lineHeight = 17.sp)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(AlvaSpacing.sm), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 habituals.sortedBy { it.normalizedName }.forEach { habit ->
                     val active = habit.publicId in selected
                     FilterChip(selected = active, onClick = {
@@ -159,7 +164,7 @@ internal fun WidgetConfiguration(
                         if (selected.size < 8) error = null
                     }, label = { Text("${if (active) "✓" else "+"} ${habit.name}", fontSize = 12.sp, lineHeight = 16.sp) },
                         border = FilterChipDefaults.filterChipBorder(enabled = true, selected = active, borderColor = c.line, selectedBorderColor = c.accent),
-                        shape = CircleShape, modifier = Modifier.testTag("habit-${habit.publicId}"),
+                        shape = AlvaShapes.Full, modifier = Modifier.testTag("habit-${habit.publicId}"),
                         colors = FilterChipDefaults.filterChipColors(containerColor = c.surface, labelColor = c.ink, selectedContainerColor = c.accentSoft, selectedLabelColor = c.accent))
                 }
             }
@@ -183,11 +188,12 @@ internal fun WidgetConfiguration(
             }
         }
         HorizontalDivider(color = c.line)
-        Column(Modifier.padding(horizontal = 20.dp, vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.padding(horizontal = AlvaSpacing.xl, vertical = AlvaSpacing.md), horizontalAlignment = Alignment.CenterHorizontally) {
             Button(onClick = {
                 if (selected.isEmpty()) error = "Escolha pelo menos um habitual."
                 else save(HabitualWidgetSettings(name, selected.toList()))
-            }, enabled = loaded && selected.isNotEmpty(), shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp)) {
+            }, enabled = loaded && selected.isNotEmpty(), shape = AlvaShapes.Card,
+                modifier = Modifier.fillMaxWidth().heightIn(min = AlvaSize.TouchMin)) {
                 Text("Salvar widget", fontWeight = FontWeight.Bold)
             }
             TextButton(onClick = manage, modifier = Modifier.fillMaxWidth()) { Text("Gerenciar habituais no Alva →", color = c.inkSoft, fontSize = 12.sp, lineHeight = 16.sp) }
