@@ -53,6 +53,14 @@ module ListItemsHelper
     end
   end
 
+  # How often a name tends to run out, for the "Comprar de novo" suggestion
+  # whose cadence already passed (#163): "costuma acabar a cada ~12 dias".
+  def buy_again_cadence(suggestion)
+    days = suggestion.cadence_days.to_i
+    interval = days == 1 ? "todo dia" : "a cada ~#{days} dias"
+    "costuma acabar #{interval}"
+  end
+
   PT_LIST_CONNECTORS = { words_connector: ", ", two_words_connector: " e ", last_word_connector: " e " }.freeze
 
   # Feedback for adding several names at once, from the Household#add_items
