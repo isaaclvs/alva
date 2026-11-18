@@ -1,3 +1,5 @@
+import { Controller } from "@hotwired/stimulus"
+
 // "Agora não" on a due "Comprar de novo" suggestion (#163): hides that
 // suggestion on this device for a few days, so the hint does not become noise.
 // Kept in localStorage (this device only: never a cookie the server reads,
@@ -27,7 +29,9 @@ export default class extends Controller {
   }
 
   dismiss(event) {
-    const name = event.params.name
+    // The name comes from the button's own attribute: the chip already shows it
+    // and the label belongs to that exact suggestion.
+    const name = event.target.dataset?.buyAgainDismiss
     if (!name) return
     const storage = openStorage()
     if (!storage) return
