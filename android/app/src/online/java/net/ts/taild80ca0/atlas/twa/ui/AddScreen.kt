@@ -414,14 +414,16 @@ private fun CategoryPicker(item: ListItem, current: Category?, categories: List<
     val tone = if (unknown) colors.warn else colors.inkSoft
     Box {
         Box(
-            Modifier.widthIn(max = maxWidth)
+            Modifier.widthIn(max = maxWidth).heightIn(min = 48.dp)
                 .border(1.dp, if (unknown) colors.warn else Color.Transparent, RoundedCornerShape(8.dp))
                 .clickable(enabled = enabled, role = Role.DropdownList) { open = true }
                 .semantics { contentDescription = "Categoria de ${item.name}: $label" }
                 .testTag("recent-category-${item.publicId}"),
+            contentAlignment = Alignment.CenterStart,
         ) {
-            // The 1dp of the border is part of the box in CSS (`border` + `py-1.5 pr-6 pl-1`): 30dp high.
-            Box(Modifier.padding(start = 5.dp, top = 7.dp, end = 25.dp, bottom = 7.dp)) {
+            // The 1dp of the border is part of the box in CSS (`border` + `min-h-11`, text-xs): 48dp of hit area
+            // with the label centered, like the `py-1.5` it replaces.
+            Box(Modifier.padding(start = 5.dp, end = 25.dp)) {
                 Text(widest, style = style, color = Color.Transparent, maxLines = 1, modifier = Modifier.clearAndSetSemantics { })
                 Text(label, style = style, color = tone, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.matchParentSize().clearAndSetSemantics { })

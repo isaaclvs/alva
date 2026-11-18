@@ -47,7 +47,7 @@ internal fun HabitualPanel(state: HabitualPanelState, habits: List<SnapshotHabit
                 habits.sortedWith(compareBy({ it.normalizedName }, { it.publicId })).forEach { habit ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         val checked = habit.publicId in state.selected
-                        Row(Modifier.weight(1f).toggleable(checked, enabled = !state.busy, role = Role.Checkbox) {
+                        Row(Modifier.weight(1f).heightIn(min = 48.dp).toggleable(checked, enabled = !state.busy, role = Role.Checkbox) {
                             if (it) { if (habit.publicId !in state.selected) state.selected.add(habit.publicId) }
                             else state.selected.remove(habit.publicId)
                         }.testTag("habitual-select-${habit.name}").semantics { contentDescription = "Selecionar ${habit.name}" },
@@ -61,9 +61,10 @@ internal fun HabitualPanel(state: HabitualPanelState, habits: List<SnapshotHabit
                             }
                             Text(habit.name, color = colors.inkSoft, style = AlvaTheme.type.bodySmall)
                         }
-                        Text("Remover", color = colors.inkFaint, style = AlvaTheme.type.caption.copy(textDecoration = TextDecoration.Underline),
-                            modifier = Modifier.clickable(enabled = !state.busy, role = Role.Button) { state.remove(habit.publicId, habit.name) }
-                                .padding(horizontal = 8.dp, vertical = 4.dp).semantics { contentDescription = "Remover item habitual ${habit.name}" })
+                        Box(Modifier.heightIn(min = 48.dp).clickable(enabled = !state.busy, role = Role.Button) { state.remove(habit.publicId, habit.name) }
+                            .padding(horizontal = 8.dp).semantics { contentDescription = "Remover item habitual ${habit.name}" }, contentAlignment = Alignment.Center) {
+                            Text("Remover", color = colors.inkFaint, style = AlvaTheme.type.caption.copy(textDecoration = TextDecoration.Underline))
+                        }
                     }
                 }
                 if (habits.isNotEmpty()) {
