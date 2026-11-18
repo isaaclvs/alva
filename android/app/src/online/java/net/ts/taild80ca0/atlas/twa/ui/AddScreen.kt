@@ -255,6 +255,14 @@ class AddScreenState internal constructor(
         if (this.feedback?.id == feedback.id) this.feedback = null
     }
 
+    /**
+     * A message about an add made somewhere else (the history's "Adicionar tudo de novo"), in the same
+     * line the field's own feedback uses: the person finds it on Adicionar when they come back.
+     */
+    fun notice(text: String) {
+        say(text, if (text.startsWith("Nada adicionado")) AddFeedback.Tone.Already else AddFeedback.Tone.Added)
+    }
+
     private fun say(text: String, tone: AddFeedback.Tone) {
         feedback = AddFeedback(text, tone, ++feedbackCount)
     }

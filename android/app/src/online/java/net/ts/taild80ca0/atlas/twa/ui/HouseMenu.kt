@@ -25,7 +25,8 @@ import net.ts.taild80ca0.atlas.twa.ui.theme.*
 
 @Composable
 internal fun HouseMenu(saved: DevicePreferences, list: Boolean, working: Boolean, toggleTheme: () -> Unit,
-    selectColor: (AlvaColor) -> Unit, exportPdf: (() -> Unit)?, signOut: (() -> Unit)?, actions: (@Composable () -> Unit)?) {
+    selectColor: (AlvaColor) -> Unit, exportPdf: (() -> Unit)?, history: (() -> Unit)?, signOut: (() -> Unit)?,
+    actions: (@Composable () -> Unit)?) {
     var open by remember { mutableStateOf(false) }
     val colors = AlvaTheme.colors
     Box {
@@ -46,6 +47,9 @@ internal fun HouseMenu(saved: DevicePreferences, list: Boolean, working: Boolean
             }
             if (list && exportPdf != null) DropdownMenuItem(text = { Text("Baixar PDF", style = AlvaTheme.type.bodySmall) }, leadingIcon = { MenuIcon(DOWNLOAD) }, enabled = !working,
                 onClick = { open = false; exportPdf() }, modifier = Modifier.testTag("export-pdf"))
+            // Read-only history, on either screen, as the PWA's ⋯ menu offers it.
+            if (history != null) DropdownMenuItem(text = { Text("Compras", style = AlvaTheme.type.bodySmall) }, leadingIcon = { MenuIcon(HISTORY) },
+                enabled = !working, onClick = { open = false; history() }, modifier = Modifier.testTag("open-history"))
             if (signOut != null) DropdownMenuItem(text = { Text("Sair", style = AlvaTheme.type.bodySmall) }, enabled = !working,
                 onClick = { open = false; signOut() }, modifier = Modifier.testTag("sign-out"))
             // Existing connection diagnostic remains available to development/test callers.
@@ -56,6 +60,7 @@ internal fun HouseMenu(saved: DevicePreferences, list: Boolean, working: Boolean
 
 private const val SUN = "M13.5 10a3.5 3.5 0 1 1-7 0a3.5 3.5 0 1 1 7 0 M10 2.5v1.5 M10 16v1.5 M2.5 10H4 M16 10h1.5 M4.7 4.7l1.05 1.05 M14.25 14.25l1.05 1.05 M4.7 15.3l1.05-1.05 M14.25 5.75l1.05-1.05"
 private const val MOON = "M16.5 11.5A6.5 6.5 0 0 1 8.5 3.5a6.5 6.5 0 1 0 8 8z"
+private const val HISTORY = "M4 3.5h12v13H4zM7 7h6M7 10h6M7 13h4"
 private const val DOWNLOAD = "M10 3v9m0 0-3.5-3.5 M10 12l3.5-3.5 M4 14v1.5A1.5 1.5 0 0 0 5.5 17h9a1.5 1.5 0 0 0 1.5-1.5V14"
 
 @Composable
