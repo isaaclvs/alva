@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -19,6 +18,9 @@ import androidx.compose.ui.unit.sp
 import net.ts.taild80ca0.atlas.twa.data.matching.TextNormalizer
 import net.ts.taild80ca0.atlas.twa.sync.SnapshotSuggestion
 import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaTheme
+import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaShapes
+import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaSize
+import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaSpacing
 
 /**
  * How a due suggestion reads under its chip (#163): the median days between purchases the server computed
@@ -47,14 +49,16 @@ internal fun BuyAgainShortcuts(
 
     Column(Modifier.fillMaxWidth().testTag("buy-again")) {
         Text("Comprar de novo", style = AlvaTheme.type.caption.copy(fontWeight = FontWeight.Medium, letterSpacing = 0.6.sp), color = colors.inkSoft,
-            modifier = Modifier.padding(bottom = 8.dp).semantics { heading() })
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            modifier = Modifier.padding(bottom = AlvaSpacing.sm).semantics { heading() })
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(AlvaSpacing.sm),
+            verticalArrangement = Arrangement.spacedBy(AlvaSpacing.sm)) {
             shown.forEach { suggestion ->
                 Column(Modifier.testTag("buy-again-suggestion-${suggestion.name}")) {
-                    Row(Modifier.heightIn(min = 48.dp).background(colors.surface, CircleShape).border(1.dp, colors.line, CircleShape)
+                    Row(Modifier.heightIn(min = AlvaSize.TouchMin).background(colors.surface, AlvaShapes.Full)
+                        .border(1.dp, colors.line, AlvaShapes.Full)
                         .clickable(enabled = enabled, role = Role.Button) { onAdd(suggestion.name) }
-                        .testTag("buy-again-${suggestion.name}").padding(horizontal = 12.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        .testTag("buy-again-${suggestion.name}").padding(horizontal = AlvaSpacing.md, vertical = AlvaSpacing.sm),
+                        horizontalArrangement = Arrangement.spacedBy(AlvaSpacing.xs), verticalAlignment = Alignment.CenterVertically) {
                         Text("+", style = AlvaTheme.type.caption, color = colors.accent)
                         Text(suggestion.name, style = AlvaTheme.type.caption, color = colors.ink)
                     }
@@ -62,7 +66,7 @@ internal fun BuyAgainShortcuts(
                         Text(buyAgainCadence(suggestion.cadenceDays), style = AlvaTheme.type.caption, color = colors.inkFaint,
                             modifier = Modifier.testTag("buy-again-due-${suggestion.name}"))
                         Text("Agora não", style = AlvaTheme.type.caption, color = colors.inkFaint,
-                            modifier = Modifier.heightIn(min = 48.dp).clickable(role = Role.Button) { onDismiss(suggestion.name) }
+                            modifier = Modifier.heightIn(min = AlvaSize.TouchMin).clickable(role = Role.Button) { onDismiss(suggestion.name) }
                                 .testTag("buy-again-dismiss-${suggestion.name}"))
                     }
                 }

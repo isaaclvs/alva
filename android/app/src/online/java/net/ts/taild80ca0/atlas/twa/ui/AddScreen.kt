@@ -97,6 +97,10 @@ import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaShapes
 import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaTheme
 import net.ts.taild80ca0.atlas.twa.ui.theme.CategoryIcon
 import net.ts.taild80ca0.atlas.twa.ui.theme.rowDivider
+import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaIconSize
+import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaRadius
+import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaSize
+import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaSpacing
 
 /** What the line under the add field says, and in which tone: `text-accent-strong`, `text-warn` or `text-danger`. */
 data class AddFeedback(val text: String, val tone: Tone, val id: Long) {
@@ -348,28 +352,28 @@ fun AddScreen(
     // Anchored at the bottom: when the content is taller than the space left by the keyboard it scrolls from the
     // bottom, so the field and its button stay in view and what was added scrolls away above them.
     Column(modifier.verticalScroll(rememberScrollState(), reverseScrolling = true), verticalArrangement = Arrangement.Bottom) {
-        Column(Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 20.dp)) {
+        Column(Modifier.fillMaxWidth().padding(top = AlvaSpacing.xxl, bottom = AlvaSpacing.xl)) {
             val rows = remember(state.recent, items) { state.recent.mapNotNull { row -> items.firstOrNull { it.publicId == row.itemPublicId } } }
             val undoable = remember(state.recent) { state.recent.filter { it.undoable }.map { it.itemPublicId }.toSet() }
             if (rows.isNotEmpty()) {
                 RecentAdds(state, rows, undoable, snapshot.categories)
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(AlvaSpacing.xxl))
             }
-            Text("O que está faltando em casa?", style = type.pageTitle.copy(lineHeight = 32.sp), color = colors.ink,
+            Text("O que está faltando em casa?", style = type.pageTitle, color = colors.ink,
                 modifier = Modifier.semantics { heading() })
             Text("Lembrou, adicionou.", style = type.bodySmall, color = colors.inkSoft, modifier = Modifier.padding(top = 2.dp))
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(AlvaSpacing.lg))
             if (recommendations != null) {
                 recommendations()
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(AlvaSpacing.md))
             }
             AddField(state, focus)
 
             val duplicates = DuplicateHint.alreadyPending(state.draft, items)
             if (duplicates.isNotEmpty()) {
                 Text(OnlineMessages.alreadyOnList(duplicates), style = type.caption.copy(fontWeight = FontWeight.Medium), color = colors.warn,
-                    modifier = Modifier.padding(top = 8.dp, start = 4.dp, end = 4.dp).testTag("duplicate-hint"))
+                    modifier = Modifier.padding(top = AlvaSpacing.sm, start = AlvaSpacing.xs, end = AlvaSpacing.xs).testTag("duplicate-hint"))
             }
             if (suggestions.isNotEmpty()) {
                 SuggestionRows(suggestions, onPick = {
@@ -379,7 +383,7 @@ fun AddScreen(
                 })
             }
             Text("Separe por vírgula para adicionar vários.", style = type.caption, color = colors.inkFaint,
-                modifier = Modifier.padding(top = 8.dp, start = 4.dp, end = 4.dp))
+                modifier = Modifier.padding(top = AlvaSpacing.sm, start = AlvaSpacing.xs, end = AlvaSpacing.xs))
             val feedback = state.feedback
             Text(
                 feedback?.text.orEmpty(),
@@ -390,11 +394,12 @@ fun AddScreen(
                     AddFeedback.Tone.Problem -> colors.danger
                     null -> colors.ink
                 },
-                modifier = Modifier.padding(top = 4.dp, start = 4.dp, end = 4.dp).fillMaxWidth().heightIn(min = 20.dp)
+                modifier = Modifier.padding(top = AlvaSpacing.xs, start = AlvaSpacing.xs, end = AlvaSpacing.xs)
+                    .fillMaxWidth().heightIn(min = AlvaSpacing.xl)
                     .testTag("feedback").semantics { liveRegion = LiveRegionMode.Polite },
             )
             if (habituals != null) {
-                Box(Modifier.padding(top = 8.dp)) { habituals() }
+                Box(Modifier.padding(top = AlvaSpacing.sm)) { habituals() }
             } else {
                 HabitualPanel(state.habituals, snapshot.habitualItems)
             }
@@ -417,15 +422,15 @@ private fun AddField(state: AddScreenState, focus: FocusRequester) {
         Modifier.fillMaxWidth()
             .drawBehind {
                 if (focused) {
-                    val ring = 4.dp.toPx()
+                    val ring = AlvaSpacing.xs.toPx()
                     drawRoundRect(colors.accentSoft, Offset(-ring, -ring), Size(size.width + 2 * ring, size.height + 2 * ring),
-                        CornerRadius(16.dp.toPx() + ring))
+                        CornerRadius(AlvaRadius.card.toPx() + ring))
                 }
             }
             .background(colors.surface, AlvaShapes.Card)
             .border(1.dp, if (focused) colors.accent else colors.line, AlvaShapes.Card)
-            .padding(start = 16.dp, top = 8.dp, end = 8.dp, bottom = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+            .padding(start = AlvaSpacing.lg, top = AlvaSpacing.sm, end = AlvaSpacing.sm, bottom = AlvaSpacing.sm),
+        horizontalArrangement = Arrangement.spacedBy(AlvaSpacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         BasicTextField(
@@ -440,20 +445,20 @@ private fun AddField(state: AddScreenState, focus: FocusRequester) {
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { state.submit() }),
             decorationBox = { field ->
-                Box(Modifier.padding(vertical = 8.dp), contentAlignment = Alignment.CenterStart) {
+                Box(Modifier.padding(vertical = AlvaSpacing.sm), contentAlignment = Alignment.CenterStart) {
                     if (state.draft.isEmpty()) Text("Ex.: leite, pão, café", style = AlvaTheme.type.input, color = colors.inkFaint, maxLines = 1)
                     field()
                 }
             },
         )
         Box(
-            Modifier.size(48.dp).clip(AlvaShapes.Control).background(colors.accent)
+            Modifier.size(AlvaSize.TouchMin).clip(AlvaShapes.Control).background(colors.accent)
                 .alpha(if (state.saving) 0.8f else 1f)
                 .clickable(role = Role.Button, onClickLabel = "Adicionar item") { state.submit() }
                 .semantics { contentDescription = "Adicionar item"; if (state.saving) disabled() }.testTag("save-add"),
             contentAlignment = Alignment.Center,
         ) {
-            Canvas(Modifier.size(24.dp)) {
+            Canvas(Modifier.size(AlvaIconSize.Action)) {
                 val unit = size.width / 20f
                 val stroke = 2.5f * unit
                 drawLine(colors.accentInk, Offset(10 * unit, 4 * unit), Offset(10 * unit, 16 * unit), stroke, StrokeCap.Round)
@@ -471,14 +476,14 @@ private fun AddField(state: AddScreenState, focus: FocusRequester) {
 @Composable
 private fun SuggestionRows(names: List<String>, onPick: (String) -> Unit) {
     val colors = AlvaTheme.colors
-    Column(Modifier.padding(top = 8.dp).testTag("add-suggestions")) {
+    Column(Modifier.padding(top = AlvaSpacing.sm).testTag("add-suggestions")) {
         names.forEach { name ->
             Row(
-                Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(AlvaShapes.Control)
+                Modifier.fillMaxWidth().heightIn(min = AlvaSize.TouchMin).clip(AlvaShapes.Control)
                     .clickable(role = Role.Button, onClickLabel = "Completar com $name") { onPick(name) }
                     .testTag("add-suggestion-$name")
-                    .padding(horizontal = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    .padding(horizontal = AlvaSpacing.xs),
+                horizontalArrangement = Arrangement.spacedBy(AlvaSpacing.sm),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 // The `+` of the PWA's shortcuts, so a suggestion reads as something to take, not a list row.
@@ -496,13 +501,15 @@ private fun RecentAdds(state: AddScreenState, rows: List<ListItem>, undoable: Se
     Column(Modifier.testTag("recent-adds")) {
         Text("Acabou de adicionar", style = AlvaTheme.type.caption.copy(fontWeight = FontWeight.Medium), color = colors.inkFaint,
             modifier = Modifier.semantics { heading() })
-        Column(Modifier.padding(top = 6.dp).heightIn(max = 112.dp).verticalScroll(rememberScrollState())) {
+        Column(Modifier.padding(top = AlvaSpacing.sm).heightIn(max = AlvaSize.RecentAdds)
+            .verticalScroll(rememberScrollState())) {
             rows.forEachIndexed { index, item ->
                 val category = categories.firstOrNull { it.publicId == item.categoryPublicId }
                 Row(
-                    Modifier.fillMaxWidth().then(if (index == 0) Modifier else Modifier.rowDivider(colors.line).padding(top = 1.dp)).padding(vertical = 8.dp)
+                    Modifier.fillMaxWidth().then(if (index == 0) Modifier else Modifier.rowDivider(colors.line).padding(top = 1.dp))
+                        .padding(vertical = AlvaSpacing.sm)
                         .testTag("recent-${item.publicId}"),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(AlvaSpacing.sm),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     CategoryIcon(category?.name)
@@ -525,7 +532,7 @@ private fun RecentAdds(state: AddScreenState, rows: List<ListItem>, undoable: Se
 private fun RecentRemoveButton(item: ListItem, enabled: Boolean, onRemove: () -> Unit) {
     val colors = AlvaTheme.colors
     Box(
-        Modifier.size(48.dp).clip(RoundedCornerShape(8.dp))
+        Modifier.size(AlvaSize.TouchMin).clip(AlvaShapes.Chip)
             .clickable(enabled = enabled, role = Role.Button, onClickLabel = "Remover ${item.name}", onClick = onRemove)
             .semantics { contentDescription = "Remover ${item.name}"; if (!enabled) disabled() }
             .testTag("recent-remove-${item.publicId}"),
@@ -548,12 +555,12 @@ private fun CategoryPicker(item: ListItem, current: Category?, categories: List<
     val unknown = current == null || current.name == "Outros"
     val label = current?.name ?: AddScreenState.NO_CATEGORY
     val widest = remember(categories, label) { (categories.map { it.name } + label).maxBy { it.length } }
-    val maxWidth = minOf((LocalConfiguration.current.screenWidthDp * 0.32f).dp, 144.dp)
+    val maxWidth = minOf((LocalConfiguration.current.screenWidthDp * 0.32f).dp, AlvaSize.RecentCategory)
     val tone = if (unknown) colors.warn else colors.inkSoft
     Box {
         Box(
-            Modifier.widthIn(max = maxWidth).heightIn(min = 48.dp)
-                .border(1.dp, if (unknown) colors.warn else Color.Transparent, RoundedCornerShape(8.dp))
+            Modifier.widthIn(max = maxWidth).heightIn(min = AlvaSize.TouchMin)
+                .border(1.dp, if (unknown) colors.warn else Color.Transparent, AlvaShapes.Chip)
                 .clickable(enabled = enabled, role = Role.DropdownList) { open = true }
                 .semantics { contentDescription = "Categoria de ${item.name}: $label" }
                 .testTag("recent-category-${item.publicId}"),
@@ -561,12 +568,12 @@ private fun CategoryPicker(item: ListItem, current: Category?, categories: List<
         ) {
             // The 1dp of the border is part of the box in CSS (`border` + `min-h-11`, text-xs): 48dp of hit area
             // with the label centered, like the `py-1.5` it replaces.
-            Box(Modifier.padding(start = 5.dp, end = 25.dp)) {
+            Box(Modifier.padding(start = AlvaSpacing.xs, end = AlvaSpacing.xxl)) {
                 Text(widest, style = style, color = Color.Transparent, maxLines = 1, modifier = Modifier.clearAndSetSemantics { })
                 Text(label, style = style, color = tone, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.matchParentSize().clearAndSetSemantics { })
             }
-            Chevron(if (unknown) colors.warn else colors.inkFaint, Modifier.align(Alignment.CenterEnd).padding(end = 5.dp))
+            Chevron(if (unknown) colors.warn else colors.inkFaint, Modifier.align(Alignment.CenterEnd).padding(end = AlvaSpacing.xs))
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             categories.forEach { category ->
@@ -583,11 +590,11 @@ private fun CategoryPicker(item: ListItem, current: Category?, categories: List<
     }
 }
 
-/** `m4 6 4 4 4-4` of a 16×16 box, stroke 2, at 14dp (`size-3.5`). */
+/** `m4 6 4 4 4-4` of a 16×16 box, the check stroke, at [AlvaIconSize.Inline]. */
 @Composable
 private fun Chevron(color: Color, modifier: Modifier = Modifier) {
     val path = remember { PathParser().parsePathString("M4 6l4 4 4-4").toPath() }
-    Canvas(modifier.size(14.dp)) {
+    Canvas(modifier.size(AlvaIconSize.Inline)) {
         val scale = size.width / 16f
         withTransform({ scale(scale, scale, pivot = Offset.Zero) }) {
             drawPath(path, color, style = Stroke(2f, cap = StrokeCap.Round, join = StrokeJoin.Round))
@@ -595,7 +602,11 @@ private fun Chevron(color: Color, modifier: Modifier = Modifier) {
     }
 }
 
-/** The `✓` after a row of "Acabou de adicionar" (`text-xs text-accent`): a thin tick, 12dp. */
+/**
+ * The `✓` after a row of "Acabou de adicionar" (`text-xs text-accent`): a thin tick at 12dp, the size of
+ * the `text-xs` line it follows. It is smaller than [AlvaIconSize.Inline] on purpose, so it is its own
+ * value rather than a rounded icon size.
+ */
 @Composable
 private fun Check(color: Color) {
     Canvas(Modifier.size(12.dp).clearAndSetSemantics { }) {

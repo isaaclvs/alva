@@ -19,7 +19,7 @@ internal fun FinishShoppingAction(
     enabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    contentPadding: PaddingValues = PaddingValues(vertical = 12.dp),
+    contentPadding: PaddingValues = PaddingValues(vertical = AlvaSpacing.md),
 ) {
     val colors = AlvaTheme.colors
     Button(onClick, enabled = enabled, shape = AlvaShapes.Card, border = BorderStroke(1.dp, colors.accent),
@@ -32,10 +32,10 @@ internal fun FinishShoppingAction(
 @Composable
 internal fun FinishShoppingButton(purchased: Int, enabled: Boolean, onClick: () -> Unit) {
     val colors = AlvaTheme.colors
-    Column(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 16.dp)) {
+    Column(Modifier.fillMaxWidth().padding(top = AlvaSpacing.sm, bottom = AlvaSpacing.lg)) {
         FinishShoppingAction(enabled, onClick, Modifier.fillMaxWidth())
         Text("Arquiva $purchased ${if (purchased == 1) "item comprado" else "itens comprados"}; pendentes continuam na lista.",
             style = AlvaTheme.type.caption, color = colors.inkFaint, textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+            modifier = Modifier.fillMaxWidth().padding(top = AlvaSpacing.sm))
     }
 }
