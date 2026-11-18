@@ -33,6 +33,7 @@ class OkHttpCableConnectorTest {
                 webSocket.send(confirmation)
                 fun hint(house: Any, dictionary: Any) = JSONObject().put("identifier", identifier).put("message",
                     JSONObject().put("type", "invalidate").put("household_revision", house).put("dictionary_revision", dictionary)).toString()
+                webSocket.send("""{"type":"ping","message":1700000000}""")
                 webSocket.send(hint("2", 0))
                 webSocket.send(hint(2.5, 0))
                 webSocket.send(hint(-1, 0))
@@ -44,6 +45,7 @@ class OkHttpCableConnectorTest {
         val socket = OkHttpCableConnector(client).open(endpoint, token) { events.add(it) }
         try {
             assertEquals(CableEvent.Subscribed, events.poll(5, TimeUnit.SECONDS))
+            assertEquals(CableEvent.Ping, events.poll(5, TimeUnit.SECONDS))
             assertEquals(CableEvent.Invalidated(2, 0), events.poll(5, TimeUnit.SECONDS))
             val sent = subscription.get(5, TimeUnit.SECONDS)
             assertEquals("subscribe", sent.getString("command"))

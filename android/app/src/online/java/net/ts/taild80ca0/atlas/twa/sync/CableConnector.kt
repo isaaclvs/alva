@@ -1,5 +1,6 @@
 package net.ts.taild80ca0.atlas.twa.sync
 
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.net.ssl.SSLException
 import net.ts.taild80ca0.atlas.twa.access.AccessCredential
@@ -13,6 +14,9 @@ import org.json.JSONObject
 
 sealed interface CableEvent {
     data object Subscribed : CableEvent
+
+    /** The server heartbeat. Its ~3 s cadence is what tells a live socket from a half-open one. */
+    data object Ping : CableEvent
     data class Invalidated(val household: Long, val dictionary: Long) : CableEvent
     data class Ended(val reason: CableEnd) : CableEvent
 }
@@ -26,7 +30,13 @@ fun interface CableConnector {
 class OkHttpCableConnector(
     client: OkHttpClient = OkHttpClient(),
 ) : CableConnector {
-    private val client = client.newBuilder().followRedirects(false).followSslRedirects(false).build()
+    private val client = client.newBuilder()
+        .followRedirects(false)
+        .followSslRedirects(false)
+        // The protocol ping keeps the TCP path awake and lets OkHttp fail a dead peer on its own.
+        .pingInterval(PING_INTERVAL_SECONDS, TimeUnit.SECONDS)
+        .build()
+
     override fun open(endpoint: ServerEndpoint, credential: AccessCredential, receive: (CableEvent) -> Unit): CableSocket {
         val ended = AtomicBoolean(false)
         val subscriptionRequested = AtomicBoolean(false)
@@ -58,6 +68,7 @@ class OkHttpCableConnector(
                         end(CableEnd.PERMANENT)
                         webSocket.close(1008, "Subscription rejected")
                     }
+                    "ping" -> receive(CableEvent.Ping)
                     "disconnect" -> {
                         val reason = when {
                             frame.optString("reason") == "unauthorized" -> CableEnd.UNAUTHORIZED
@@ -107,6 +118,10 @@ class OkHttpCableConnector(
 
     companion object {
         const val IDENTIFIER = "{\"channel\":\"SyncCable::Channel\"}"
+
+        /** ActionCable beats every 3 s; three missed beats mean the socket is half-open. */
+        const val SILENCE_TIMEOUT_MILLIS = 10_000L
+        private const val PING_INTERVAL_SECONDS = 20L
         private const val MAX_FRAME_LENGTH = 4096
     }
 }
