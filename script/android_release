@@ -83,7 +83,10 @@ secret_value() {
   if [[ -n ${!name:-} ]]; then
     value="${!name}"
   elif [[ -n ${!file_var:-} ]]; then
-    [[ -r ${!file_var} ]] || die "$file_var points to an unreadable file"
+    if [[ ! -r ${!file_var} ]]; then
+      printf 'error: %s points to a file that cannot be read\n' "$file_var" >&2
+      return 1
+    fi
     value="$(head -n 1 "${!file_var}")"
   fi
   printf '%s' "$value"
@@ -104,10 +107,52 @@ find_apksigner() {
   find "$sdk/build-tools" -maxdepth 2 -name apksigner -type f 2>/dev/null | sort -V | tail -n 1 || true
 }
 
+# Prints the SHA-256 of the certificate of $alias in a keystore. The password
+# reaches keytool through a 0600 temporary file instead of the command line,
+# where every local user would see it in `ps`.
+keystore_fingerprint() {
+  local keystore="$1" alias="$2" password="$3" secret_file output
+  command -v keytool >/dev/null 2>&1 || die "keytool (JDK) is not on PATH"
+  secret_file="$(mktemp "${TMPDIR:-/tmp}/alva-keystore-pass.XXXXXX")"
+  chmod 600 "$secret_file"
+  printf '%s\n' "$password" >"$secret_file"
+  if ! output="$(keytool -list -v -keystore "$keystore" -alias "$alias" \
+    -storepass:file "$secret_file" 2>&1)"; then
+    rm -f "$secret_file"
+    die "keytool cannot read the keystore with that alias (wrong password or alias?)"
+  fi
+  rm -f "$secret_file"
+  printf '%s\n' "$output" | sed -nE 's/^[[:space:]]*SHA256: (.*)$/\1/p' | head -n 1
+}
 read_version() {
   version_code="$(sed -nE 's/^[[:space:]]*versionCode[[:space:]]+([0-9]+).*/\1/p' "$gradle_config" | head -n 1)"
   version_name="$(sed -nE "s/^[[:space:]]*versionName[[:space:]]+['\"]([^'\"]+)['\"].*/\1/p" "$gradle_config" | head -n 1)"
   application_id="$(sed -nE "s/^[[:space:]]*applicationId[[:space:]]+['\"]([^'\"]+)['\"].*/\1/p" "$gradle_config" | head -n 1)"
+}
+
+# Uppercases a certificate digest and puts a colon between bytes, so the value
+# apksigner prints and the value assetlinks.json pins compare equal.
+normalize_fingerprint() {
+  local compact
+  compact="$(printf '%s' "$1" | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
+  [[ $compact =~ ^[0-9A-F]+$ && $(( ${#compact} % 2 )) -eq 0 ]] || return 1
+  printf '%s' "$compact" | sed -E 's/(..)/\1:/g; s/:$//'
+}
+
+# Checks the signature of $1 against public/.well-known/assetlinks.json and
+# aborts unless it is verifiable and signed by the pinned certificate.
+verify_signature() {
+  local apk="$1" output fingerprint
+  output="$("$apksigner" verify --print-certs "$apk" 2>&1)" ||
+    die "apksigner does not accept the signature of ${apk##*/}: $output"
+  fingerprint="$(printf '%s\n' "$output" |
+    sed -nE 's/^Signer #1 certificate SHA-256 digest: (.*)$/\1/p' | head -n 1)"
+  [[ -n $fingerprint ]] || die "apksigner reported no signer certificate for ${apk##*/}"
+  fingerprint="$(normalize_fingerprint "$fingerprint")" ||
+    die "apksigner printed an unreadable SHA-256 digest"
+  [[ $fingerprint == "$expected_fingerprint" ]] || die \
+    "signature mismatch: the APK is signed by $fingerprint, assetlinks.json pins $expected_fingerprint"
+  printf '%s' "$fingerprint"
 }
 
 step "reading the build configuration"
@@ -153,6 +198,40 @@ apksigner="$(find_apksigner)"
 ok "java $(java -version 2>&1 | head -n 1 | sed -E 's/^(openjdk|java) version "?([^" ]+)"?.*/\2/')"
 ok "apksigner ${apksigner#"$HOME"/}"
 
+step "reading the published app links"
+assetlinks="$root_dir/public/.well-known/assetlinks.json"
+[[ -r $assetlinks ]] || die "missing public/.well-known/assetlinks.json"
+command -v ruby >/dev/null 2>&1 || die "ruby is needed to read public/.well-known/assetlinks.json"
+expected_fingerprint="$(
+  ruby -rjson -e '
+    package = ARGV[0]
+    targets = JSON.parse(File.read(ARGV[1])).flat_map do |entry|
+      target = entry["target"]
+      target.is_a?(Array) ? target : [target]
+    end
+    target = targets.compact.find do |t|
+      t["namespace"] == "android_app" && t["package_name"] == package
+    end
+    exit 1 unless target
+    fingerprint = Array(target["sha256_cert_fingerprints"]).first
+    exit 1 unless fingerprint
+    print fingerprint
+  ' "$application_id" "$assetlinks"
+)" || die "no SHA-256 fingerprint for $application_id in public/.well-known/assetlinks.json"
+expected_fingerprint="$(normalize_fingerprint "$expected_fingerprint")" ||
+  die "public/.well-known/assetlinks.json pins an unreadable SHA-256 fingerprint"
+ok "assetlinks.json pins ${expected_fingerprint:0:14}… for $application_id"
+
+if [[ $signing_ready == true ]]; then
+  step "checking the release key"
+  keystore_cert="$(keystore_fingerprint "$keystore" "$key_alias" "$store_password")"
+  keystore_cert="$(normalize_fingerprint "$keystore_cert")" ||
+    die "keytool printed no SHA256 fingerprint for alias $key_alias"
+  [[ $keystore_cert == "$expected_fingerprint" ]] || die \
+    "the key in the keystore is ${keystore_cert:0:14}…, but assetlinks.json pins ${expected_fingerprint:0:14}…; a build signed with it would stop updating the installed app"
+  ok "the keystore holds the certificate assetlinks.json pins"
+fi
+
 if [[ $dry_run == true ]]; then
   step "dry run"
   if [[ $signing_ready == true ]]; then
@@ -177,3 +256,8 @@ rm -f "$built_apk"
 )
 [[ -f $built_apk ]] || die "gradle finished without $built_apk; is the signing config in place?"
 ok "built ${built_apk#"$root_dir"/}"
+
+step "verifying the signature"
+signed_fingerprint="$(verify_signature "$built_apk")"
+ok "apksigner verify passed, certificate ${signed_fingerprint:0:14}… matches assetlinks.json"
+
