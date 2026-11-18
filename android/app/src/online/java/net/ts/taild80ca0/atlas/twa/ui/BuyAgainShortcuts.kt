@@ -28,7 +28,7 @@ internal fun BuyAgainShortcuts(suggestions: List<SnapshotSuggestion>, enabled: B
             modifier = Modifier.padding(bottom = 8.dp).semantics { heading() })
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             suggestions.take(5).forEach { suggestion ->
-                Row(Modifier.background(colors.surface, CircleShape).border(1.dp, colors.line, CircleShape)
+                Row(Modifier.heightIn(min = 48.dp).background(colors.surface, CircleShape).border(1.dp, colors.line, CircleShape)
                     .clickable(enabled = enabled, role = Role.Button) { onAdd(suggestion.name) }
                     .testTag("buy-again-${suggestion.name}").padding(horizontal = 12.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {

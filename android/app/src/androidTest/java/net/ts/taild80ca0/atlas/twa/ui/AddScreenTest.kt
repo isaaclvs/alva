@@ -3,6 +3,7 @@ package net.ts.taild80ca0.atlas.twa.ui
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.CoroutineScope
@@ -130,6 +131,23 @@ class AddScreenTest {
         compose.onNodeWithTag("buy-again-Leite").assertDoesNotExist()
         compose.onNodeWithTag("recent-adds").assertExists()
         assertEquals(1, house.rows.count { it.name == "Leite" })
+    }
+
+    @Test fun theFrequentTouchesAreAtLeast48DpHigh() {
+        house.buyAgain = listOf(recommendation("Leite"))
+        house.habituals += SnapshotFixtures.habitual(java.util.UUID.randomUUID().toString(), "Café")
+        launch()
+        compose.onNodeWithTag("buy-again-Leite").assertHeightIsAtLeast(48.dp)
+
+        typeAndAdd("Café")
+        waitForText("feedback", "Café adicionado em Outros")
+        val itemId = house.named("Café").single().id
+        compose.onNodeWithTag("recent-category-$itemId").assertHeightIsAtLeast(48.dp)
+
+        clickHabitual("habitual-toggle")
+        compose.onNodeWithTag("habitual-select-Café").assertHeightIsAtLeast(48.dp)
+        compose.onNodeWithContentDescription("Remover item habitual Café")
+            .assertHeightIsAtLeast(48.dp)
     }
 
     @Test fun failedShortcutKeepsTheDraftAndRecommendationsFollowTheNextSnapshot() {
