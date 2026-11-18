@@ -1243,7 +1243,9 @@ class ShoppingScreensTest {
         waitForText("feedback-message", "O servidor não está disponível agora")
         // The failure sits in a card with a tone of its own and an explicit way out, not as bare text.
         compose.onNodeWithTag("feedback-banner").assertExists()
+        compose.onNodeWithTag("feedback-retry").assertExists()
         compose.onNodeWithTag("feedback-close").assertHeightIsAtLeast(androidx.compose.ui.unit.Dp(48f))
+        compose.onNodeWithTag("feedback-retry").assertHeightIsAtLeast(androidx.compose.ui.unit.Dp(48f))
 
         compose.onNodeWithTag("feedback-close").performClick()
         compose.onNodeWithTag("feedback-message").assertDoesNotExist()
@@ -1265,6 +1267,20 @@ class ShoppingScreensTest {
         waitForText("feedback-message", "O servidor não está disponível agora")
         compose.waitUntil(FEEDBACK_MILLIS + 4_000) { compose.onAllNodesWithTag("feedback-message").fetchSemanticsNodes().isEmpty() }
         assertEquals("pending", leite.status)
+    }
+
+    @Test fun tentarDeNovoRepeatsTheSameMarkAfterTheServerComesBack() {
+        val leite = house.seed("Leite")
+        openList()
+        house.commandSteps += Step.ServerError
+        compose.onNodeWithTag("item-${leite.id}").performClick()
+        waitForText("feedback-message", "O servidor não está disponível agora")
+
+        compose.onNodeWithTag("feedback-retry").performClick()
+        waitForText("toast-message", "Leite marcado")
+        compose.onNodeWithTag("feedback-message").assertDoesNotExist()
+        assertMarked(leite.id, true)
+        assertEquals(listOf("set_item_state", "set_item_state"), commandTypes())
     }
 
     @Test fun theBottomNavigationHasPlusAndListPillsAndSwitchesScreens() {
