@@ -3,6 +3,7 @@ package net.ts.taild80ca0.atlas.twa.sync
 import kotlinx.coroutines.async
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -151,6 +152,87 @@ class ForegroundInvalidationTest {
             manager.localChange()
             yield()
             assertTrue(runs.tryReceive().isFailure)
+        } finally { manager.stop() }
+    }
+
+    /** Test watcher: registering on a real phone delivers the network already in place, so this fake does the same. */
+    private class FakeNetwork : NetworkWatcher {
+        var startCalls = 0
+        var stopCalls = 0
+        private var available: (() -> Unit)? = null
+        override fun start(onAvailable: () -> Unit) { startCalls++; available = onAvailable; onAvailable() }
+        override fun stop() { stopCalls++; available = null }
+        fun reconnect() { available?.invoke() ?: error("the watcher is not started") }
+    }
+
+    @Test fun silenceAfterSubscriptionDropsTheHalfOpenSocketAndReconnects() = runBlocking {
+        access.refresh()
+        val connector = Connector()
+        val network = FakeNetwork()
+        val runs = Channel<Unit>(Channel.UNLIMITED)
+        val pauses = Channel<Long>(Channel.UNLIMITED)
+        val resume = Channel<Unit>()
+        val controller = SyncController(SyncRunner { runs.send(Unit); SyncReport(SyncOutcome.Synced(1)) }, this)
+        val manager = ForegroundInvalidation(
+            access, endpoint, controller, this, connector,
+            pause = { pauses.send(it); resume.receive() }, network = network, silenceTimeoutMillis = 300,
+        )
+        try {
+            manager.start(); connector.nextOpen()
+            connector.emit(CableEvent.Subscribed)
+            withTimeout(2_000) { runs.receive() }
+            // No ping and no frame at all: the watchdog ends the session itself, without an Ended event.
+            withTimeout(2_000) { connector.opened.single().closure.await() }
+            assertTrue(connector.opened.single().closed)
+            withTimeout(2_000) { assertEquals(1_000L, pauses.receive()) }
+            resume.send(Unit); connector.nextOpen()
+            assertEquals(2, connector.opened.size)
+            // A live socket whose pings keep arriving is never dropped, and a network change does not cut it.
+            connector.emit(CableEvent.Subscribed)
+            withTimeout(2_000) { runs.receive() }
+            repeat(3) {
+                delay(100)
+                connector.emit(CableEvent.Ping)
+            }
+            network.reconnect()
+            withTimeout(2_000) { runs.receive() }
+            assertFalse(connector.opened.last().closed)
+            assertTrue(pauses.tryReceive().isFailure)
+        } finally { manager.stop() }
+    }
+
+    @Test fun networkBackResetsTheBackoffAndReadsTheListAgain() = runBlocking {
+        access.refresh()
+        val connector = Connector()
+        val runs = Channel<Unit>(Channel.UNLIMITED)
+        val pauses = Channel<Long>(Channel.UNLIMITED)
+        val resume = Channel<Unit>()
+        val network = FakeNetwork()
+        val controller = SyncController(SyncRunner { runs.send(Unit); SyncReport(SyncOutcome.Synced(1)) }, this)
+        val manager = ForegroundInvalidation(
+            access, endpoint, controller, this, connector,
+            pause = { pauses.send(it); resume.receive() }, network = network,
+        )
+        try {
+            manager.start(); connector.nextOpen()
+            assertEquals(1, network.startCalls)
+            connector.emit(CableEvent.Subscribed)
+            withTimeout(2_000) { runs.receive() }
+            connector.emit(CableEvent.Ended(CableEnd.RETRY))
+            withTimeout(2_000) { assertEquals(1_000L, pauses.receive()) }
+            // The network returns while the first backoff waits: the wait ends and the list is read again.
+            network.reconnect()
+            connector.nextOpen()
+            withTimeout(2_000) { runs.receive() }
+            connector.emit(CableEvent.Subscribed)
+            withTimeout(2_000) { runs.receive() }
+            connector.emit(CableEvent.Ended(CableEnd.RETRY))
+            // The next wait is the initial backoff again, not the doubled one.
+            withTimeout(2_000) { assertEquals(1_000L, pauses.receive()) }
+            // Background: the watcher is unregistered and nothing keeps watching.
+            manager.stop()
+            assertEquals(1, network.stopCalls)
+            assertTrue(connector.opened.last().closure.isCompleted)
         } finally { manager.stop() }
     }
 
