@@ -2,11 +2,16 @@
     name: worth a look, so its picker stands out. %>
 <% uncategorized = item.category.nil? %>
 <% unknown = uncategorized || item.category.name == ItemCategorizer::FALLBACK_CATEGORY %>
+<%# Only a name this add created can be taken back: a revived one is a bought
+    item that came back, and removing it would delete history instead of the
+    add. %>
+<% undoable = local_assigns.fetch(:undoable, false) || local_assigns.fetch(:undoable_ids, []).include?(item.id) %>
 <%= tag.li id: dom_id(item, :recent), class: "flex items-center gap-2 py-2", data: { recent_adds_target: "item" } do %>
   <%= category_icon(item.category) %>
   <span class="min-w-0 flex-1 truncate text-sm"><%= item.name %></span>
   <%= form_with model: item, namespace: dom_id(item, :recent), class: "relative", data: { controller: "auto-submit" } do |form| %>
     <%= hidden_field_tag :from, "recent", id: nil %>
+    <%= hidden_field_tag :recent_undo, "1", id: nil if undoable %>
     <%= form.hidden_field :name %>
     <%= form.hidden_field :lock_version %>
     <%= form.label :category_id, "Categoria de #{item.name}", class: "sr-only" %>
@@ -16,6 +21,13 @@
           class: class_names("recent-category min-h-11 max-w-40 appearance-none truncate rounded-lg border bg-transparent py-1.5 pr-6 pl-1 text-xs",
                    "border-transparent text-ink-soft": !unknown, "border-warn text-warn": unknown) %>
     <svg class="pointer-events-none absolute top-1/2 right-1.5 size-3.5 -translate-y-1/2 <%= unknown ? "text-warn" : "text-ink-faint" %>" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
+  <% end %>
+  <% if undoable %>
+    <%= button_to list_item_path(item), method: :delete, params: { lock_version: item.lock_version, from: "recent" },
+          form: { class: "shrink-0" }, aria: { label: "Remover #{item.name}" }, title: "Remover #{item.name}",
+          class: "grid size-7 place-items-center rounded-lg text-base leading-none text-ink-faint active:text-danger" do %>
+      ×
+    <% end %>
   <% end %>
   <span class="shrink-0 text-xs text-accent" aria-hidden="true">✓</span>
 <% end %>

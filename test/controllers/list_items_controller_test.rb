@@ -269,6 +269,66 @@ class ListItemsControllerTest < ActionDispatch::IntegrationTest
     assert_select "turbo-stream[target=recent_adds_list] select.border-warn"
   end
 
+  test "a name this add created can be taken back on the spot" do
+    post list_items_path, params: { list_item: { name: "Tahine" } }, as: :turbo_stream
+    tahine = ListItem.find_by!(name: "Tahine")
+
+    assert_select "turbo-stream[target=recent_adds_list] li" do
+      assert_select "form[action='#{list_item_path(tahine)}'] input[name=_method][value=delete]"
+      assert_select "form[action='#{list_item_path(tahine)}'] input[name=from][value=recent]"
+      assert_select "button[aria-label='Remover Tahine']", text: "×"
+    end
+  end
+
+  test "a revived name offers no removal: it is a bought item that came back" do
+    post list_items_path, params: { list_item: { name: "Detergente" } }, as: :turbo_stream
+    detergent = list_items(:detergent)
+
+    assert_select "turbo-stream[target=recent_adds_list] li##{ActionView::RecordIdentifier.dom_id(detergent, :recent)}" do
+      assert_select "button[aria-label='Remover Detergente']", count: 0
+    end
+    assert_select "turbo-stream[target=recent_adds_list] input[name=from][value=recent]"
+  end
+
+  test "removing from just added drops the row and undoing puts it back with its removal" do
+    post list_items_path, params: { list_item: { name: "Tahine" } }, as: :turbo_stream
+    tahine = ListItem.find_by!(name: "Tahine")
+    row = ActionView::RecordIdentifier.dom_id(tahine, :recent)
+    version = tahine.lock_version
+
+    delete list_item_path(tahine), params: { lock_version: version, from: "recent" }, as: :turbo_stream
+
+    assert_response :success
+    assert_select "turbo-stream[action=remove][target=#{row}]"
+    token = css_select("form[action='#{restore_list_items_path}'] input[name=token]").first["value"]
+    assert_select "form[action='#{restore_list_items_path}'] input[name=from][value=recent]"
+    assert_select "form[action='#{restore_list_items_path}'] button", text: "Desfazer"
+
+    post restore_list_items_path, params: { token: token, from: "recent" }, as: :turbo_stream
+
+    assert_select "turbo-stream[action=prepend][target=recent_adds_list] li##{row}" do
+      assert_select "button[aria-label='Remover Tahine']", text: "×"
+    end
+    assert_select "turbo-stream[action=update][target=toast] [role=status]", count: 0
+  end
+
+  test "removing the ordinary way does not touch just added" do
+    delete list_item_path(list_items(:milk)), as: :turbo_stream
+
+    assert_select "turbo-stream[action=remove][target$=_recent]", count: 0
+    assert_select "form[action='#{restore_list_items_path}'] input[name=from]", count: 0
+  end
+
+  test "picking a category under just added keeps its removal" do
+    post list_items_path, params: { list_item: { name: "Tahine" } }, as: :turbo_stream
+    tahine = ListItem.find_by!(name: "Tahine")
+
+    patch list_item_path(tahine), as: :turbo_stream, params: { from: "recent", recent_undo: "1",
+      list_item: { name: "Tahine", category_id: categories(:dairy).id, lock_version: tahine.lock_version } }
+
+    assert_select "turbo-stream[action=replace][target=#{ActionView::RecordIdentifier.dom_id(tahine, :recent)}] button[aria-label='Remover Tahine']"
+  end
+
   test "create with several names lists only the added ones as just added" do
     post list_items_path, params: { list_item: { name: "Banana, Leite" } }, as: :turbo_stream
 

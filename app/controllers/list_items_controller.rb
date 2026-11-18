@@ -23,6 +23,7 @@ class ListItemsController < ApplicationController
       @suggestions = BuyAgainSuggestions.call(current_household)
       @revived_item = result.item if result.outcome == :revived
       @added_item = result.item
+      @added_outcome = result.outcome
       @feedback = add_feedback_stream(helpers.add_item_notice(result), :added)
       respond_to do |format|
         format.turbo_stream
@@ -70,8 +71,10 @@ class ListItemsController < ApplicationController
       end
     end
 
-    # From "Acabou de adicionar": that row shows the new category too.
-    recent = turbo_stream.replace(helpers.dom_id(@list_item, :recent), partial: "recent_item", locals: { item: @list_item }) if params[:from] == "recent"
+    # From "Acabou de adicionar": that row shows the new category too, and keeps
+    # its "Remover" (only rows this add created have one).
+    recent = turbo_stream.replace(helpers.dom_id(@list_item, :recent), partial: "recent_item",
+      locals: { item: @list_item, undoable: params[:recent_undo].present? }) if params[:from] == "recent"
     render_list(extra: recent)
   rescue ListItem::StaleAction
     stale_list_action
@@ -113,7 +116,9 @@ class ListItemsController < ApplicationController
   end
 
   # For items added by mistake: no confirmation. The toast in the response
-  # (only for whoever removed it) carries a signed snapshot to undo with.
+  # (only for whoever removed it) carries a signed snapshot to undo with. Also
+  # reachable from "Acabou de adicionar" (`from=recent`), which then drops the
+  # row and, on undo, puts it back.
   def destroy
     current_household.with_list_lock do
       @list_item = current_household.list_items.on_list.find_by(id: params[:id])
@@ -124,20 +129,27 @@ class ListItemsController < ApplicationController
       current_household.remove_item(item)
     end
 
-    render_list toast: { message: "#{@list_item.name} removido",
-      undo: { path: restore_list_items_path, params: { token: ListItemSnapshot.dump(@list_item) } } }
+    from_recent = params[:from] == "recent"
+    undo = { path: restore_list_items_path, params: { token: ListItemSnapshot.dump(@list_item) } }
+    undo[:params][:from] = "recent" if from_recent
+    render_list extra: (turbo_stream.remove(helpers.dom_id(@list_item, :recent)) if from_recent),
+      toast: { message: "#{@list_item.name} removido", undo: undo }
   end
 
   # "Desfazer" on the toast. The token must be a valid, unexpired snapshot of
   # this household's item; if the item is already back (or its name was added
   # again meanwhile) there is nothing to restore and the list is just resynced.
+  # Undone from "Acabou de adicionar" (`from=recent`), the row comes back too.
   def restore
     snapshot = ListItemSnapshot.load(params[:token])
     return head :not_found unless snapshot && snapshot["household_id"] == current_household.id
 
-    current_household.restore_item(snapshot)
+    restored = current_household.restore_item(snapshot)
+    recent = if restored && params[:from] == "recent"
+      turbo_stream.prepend "recent_adds_list", partial: "recent_item", locals: { item: restored, undoable: true }
+    end
 
-    render_list toast: :clear
+    render_list extra: recent, toast: :clear
   end
 
   private
