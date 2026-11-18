@@ -31,7 +31,10 @@ internal data class QuickPanelState(val draft: String = "", val loading: Boolean
  * names gets the shared summary without one.
  */
 internal class QuickPanelModel(private val saved: SavedStateHandle, private val access: HouseAccess,
-    private val repository: OnlineRepository?) : ViewModel() {
+    private val repository: OnlineRepository?,
+    /** How long the confirmation stays before the panel closes by itself; instrumentation stretches it. */
+    private val confirmationMillis: Long = UNDO_MILLIS,
+) : ViewModel() {
     private val mutable = MutableStateFlow(QuickPanelState(draft = saved["draft"] ?: ""))
     val state = mutable.asStateFlow()
 
@@ -72,7 +75,7 @@ internal class QuickPanelModel(private val saved: SavedStateHandle, private val 
                         saved["draft"] = ""
                         val mine = ++confirmation
                         mutable.update { it.copy(draft = "", success = message, undo = undoFor(added)) }
-                        delay(UNDO_MILLIS)
+                        delay(confirmationMillis)
                         if (confirmation == mine) mutable.update { it.copy(close = true) }
                     }
                     else -> mutable.update { it.copy(error = OnlineMessages.failure(result, keepsText = true)) }
