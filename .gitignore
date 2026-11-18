@@ -42,3 +42,5 @@
 
 # Locally distributed Android builds; signing material stays outside the repo.
 /public/downloads/*.apk
+/public/downloads/*.sha256
+/public/downloads/latest.json
