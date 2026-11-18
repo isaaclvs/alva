@@ -167,22 +167,24 @@ Use uma frase longa (uma frase inteira, não uma palavra) e diferente da senha d
 keystore. Cifre simetricamente, com `gpg`:
 
 ```sh
-gpg --symmetric --cipher-algo AES256 \
-  --output alva-release-$(date +%Y%m%d).tar.gz.gpg \
-  alva-release.tar.gz
-```
-
-Monte o `alva-release.tar.gz` com o keystore, o alias e as senhas em arquivos
-separados e legíveis só pelo dono, e apague o arquivo `.tar.gz` em texto claro
-assim que a cópia cifrada estiver conferida. O keystore em uso continua onde
-está; o que não pode sobrar é uma cópia desprotegida dele:
-
-```sh
 umask 077
 tar czf alva-release.tar.gz -C "$HOME/.config/alva" release.jks key-alias \
   store-password key-password
-gpg --symmetric --cipher-algo AES256 --output alva-release.tar.gz.gpg alva-release.tar.gz
+gpg --symmetric --cipher-algo AES256 \
+  --output "alva-release-$(date +%Y%m%d).tar.gz.gpg" alva-release.tar.gz
 shred -u alva-release.tar.gz   # ou rm -f quando não houver shred
+```
+
+O `tar` junta o keystore, o alias e as senhas em arquivos legíveis só pelo dono.
+O keystore em uso continua onde está; o que não pode sobrar é uma cópia
+desprotegida dele, então o `.tar.gz` em texto claro é apagado assim que a cópia
+cifrada estiver conferida.
+
+Anote ao lado da cópia, fora dela, o SHA-256 do keystore e o nome do arquivo de
+origem — servem para provar mais tarde que a restauração é a mesma chave:
+
+```sh
+sha256sum "$HOME/.config/alva/release.jks"
 ```
 
 `age -p` (com frase) e `openssl enc -aes-256-cbc -pbkdf2` também servem; o que
@@ -224,7 +226,9 @@ um diretório temporário, nunca no lugar do keystore em uso:
    ```
 
    O digest precisa ser
-   `51:3D:D0:F0:B8:21:DD:09:80:54:02:9C:EE:70:35:DC:B3:AD:D1:48:03:0C:6F:69:5D:3A:02:FA:6F:6B:13:21`.
+   `51:3D:D0:F0:B8:21:DD:09:80:54:02:9C:EE:70:35:DC:B3:AD:D1:48:03:0C:6F:69:5D:3A:02:FA:6F:6B:13:21`
+   — o mesmo que o `assetlinks.json` fixa e o que o `keytool` mostra. Confira o
+   SHA-256 do keystore restaurado contra o valor anotado no backup.
 
 3. Aponte as variáveis para a cópia restaurada e rode o ensaio do release:
 
