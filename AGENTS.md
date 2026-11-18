@@ -190,7 +190,14 @@ isso só marca a mudança e a lista é transmitida uma única vez no fim do bloc
 `BuyAgainSuggestions`) vêm do histórico arquivado, agrupados por nome normalizado
 e ordenados por nº de compras e recência; nomes que estão na lista viva (pendentes
 ou comprados) ficam de fora. Tocar num atalho passa por `ListItemsController#create`.
-Os atalhos são atualizados junto com a lista em `list_items/_refresh`.
+Os atalhos são atualizados junto com a lista em `list_items/_refresh`. Cadência
+(#163): um nome com pelo menos 3 dias de compra no histórico ganha a mediana dos
+intervalos entre dias de compra (um dia por viagem, no relógio da casa); quando
+`hoje − último dia > mediana` ele vem **primeiro** na lista e leva o rótulo
+"costuma acabar a cada ~N dias" com um "Agora não" que o esconde por 3 dias no
+aparelho (`buy_again_controller.js` no localStorage, `DevicePreferencesStore` no
+Android; nunca broadcast, nunca o servidor). O snapshot entrega `cadence_days` e
+`due` de forma aditiva.
 
 **Habituais:** `HabitualItem` guarda nomes escolhidos explicitamente por casa,
 com unicidade por `household_id` + `normalized_name`. Não é o dicionário nem o
