@@ -386,6 +386,8 @@ html[data-shopping-mode="on"] #list_search_panel > .relative { background: var(-
   .list-screen-header { padding-top: 2.5rem; }
   .list-brand-row { display: none; }
   html[data-shopping-mode="on"] .list-brand-row { display: flex; }
+  /* The side column needs no clearance: the toast just stays off the edge. */
+  html:not([data-shopping-mode="on"]) #toast { padding-bottom: calc(var(--spacing) * 6); }
 }
 
 /* Keep the list in its own scroll area: the pinned controls never cover
