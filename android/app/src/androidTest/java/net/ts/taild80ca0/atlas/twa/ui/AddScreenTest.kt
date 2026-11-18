@@ -230,8 +230,8 @@ class AddScreenTest {
     private fun typeAndAdd(text: String) {
         // A tap while the previous add is still being answered is ignored, so wait for the button to be idle.
         compose.waitUntil(10_000) { compose.onAllNodes(hasTestTag("save-add") and isEnabled()).fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithTag("add-input").performTextInput(text)
-        compose.onNodeWithTag("save-add").performClick()
+        compose.onNodeWithTag("add-input").performTextReplacement(text)
+        compose.onNodeWithTag("save-add").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
     }
 
     private fun pick(itemId: String, category: String) {
@@ -393,8 +393,12 @@ class AddScreenTest {
         compose.waitUntil(10_000) { house.rows.size == 4 }
         waitForEmptyField()
         val ids = listOf("Açúcar", "Sal", "Feijão").map { house.named(it).single().id }
-        ids.forEach { compose.onNodeWithTag("recent-$it").assertExists() }
-        compose.onNodeWithTag("recent-${house.named("Arroz").single().id}").assertDoesNotExist()
+        // The rows are what this device added, newest first: the field empties and the list is reloaded before the
+        // "Acabou de adicionar" block is drawn, so wait for it instead of reading the screen mid-recomposition.
+        compose.waitUntil(10_000) { ids.all { id -> compose.onAllNodesWithTag("recent-$id").fetchSemanticsNodes().size == 1 } }
+        compose.waitUntil(10_000) {
+            compose.onAllNodesWithTag("recent-${house.named("Arroz").single().id}").fetchSemanticsNodes().isEmpty()
+        }
         val tops = ids.map { compose.onNodeWithTag("recent-$it").fetchSemanticsNode().boundsInRoot.top }
         assertEquals(tops.sorted(), tops)
     }
