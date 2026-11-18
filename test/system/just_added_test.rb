@@ -42,6 +42,22 @@ class JustAddedTest < ApplicationSystemTestCase
     fill_in "Item", with: "detergente"
     assert_no_selector "#add_duplicate_hint"
   end
+
+  test "a name past 100 characters stops at the limit and says so" do
+    visit root_path
+
+    fill_in "Item", with: "x" * 140
+    assert_field "Item", with: "x" * 100
+    assert_selector "#add_name_limit_hint", text: "Cada nome pode ter até 100 caracteres"
+
+    # Each name has its own limit: a second name still fits after a long one.
+    fill_in "Item", with: "x" * 140 + ", pão"
+    assert_field "Item", with: "x" * 100 + ", pão"
+
+    fill_in "Item", with: "pão"
+    assert_field "Item", with: "pão"
+    assert_no_selector "#add_name_limit_hint"
+  end
   test "a large batch keeps recent additions above the title and the input above navigation" do
     visit root_path
     add_item (1..12).map { |number| "Produto teste #{number}" }.join(", ")
