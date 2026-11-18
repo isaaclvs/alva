@@ -1,7 +1,17 @@
 <%= render "refresh", groups: @groups, suggestions: @suggestions, household: current_household %>
 <%= turbo_stream.replace "list_item_form", partial: "form", locals: { list_item: ListItem.new } %>
 <%= @feedback %>
-<%= turbo_stream.prepend "recent_adds_list", partial: "recent_item", collection: @results.select { |result| result.outcome.in?(%i[created revived]) }.map(&:item).reverse.first(3), as: :item %>
+<%# Newest first, like a single add. Only the names this add created get a
+    "Remover": a revived one is a bought item that came back. %>
+<% added = @results.select { |result| result.outcome.in?(%i[created revived]) }.map(&:item).reverse.first(3) %>
+<% if added.any? %>
+  <%= turbo_stream.prepend "recent_adds_list" do %>
+    <% added.each do |item| %>
+      <%= render "list_items/recent_item", item: item,
+            undoable: @results.any? { |result| result.item == item && result.outcome == :created } %>
+    <% end %>
+  <% end %>
+<% end %>
 <% @results.each do |result| %>
   <%= turbo_stream.replace result.item, partial: "list_item", locals: { list_item: result.item, highlight: true } %>
 <% end %>

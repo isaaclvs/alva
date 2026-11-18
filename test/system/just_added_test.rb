@@ -76,4 +76,35 @@ class JustAddedTest < ApplicationSystemTestCase
     assert_no_selector "#recent_adds li", text: "Tahine"
     assert_equal [ "Azeite especial", "Café especial", "Banana" ], all("#recent_adds li > span.flex-1").map(&:text)
   end
+
+  test "a typo can be taken back from just added and undone from the toast" do
+    visit root_path
+    add_item "Tahine"
+    assert_selector "#recent_adds", text: "Tahine"
+    tahine = ListItem.find_by!(name: "Tahine")
+
+    within("##{dom_id(tahine, :recent)}") { click_button "Remover Tahine" }
+
+    assert_no_selector "##{dom_id(tahine, :recent)}"
+    assert_nil ListItem.find_by(name: "Tahine")
+    within("#toast") do
+      assert_selector "[role=status]", text: "Tahine removido"
+      click_button "Desfazer"
+    end
+
+    assert_selector "##{dom_id(tahine, :recent)}", text: "Tahine"
+    assert_selector "##{dom_id(tahine, :recent)} button", text: "×"
+    assert_equal 1, ListItem.where(name: "Tahine").count
+    show_list
+    within("#category_#{categories(:other).id}") { assert_text "Tahine" }
+  end
+
+  test "a revived name offers no removal in just added" do
+    visit root_path
+    add_item "detergente"
+    assert_selector "#recent_adds", text: "Detergente"
+
+    assert_no_selector "#recent_adds button", text: "×"
+    assert_no_selector "#toast", text: "removido"
+  end
 end
