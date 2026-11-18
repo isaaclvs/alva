@@ -173,12 +173,23 @@ canvas, com as duas abas lado a lado (ícone e texto, contador de pendentes em L
 
 `ShoppingMode` lê a preferência local de 24 horas antes de compor as telas e a
 revalida ao retomar. O modo força a Lista, esconde navegação, personalização,
-edição e swipe; a saída limpa filtros. A busca fica no rodapé, sem autofocus, e
-leva junto o switch "Só pendentes" (sem o rótulo "Seções · A–Z"); busca e switch
-se combinam, só filtram a visão e sobrevivem ao refresh até a saída do modo.
+edição e swipe; a saída limpa filtros. O cabeçalho é compacto: "Sair das compras"
+fica ao lado do título, não numa linha própria abaixo do resumo.
+
+Os comprados saem do caminho: entrar no modo (ou retomá-lo depois de reabrir)
+deixa "Só pendentes" ligado, e o rodapé mostra um chip "Mostrar comprados (N)"
+que os traz de volta com um toque. O filtro só esconde linhas; contadores,
+progresso e cabeçalhos de categoria continuam vindo do snapshot inteiro (uma
+seção toda comprada ainda diz "tudo pego"), e uma busca reduz as seções aos
+matches.
+
+O rodapé fixo é uma única linha: lupa, chip dos comprados e "Compra feita". A
+busca não ocupa espaço enquanto ninguém procura — a lupa abre o campo sob
+demanda (com foco) e o fecha de novo; com query ativa a lupa fica no accent.
 `LocalView.keepScreenOn` mantém a tela acesa enquanto o modo está ativo;
 marcações aceitas no aparelho pedem feedback háptico pela API do Android.
-A barra de progresso e os contadores vêm do snapshot inteiro, mesmo com busca.
+Medido no emulador (medium_phone, 683dp de conteúdo): o rodapé do modo compras
+caiu de ~225dp para ~60dp, com o campo de busca fechado.
 O modo não envia comandos nem finaliza uma compra; a finalização é a #103.
 
 ## Finalizar e desfazer compra (#103)
