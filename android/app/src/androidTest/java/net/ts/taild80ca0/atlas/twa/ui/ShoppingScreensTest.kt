@@ -107,6 +107,9 @@ class ShoppingScreensTest {
         compose.onNodeWithTag("shopping-search-toggle").assertExists()
         compose.onNodeWithTag("item-${boughtBread.id}").assertDoesNotExist()
         compose.onNodeWithTag("shopping-bought-toggle").assertTextEquals("Mostrar comprados (1)")
+        // The footer controls keep the 48dp touch target of the rest of the app (#145).
+        compose.onNodeWithTag("shopping-search-toggle").assertHeightIsAtLeast(androidx.compose.ui.unit.Dp(48f))
+        compose.onNodeWithTag("shopping-bought-toggle").assertHeightIsAtLeast(androidx.compose.ui.unit.Dp(48f))
         fun assertWholeSnapshotCounts() {
             compose.onNodeWithTag("list-summary").assertTextEquals("2 pendentes · 1 comprado")
             compose.onNodeWithTag("shopping-progress").assert(SemanticsMatcher("1 of 3 bought") {
