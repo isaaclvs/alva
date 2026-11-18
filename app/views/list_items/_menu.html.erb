@@ -32,6 +32,15 @@
       <% end %>
     <% end %>
 
+    <%# Read-only history: what each "Compra feita" archived, by month. %>
+    <%= link_to shopping_history_path, title: "Compras", aria: { label: "Compras" },
+          class: "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-ink active:bg-surface-2" do %>
+      <svg class="size-5 text-ink-soft" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 3.5h12v13H4zM7 7h6M7 10h6M7 13h4" />
+      </svg>
+      Compras
+    <% end %>
+
     <% if HouseholdAccess.enabled? %>
       <%= button_to "Sair", logout_path, method: :delete, data: { turbo: false }, form: { class: "border-t border-line mt-1 pt-1" },
             class: "w-full rounded-xl px-3 py-2.5 text-left text-sm text-ink-soft active:bg-surface-2" %>

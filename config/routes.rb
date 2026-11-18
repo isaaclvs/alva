@@ -37,6 +37,12 @@ Rails.application.routes.draw do
     post :restore, on: :collection
   end
   resources :shopping_trips, only: [ :create, :destroy ]
+
+  # Read-only shopping history ("Compras"), one page per month, and the one
+  # action on it: putting a finished trip's names back on the list.
+  get "compras", to: "shopping_history#index", as: :shopping_history
+  post "compras/:id/adicionar", to: "shopping_history#add_all", as: :shopping_history_add_all
+
   resources :habitual_items, only: [ :create, :destroy ] do
     post :add_selected, on: :collection
     post :add_all, on: :collection

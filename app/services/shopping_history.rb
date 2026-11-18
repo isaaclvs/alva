@@ -51,6 +51,13 @@ class ShoppingHistory
     new(household).call(month: month)
   end
 
+  # One trip of this household as the screen shows it (its names, its groups),
+  # or nil when the id is not one of its finished trips. What "Adicionar tudo
+  # de novo" re-adds comes from here, so it is the same list the person saw.
+  def self.trip(household, id)
+    new(household).trip(id)
+  end
+
   def initialize(household)
     @household = household
   end
@@ -62,6 +69,11 @@ class ShoppingHistory
     months = months_of_history
     selected = months.find { |candidate| candidate.key == month } || months.first
     Page.new(month: selected, months:, trips: selected ? trips_in(selected) : [])
+  end
+
+  def trip(id)
+    found = @household.shopping_trips.includes(list_items: :category).find_by(id: id)
+    entry_for(found) if found
   end
 
   private
@@ -83,9 +95,11 @@ class ShoppingHistory
     @household.shopping_trips.where(finished_at: month.range)
       .order(finished_at: :desc, id: :desc)
       .includes(list_items: :category)
-      .map do |trip|
-        Trip.new(trip:, groups: groups_for(trip.list_items), items_count: trip.list_items.size)
-      end
+      .map { |trip| entry_for(trip) }
+  end
+
+  def entry_for(trip)
+    Trip.new(trip:, groups: groups_for(trip.list_items), items_count: trip.list_items.size)
   end
 
   # The same order as Household#list_items_by_category, without the pending /
