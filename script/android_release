@@ -92,19 +92,35 @@ secret_value() {
   printf '%s' "$value"
 }
 
-# Prints the apksigner binary to use: $ALVA_APKSIGNER, the one on PATH, or the
+# Prints a build-tools binary: $override_env when set, then PATH, then the
 # newest build-tools of the Android SDK. Prints nothing when there is none.
-find_apksigner() {
-  if [[ -n ${ALVA_APKSIGNER:-} ]]; then
-    printf '%s\n' "$ALVA_APKSIGNER"
+find_sdk_tool() {
+  local override="$1" name="$2" sdk
+  if [[ -n $override ]]; then
+    printf '%s\n' "$override"
     return 0
   fi
-  if command -v apksigner >/dev/null 2>&1; then
-    command -v apksigner
+  if command -v "$name" >/dev/null 2>&1; then
+    command -v "$name"
     return 0
   fi
-  local sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Android/Sdk}}"
-  find "$sdk/build-tools" -maxdepth 2 -name apksigner -type f 2>/dev/null | sort -V | tail -n 1 || true
+  sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Android/Sdk}}"
+  find "$sdk/build-tools" -maxdepth 2 -name "$name" -type f 2>/dev/null | sort -V | tail -n 1 || true
+}
+
+# Prints the SHA-256 digest of a file as lowercase hex, using whichever of
+# sha256sum/shasum the system has.
+sha256_of() {
+  local file="$1" digest
+  if command -v sha256sum >/dev/null 2>&1; then
+    digest="$(sha256sum "$file")"
+  elif command -v shasum >/dev/null 2>&1; then
+    digest="$(shasum -a 256 "$file")"
+  else
+    printf 'error: neither sha256sum nor shasum is available\n' >&2
+    return 1
+  fi
+  printf '%s' "${digest%% *}"
 }
 
 # Prints the SHA-256 of the certificate of $alias in a keystore. The password
@@ -192,7 +208,7 @@ fi
 step "checking the tooling"
 command -v java >/dev/null 2>&1 || die "java (JDK 21) is not on PATH"
 [[ -x $android_dir/gradlew ]] || die "missing android/gradlew"
-apksigner="$(find_apksigner)"
+apksigner="$(find_sdk_tool "${ALVA_APKSIGNER:-}" apksigner)"
 [[ -n $apksigner && -x $apksigner ]] ||
   die "apksigner not found; set ALVA_APKSIGNER or ANDROID_HOME"
 ok "java $(java -version 2>&1 | head -n 1 | sed -E 's/^(openjdk|java) version "?([^" ]+)"?.*/\2/')"
@@ -263,7 +279,11 @@ if [[ $dry_run == true ]]; then
     warn "a real run stops before building until the signing material is configured"
   fi
   note "would run: (cd android && ./gradlew assembleRelease)"
-  note "would write ${release_dir#"$root_dir"/}/Alva-$version_name.apk"
+  note "would check that the APK declares $application_id $version_name (versionCode $version_code)"
+  note "would write ${release_dir#"$root_dir"/}/Alva-$version_name.apk, .sha256 and $(basename "$latest_json")"
+  if [[ -d $release_dir && ! -w $release_dir ]]; then
+    die "${release_dir#"$root_dir"/} is not writable"
+  fi
   note "nothing was built, signed or written"
   exit 0
 fi
@@ -283,4 +303,56 @@ ok "built ${built_apk#"$root_dir"/}"
 step "verifying the signature"
 signed_fingerprint="$(verify_signature "$built_apk")"
 ok "apksigner verify passed, certificate ${signed_fingerprint:0:14}… matches assetlinks.json"
+
+step "publishing the artifacts"
+aapt="$(find_sdk_tool "${ALVA_AAPT:-}" aapt)"
+[[ -n $aapt && -x $aapt ]] || die "aapt not found; set ALVA_AAPT or ANDROID_HOME"
+badging="$("$aapt" dump badging "$built_apk" 2>/dev/null)" ||
+  die "aapt cannot read ${built_apk##*/}"
+built_package="$(printf '%s\n' "$badging" | sed -nE "s/^package: name='([^']+)'.*/\1/p")"
+built_code="$(printf '%s\n' "$badging" | sed -nE "s/^package:.* versionCode='([0-9]+)'.*/\1/p")"
+built_name="$(printf '%s\n' "$badging" | sed -nE "s/^package:.* versionName='([^']+)'.*/\1/p")"
+[[ $built_package == "$application_id" ]] ||
+  die "the APK declares package $built_package, expected $application_id"
+[[ $built_code == "$version_code" && $built_name == "$version_name" ]] || die \
+  "the APK declares $built_name (versionCode $built_code), but $gradle_config says $version_name (versionCode $version_code)"
+ok "the APK declares $built_package $built_name (versionCode $built_code)"
+
+mkdir -p "$release_dir"
+published_apk="$release_dir/Alva-$version_name.apk"
+checksum_file="$published_apk.sha256"
+apk_sha256="$(sha256_of "$built_apk")"
+[[ $apk_sha256 =~ ^[0-9a-f]{64}$ ]] || die "cannot compute the SHA-256 of ${built_apk##*/}"
+
+temporary_latest="$(mktemp "$release_dir/.latest.json.XXXXXX")"
+published_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+ruby -rjson -e '
+  print JSON.pretty_generate(
+    "versionName" => ARGV[0],
+    "versionCode" => Integer(ARGV[1]),
+    "sha256" => ARGV[2],
+    "publishedAt" => ARGV[3]
+  ), "\n"
+' "$version_name" "$version_code" "$apk_sha256" "$published_at" >"$temporary_latest"
+
+# The files are served by the Rails process, so they are world-readable like any
+# other file under public/; mktemp starts at 0600.
+chmod 0644 "$temporary_latest"
+printf '%s  %s\n' "$apk_sha256" "$(basename "$published_apk")" >"$checksum_file.tmp"
+chmod 0644 "$checksum_file.tmp"
+mv "$checksum_file.tmp" "$checksum_file"
+cp "$built_apk" "$published_apk.tmp"
+chmod 0644 "$published_apk.tmp"
+# The APK lands last: a half-written artifact never sits under the name the
+# download page points at, and latest.json only moves forward once the files it
+# describes are already there.
+mv "$published_apk.tmp" "$published_apk"
+mv "$temporary_latest" "$latest_json"
+
+ok "APK      ${published_apk#"$root_dir"/}"
+ok "checksum ${checksum_file#"$root_dir"/}"
+ok "release  ${latest_json#"$root_dir"/} ($version_name, versionCode $version_code)"
+printf '\nSHA-256: %s\n' "$apk_sha256"
+note "install over the previous app, never uninstalling it: adb install -r \"$published_apk\""
+note "publishing is local only; nothing was uploaded"
 
