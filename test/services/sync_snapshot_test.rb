@@ -35,7 +35,7 @@ class SyncSnapshotTest < ActiveSupport::TestCase
     assert_equal %w[name position public_id], snapshot[:categories].first.keys.map(&:to_s).sort
     assert_equal %w[category_public_id learned name normalized_name public_id], snapshot[:catalog_items].first.keys.map(&:to_s).sort
     assert_equal %w[created_at normalized_name name public_id].sort, snapshot[:habitual_items].first.keys.map(&:to_s).sort
-    assert_equal %w[category_public_id last_purchased_at name trips], snapshot[:buy_again].first.keys.map(&:to_s).sort
+    assert_equal %w[cadence_days category_public_id due last_purchased_at name trips], snapshot[:buy_again].first.keys.map(&:to_s).sort
     assert_equal %w[created_at finished_at public_id], snapshot[:shopping_trips].first.keys.map(&:to_s).sort
     assert_equal %w[public_id record_type revision], snapshot[:tombstones].first.keys.map(&:to_s).sort
 
@@ -223,6 +223,28 @@ class SyncSnapshotTest < ActiveSupport::TestCase
     item.update_columns(category_id: nil)
 
     assert_nil snap[:buy_again].sole[:category_public_id]
+  end
+
+  # A suggestion carries its cadence additively (#163); a name without history
+  # enough keeps the old shape, `cadence_days: null`, `due: false`.
+  test "buy_again carries the cadence and the due flag without changing the older fields" do
+    travel_to Time.zone.local(2026, 11, 18, 9) do
+      [ Date.new(2026, 10, 5), Date.new(2026, 10, 15), Date.new(2026, 10, 29) ].each do |date|
+        trip = @home.shopping_trips.create!(finished_at: Time.zone.local(date.year, date.month, date.day, 10))
+        @home.list_items.create!(name: "Arroz", status: :purchased, purchased_at: trip.finished_at, shopping_trip: trip)
+      end
+      trip = @home.shopping_trips.create!(finished_at: Time.zone.local(2026, 11, 17, 10))
+      @home.list_items.create!(name: "Feijão", status: :purchased, purchased_at: trip.finished_at, shopping_trip: trip)
+
+      suggestions = snap[:buy_again]
+
+      assert_equal %w[Arroz Feijão], suggestions.map { _1[:name] }
+      assert_equal 12, suggestions.first[:cadence_days]
+      assert suggestions.first[:due]
+      assert_nil suggestions.last[:cadence_days]
+      assert_not suggestions.last[:due]
+      assert_equal [ 3, 1 ], suggestions.map { _1[:trips] }
+    end
   end
 
   test "the latest trip and its items can be found for undo" do

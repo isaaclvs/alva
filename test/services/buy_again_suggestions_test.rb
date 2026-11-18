@@ -143,4 +143,121 @@ class BuyAgainSuggestionsTest < ActiveSupport::TestCase
 
     assert_operator queries.size, :<=, 3
   end
+
+  # --- cadence (issue #163): median days between purchases, "probably running out" ---
+
+  # Buys `name` once on each of the given dates, one trip each, on the house clock.
+  def buy_on(name, *dates)
+    dates.map { |date| buy name, ago: Time.zone.local(date.year, date.month, date.day, 10) }
+  end
+
+  test "computes the median interval between purchase days, rounded" do
+    travel_to Time.zone.local(2026, 11, 18, 9) do
+      buy_on "Arroz", Date.new(2026, 10, 5), Date.new(2026, 10, 15), Date.new(2026, 10, 29)
+
+      suggestion = BuyAgainSuggestions.call(@household).sole
+
+      assert_equal 3, suggestion.trips
+      assert_equal 12, suggestion.cadence_days # intervals 10 and 14 → median 12
+      assert_predicate suggestion, :due? # 20 days since the last purchase > 12
+    end
+  end
+
+  test "the median is the middle gap with an odd number of intervals" do
+    travel_to Time.zone.local(2026, 11, 18, 9) do
+      buy_on "Café", Date.new(2026, 10, 1), Date.new(2026, 10, 3), Date.new(2026, 10, 9), Date.new(2026, 10, 17)
+
+      assert_equal 6, BuyAgainSuggestions.call(@household).sole.cadence_days # gaps 2, 6, 8
+    end
+  end
+
+  test "a name needs at least three purchase days before it has a cadence" do
+    travel_to Time.zone.local(2026, 11, 18, 9) do
+      buy_on "Arroz", Date.new(2026, 10, 1), Date.new(2026, 10, 5)
+
+      suggestion = BuyAgainSuggestions.call(@household).sole
+
+      assert_nil suggestion.cadence_days
+      assert_not_predicate suggestion, :due?
+    end
+  end
+
+  test "a name bought twice on the same day counts that day once" do
+    travel_to Time.zone.local(2026, 11, 18, 9) do
+      buy_on "Arroz", Date.new(2026, 10, 1), Date.new(2026, 10, 1), Date.new(2026, 10, 5), Date.new(2026, 10, 9)
+
+      suggestion = BuyAgainSuggestions.call(@household).sole
+
+      assert_equal 4, suggestion.trips
+      assert_equal 4, suggestion.cadence_days # purchase days 1, 5, 9: one interval of 8 → 4 + 4
+      assert_predicate suggestion, :due?
+    end
+  end
+
+  test "two trips finished on the same day are one purchase day" do
+    travel_to Time.zone.local(2026, 11, 18, 9) do
+      day = Date.new(2026, 10, 1)
+      buy "Arroz", ago: Time.zone.local(day.year, day.month, day.day, 9)
+      buy "Arroz", ago: Time.zone.local(day.year, day.month, day.day, 18)
+      buy_on "Arroz", Date.new(2026, 10, 5), Date.new(2026, 10, 9)
+
+      assert_equal 4, BuyAgainSuggestions.call(@household).sole.cadence_days
+    end
+  end
+
+  test "is not due on the very day the median interval is reached" do
+    travel_to Time.zone.local(2026, 11, 18, 9) do
+      buy_on "Arroz", Date.new(2026, 10, 25), Date.new(2026, 11, 2), Date.new(2026, 11, 10)
+
+      suggestion = BuyAgainSuggestions.call(@household).sole
+
+      assert_equal 8, suggestion.cadence_days
+      assert_not_predicate suggestion, :due? # exactly 8 days later is not late yet
+    end
+  end
+
+  test "is due the day after the median interval is reached" do
+    travel_to Time.zone.local(2026, 11, 19, 9) do
+      buy_on "Arroz", Date.new(2026, 10, 25), Date.new(2026, 11, 2), Date.new(2026, 11, 10)
+
+      assert_predicate BuyAgainSuggestions.call(@household).sole, :due?
+    end
+  end
+
+  test "counts purchase days on the house clock, not in UTC" do
+    travel_to Time.zone.local(2026, 11, 18, 9) do
+      # 01:00 UTC on the 2nd is still the evening of the 1st in São Paulo: the
+      # same purchase day as 21:00 local.
+      buy "Arroz", ago: Time.zone.local(2026, 10, 1, 21)
+      buy "Arroz", ago: Time.utc(2026, 10, 2, 1)
+      buy_on "Arroz", Date.new(2026, 10, 5), Date.new(2026, 10, 9)
+
+      assert_equal 4, BuyAgainSuggestions.call(@household).sole.cadence_days # days 1, 5, 9
+    end
+  end
+
+  test "a due name comes before the merely frequent ones, without growing past the limit" do
+    travel_to Time.zone.local(2026, 11, 18, 9) do
+      buy_on "Arroz", Date.new(2026, 10, 1), Date.new(2026, 10, 3), Date.new(2026, 10, 5)
+      3.times { buy "Feijão" }
+
+      suggestions = BuyAgainSuggestions.call(@household)
+
+      assert_equal %w[Arroz Feijão], suggestions.map(&:name)
+      assert_predicate suggestions.first, :due?
+      assert_equal 1, BuyAgainSuggestions.call(@household, limit: 1).size
+    end
+  end
+
+  test "the due ones are cut before the rest when the limit is small" do
+    travel_to Time.zone.local(2026, 11, 18, 9) do
+      buy_on "Arroz", Date.new(2026, 10, 1), Date.new(2026, 10, 3), Date.new(2026, 10, 5)
+      8.times { |index| buy "Item #{index}" }
+
+      names = BuyAgainSuggestions.call(@household).map(&:name)
+
+      assert_equal "Arroz", names.first
+      assert_equal BuyAgainSuggestions::LIMIT, names.size
+    end
+  end
 end
