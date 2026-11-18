@@ -149,16 +149,21 @@ class HistoryScreenTest {
         house.trips.clear()
         press("history-back")
         openHistory(waitForMonth = false)
-        waitForText("history-empty", "Nenhuma compra registrada ainda.")
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("history-empty").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Nenhuma compra registrada ainda.").assertExists()
     }
 
     @Test fun aFailedReadSaysWhyWithoutTakingTheListAway() {
-        seedTrip("Sabão" to FakeHouse.CLEANING)
+        val trip = seedTrip("Sabão" to FakeHouse.CLEANING)
         house.historySteps += Step.NetworkDown
         launch()
-        openHistory()
+        // The read failed, so there is no month to show: the notice says why, with a way to try again.
+        openHistory(waitForMonth = false)
 
         waitForText("history-problem", "Sem conexão com o servidor")
+        // The list is still the server's: history failing never takes it away.
+        press("history-reload")
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("history-trip-$trip").fetchSemanticsNodes().isNotEmpty() }
         press("history-back")
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
     }
