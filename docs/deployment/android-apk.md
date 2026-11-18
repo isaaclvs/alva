@@ -38,6 +38,12 @@ Nunca versione ou publique a chave ou suas senhas. Configure somente no ambiente
 local do build: `ALVA_ANDROID_KEYSTORE`, `ALVA_ANDROID_STORE_PASSWORD`,
 `ALVA_ANDROID_KEY_ALIAS` e `ALVA_ANDROID_KEY_PASSWORD`.
 
+Para publicar uma versão, use `script/android_release` (`--dry-run` ensaia):
+ele constrói, assina, confere o certificado contra `assetlinks.json` e escreve o
+APK, o `.sha256` e o `latest.json` em `public/downloads/`. O passo a passo,
+a instalação por cima da versão anterior e o backup cifrado da chave estão em
+`docs/deployment/android-release.md`.
+
 ```sh
 cd android
 ./gradlew testDebugUnitTest verifyVariants
