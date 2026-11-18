@@ -28,6 +28,14 @@ import net.ts.taild80ca0.atlas.twa.access.AccessGraph
 
 /** Native online implementation under the existing component name: installed widgets keep their PendingIntent. */
 class QuickAddActivity : ComponentActivity() {
+    companion object {
+        /**
+         * Set by the "Adicionar item" launcher shortcut (#158): a device that is not connected to the house goes
+         * to the entry screen instead of showing a panel that could not send the name.
+         */
+        const val EXTRA_OPEN_APP_WHEN_UNPAIRED = "open_app_when_unpaired"
+    }
+
     private val model: QuickPanelModel by viewModels {
         object : AbstractSavedStateViewModelFactory(this, intent.extras) {
             @Suppress("UNCHECKED_CAST")
@@ -53,6 +61,9 @@ class QuickAddActivity : ComponentActivity() {
         val input = findViewById<EditText>(R.id.quick_add_product)
         val submit = findViewById<Button>(R.id.quick_add_submit)
         val status = findViewById<TextView>(R.id.quick_add_status)
+        // The launcher shortcut wants the panel only when there is a house to send to; otherwise the app's own
+        // entry screen is the useful place, and it asks for the password once (#158).
+        val openAppWhenUnpaired = intent.getBooleanExtra(EXTRA_OPEN_APP_WHEN_UNPAIRED, false)
         findViewById<View>(R.id.quick_add_password).visibility = View.GONE
         findViewById<View>(R.id.quick_add_close).setOnClickListener { finish() }
         findViewById<Button>(R.id.quick_add_success_undo).setOnClickListener { model.undo() }
@@ -69,6 +80,12 @@ class QuickAddActivity : ComponentActivity() {
                 var wasConfirmed = false
                 model.state.collect { current ->
                     if (input.text.toString() != current.draft) { input.setText(current.draft); input.setSelection(input.length()) }
+                    if (openAppWhenUnpaired && !current.connected && !current.loading) {
+                        // The shortcut cannot do its job without the house: hand the person to the entry screen.
+                        startActivity(Intent(this@QuickAddActivity, MainActivity::class.java))
+                        finish()
+                        return@collect
+                    }
                     input.visibility = if (current.connected) View.VISIBLE else View.GONE
                     input.isEnabled = !current.busy && current.success == null
                     submit.isEnabled = !current.busy && !current.loading

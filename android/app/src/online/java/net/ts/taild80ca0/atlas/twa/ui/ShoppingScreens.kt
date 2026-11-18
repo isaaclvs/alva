@@ -50,6 +50,8 @@ fun ShoppingScreens(
     saveScreen: suspend (String) -> Unit = {},
     signOut: (suspend () -> String?)? = null,
     exportPdf: (suspend () -> String?)? = null,
+    /** The "Modo compras" launcher shortcut: starts the checklist without waiting for a tap (#158). */
+    startShopping: Boolean = false,
 ) {
     val state by repository.state.collectAsState()
     val editState = rememberEditItemState()
@@ -126,6 +128,15 @@ fun ShoppingScreens(
 
     val ready = state as? OnlineState.Ready
     val items = remember(ready?.snapshot) { ready?.snapshot?.liveItems().orEmpty() }
+
+    // The "Modo compras" launcher shortcut (#158) starts the checklist after the first snapshot, exactly as its
+    // button does. With nothing on the list there is nothing to check, so the Lista stays as it is.
+    LaunchedEffect(startShopping, ready) {
+        if (startShopping && !shopping.active && items.isNotEmpty()) {
+            listFilters.value = ListFilters(pendingOnly = true)
+            shopping.start()
+        }
+    }
 
     val pending = items.count { it.status == ItemStatus.PENDING }
     var menuWorking by remember { mutableStateOf(false) }

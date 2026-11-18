@@ -21,6 +21,17 @@ import net.ts.taild80ca0.atlas.twa.ui.theme.*
 
 /** Native online entry point, shared by the development and production variants. */
 class MainActivity : ComponentActivity() {
+    companion object {
+        /** Opens the Lista screen, like the shopping list widget and the "Lista" launcher shortcut. */
+        const val EXTRA_SCREEN = "widget_screen"
+
+        /** Value of [EXTRA_SCREEN] that opens the Lista instead of the saved screen. */
+        const val SCREEN_LIST = "list"
+
+        /** Opens the Lista already in shopping mode, like tapping "Iniciar compras" (#158). */
+        const val EXTRA_START_SHOPPING = "start_shopping"
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
@@ -45,8 +56,10 @@ class MainActivity : ComponentActivity() {
         window.decorView.viewTreeObserver.addOnPreDrawListener(gate)
         lifecycleScope.launch {
             val initial = preferences.values.first()
-            val requestedScreen = intent.getStringExtra("widget_screen")
-            intent.removeExtra("widget_screen")
+            val requestedScreen = intent.getStringExtra(EXTRA_SCREEN)
+            val startShopping = intent.getBooleanExtra(EXTRA_START_SHOPPING, false)
+            intent.removeExtra(EXTRA_SCREEN)
+            intent.removeExtra(EXTRA_START_SHOPPING)
             applyAlvaSystemBars(AlvaPalettes.of(initial.dark, initial.color))
             setContent {
                 val saved by preferences.values.collectAsState(initial)
@@ -55,8 +68,9 @@ class MainActivity : ComponentActivity() {
                     Surface(color = MaterialTheme.colorScheme.background) {
                         AccessScreen(access = access, connected = { actions -> if (repository != null) ShoppingScreens(
                             repository, accessActions = actions, invalidation = invalidation,
-                            preferences = if (requestedScreen == "list") saved.copy(screen = "list") else saved, saveDark = preferences::dark, saveColor = preferences::color,
+                            preferences = if (requestedScreen == SCREEN_LIST) saved.copy(screen = SCREEN_LIST) else saved, saveDark = preferences::dark, saveColor = preferences::color,
                             saveScreen = preferences::screen,
+                            startShopping = startShopping,
                             signOut = { if (access.signOut()) null else "Não foi possível sair agora. Tente de novo." },
                             exportPdf = {
                                 when (val result = pdf.download()) {
