@@ -237,11 +237,14 @@ html[data-shopping-mode="on"] #list_search_panel > .relative { background: var(-
 .category-icon svg { width: 1.05rem; height: 1.05rem; }
 .category-icon[data-tone="produce"] { --category-hue: 148; }
 .category-icon[data-tone="dairy"] { --category-hue: 240; }
+.category-icon[data-tone="frozen"] { --category-hue: 260; }
 .category-icon[data-tone="pantry"], .category-icon[data-tone="bakery"] { --category-hue: 75; }
 .category-icon[data-tone="meat"] { --category-hue: 15; }
 .category-icon[data-tone="drinks"] { --category-hue: 205; }
 .category-icon[data-tone="cleaning"] { --category-hue: 285; }
 .category-icon[data-tone="hygiene"] { --category-hue: 340; }
+.category-icon[data-tone="pharmacy"] { --category-hue: 170; }
+.category-icon[data-tone="pet"] { --category-hue: 100; }
 .category-icon:not([data-tone="other"]) {
   color: oklch(78% .07 var(--category-hue));
   background: oklch(78% .07 var(--category-hue) / .12);

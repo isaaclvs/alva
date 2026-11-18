@@ -17,12 +17,15 @@ class ListPdf
   CATEGORY_COLORS = {
     "Hortifruti" => "10b981",
     "Laticínios" => "0ea5e9",
+    "Frios e congelados" => "8b5cf6",
     "Mercearia" => "f59e0b",
     "Açougue" => "f43f5e",
     "Padaria" => "f97316",
     "Bebidas" => "06b6d4",
     "Limpeza" => "6366f1",
-    "Higiene" => "d946ef"
+    "Higiene" => "d946ef",
+    "Farmácia" => "14b8a6",
+    "Pet" => "84cc16"
   }.freeze
   DEFAULT_COLOR = "a1a1aa".freeze
 
