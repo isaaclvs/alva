@@ -78,6 +78,18 @@ class HabitualItemsTest < ApplicationSystemTestCase
     assert_equal 1, household.list_items.archived.where(name: "Detergente").count
   end
 
+  test "every habit row and its Remove button is at least 44px tall" do
+    household = Household.first!
+    habit = household.habitual_items.create!(name: "Arroz")
+
+    visit root_path
+    within("#habitual_items") { find("summary").click }
+
+    assert_touch_target "#habitual_item_#{habit.id}",
+      "#habitual_item_#{habit.id} label",
+      "#habitual_item_#{habit.id} button"
+  end
+
   test "a list broadcast preserves the habits disclosure and selected checkboxes" do
     household = Household.first!
     habit = household.habitual_items.create!(name: "Arroz")

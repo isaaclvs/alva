@@ -18,6 +18,14 @@ class JustAddedTest < ApplicationSystemTestCase
     assert_equal categories(:dairy), ItemCategorizer.call("tahine")
   end
 
+  test "the category picker of a recent add is at least 44px tall" do
+    visit root_path
+    add_item "Tahine, Banana"
+
+    assert_selector "#recent_adds li"
+    assert_touch_target "#recent_adds select.recent-category"
+  end
+
   test "typing a name that is already pending says so before sending" do
     visit root_path
 

@@ -3,8 +3,8 @@
   <% if habits.any? %>
     <div class="space-y-2" aria-label="Lista de habituais">
       <% habits.each do |habit| %>
-        <div id="habitual_item_<%= habit.id %>" data-turbo-permanent class="flex items-center gap-2">
-          <label for="habitual_item_<%= habit.id %>_checkbox" class="flex min-w-0 flex-1 items-center gap-2 text-sm text-ink-soft">
+        <div id="habitual_item_<%= habit.id %>" data-turbo-permanent class="flex min-h-11 items-center gap-2">
+          <label for="habitual_item_<%= habit.id %>_checkbox" class="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-2 text-sm text-ink-soft">
             <%= check_box_tag "habitual_item_ids[]", habit.id, false,
                   id: "habitual_item_#{habit.id}_checkbox", form: "habitual_item_selection",
                   class: "size-4 accent-accent" %>
@@ -12,7 +12,7 @@
           </label>
           <%= button_to "Remover", habitual_item_path(habit), method: :delete,
                 form: { class: "shrink-0" }, aria: { label: "Remover item habitual #{habit.name}" },
-                class: "rounded-lg px-2 py-1 text-xs text-ink-faint underline underline-offset-2 active:text-ink" %>
+                class: "flex min-h-11 items-center rounded-lg px-2 text-xs text-ink-faint underline underline-offset-2 active:text-ink" %>
         </div>
       <% end %>
     </div>
