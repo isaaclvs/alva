@@ -8,20 +8,28 @@
 #
 # Signing material is never read from the repository: the keystore path, the key
 # alias and the two passwords come from the environment or from a file whose path
-# is given in a *_FILE variable. Nothing secret is ever echoed, and this script
-# never enables `set -x`. See docs/deployment/android-apk.md.
+# is given in a *_FILE variable. The resolved values reach Gradle through the
+# environment of the build, never through its command line. No value of those
+# four variables is ever printed — not even the keystore path or the alias — and
+# this script never enables `set -x`. See docs/deployment/android-apk.md.
 #
 # Environment (a real release needs all four signing variables):
 #   ALVA_ANDROID_KEYSTORE             keystore file, outside the repository
 #   ALVA_ANDROID_KEY_ALIAS            alias of the release key
 #   ALVA_ANDROID_STORE_PASSWORD       keystore password
 #   ALVA_ANDROID_KEY_PASSWORD         key password
+#
+# Each of the four accepts a `<name>_FILE` twin instead — e.g.
+# ALVA_ANDROID_KEY_ALIAS_FILE — pointing at a private file whose first line is
+# the value, so nothing secret has to live in the shell history:
 #   ALVA_ANDROID_STORE_PASSWORD_FILE  file with the keystore password (one line)
 #   ALVA_ANDROID_KEY_PASSWORD_FILE    file with the key password (one line)
+#
 #   ALVA_RELEASE_DIR                  output directory (default: public/downloads)
 #   ALVA_RELEASE_LATEST_JSON          last published latest.json
 #                                     (default: $ALVA_RELEASE_DIR/latest.json)
 #   ALVA_APKSIGNER                    apksigner binary (default: newest in the SDK)
+#   ALVA_AAPT                         aapt binary (default: newest in the SDK)
 set -euo pipefail
 
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -50,8 +58,9 @@ Usage: script/android_release [--dry-run]
 
 Signing material comes from the environment: ALVA_ANDROID_KEYSTORE,
 ALVA_ANDROID_KEY_ALIAS, ALVA_ANDROID_STORE_PASSWORD and
-ALVA_ANDROID_KEY_PASSWORD, or from the files named by
-ALVA_ANDROID_STORE_PASSWORD_FILE and ALVA_ANDROID_KEY_PASSWORD_FILE.
+ALVA_ANDROID_KEY_PASSWORD. Each of the four also accepts a <name>_FILE twin
+naming a private file whose first line is the value. The build reads them from
+its environment; none of them is ever printed.
 USAGE
 }
 
@@ -90,6 +99,19 @@ secret_value() {
     value="$(head -n 1 "${!file_var}")"
   fi
   printf '%s' "$value"
+}
+
+# Aborts when the file named by $2 — the keystore or a *_FILE source — lives
+# inside the repository, where it could be committed. The path itself is never
+# printed, only the name of the variable that carries it.
+refuse_repository_file() {
+  local var="$1" file="$2" dir resolved
+  [[ -n $file ]] || return 0
+  dir="$(cd "$(dirname "$file")" 2>/dev/null && pwd)" || return 0
+  resolved="$dir/$(basename "$file")"
+  case "$resolved" in
+    "$root_dir"/*) die "$var must point outside the repository" ;;
+  esac
 }
 
 # Prints a build-tools binary: $override_env when set, then PATH, then the
@@ -208,12 +230,23 @@ missing_signing=()
 signing_ready=false
 if [[ ${#missing_signing[@]} -eq 0 ]]; then
   signing_ready=true
-  [[ -r $keystore ]] || die "ALVA_ANDROID_KEYSTORE points to an unreadable file: $keystore"
-  keystore_dir="$(cd "$(dirname "$keystore")" && pwd)"
-  case "$keystore_dir/$(basename "$keystore")" in
-    "$root_dir"/*) die "the keystore must stay outside the repository: $keystore" ;;
-  esac
-  ok "signing with alias $key_alias, keystore outside the repository"
+  [[ -r $keystore ]] || die "ALVA_ANDROID_KEYSTORE does not name a readable file"
+  refuse_repository_file ALVA_ANDROID_KEYSTORE "$keystore"
+  # A password file inside the working tree is one `git add -A` away from being
+  # committed, so its location is refused just like the keystore's.
+  refuse_repository_file ALVA_ANDROID_STORE_PASSWORD_FILE "${ALVA_ANDROID_STORE_PASSWORD_FILE:-}"
+  refuse_repository_file ALVA_ANDROID_KEY_PASSWORD_FILE "${ALVA_ANDROID_KEY_PASSWORD_FILE:-}"
+  # Gradle reads the four variables itself, so a password given through its
+  # *_FILE twin has to reach the build the same way. The values ride in the
+  # environment of the build; they are never arguments of gradlew.
+  export ALVA_ANDROID_KEYSTORE="$keystore"
+  export ALVA_ANDROID_KEY_ALIAS="$key_alias"
+  export ALVA_ANDROID_STORE_PASSWORD="$store_password"
+  export ALVA_ANDROID_KEY_PASSWORD="$key_password"
+  # The two *_FILE names are no longer needed and would only widen what a child
+  # process can see.
+  unset ALVA_ANDROID_STORE_PASSWORD_FILE ALVA_ANDROID_KEY_PASSWORD_FILE
+  ok "the keystore and the release alias are configured, both outside the repository"
 else
   warn "signing material not configured (missing ${missing_signing[*]})"
 fi
@@ -278,7 +311,7 @@ if [[ $signing_ready == true ]]; then
   step "checking the release key"
   keystore_cert="$(keystore_fingerprint "$keystore" "$key_alias" "$store_password")"
   keystore_cert="$(normalize_fingerprint "$keystore_cert")" ||
-    die "keytool printed no SHA256 fingerprint for alias $key_alias"
+    die "the keystore holds no readable certificate for the configured alias"
   [[ $keystore_cert == "$expected_fingerprint" ]] || die \
     "the key in the keystore is ${keystore_cert:0:14}…, but assetlinks.json pins ${expected_fingerprint:0:14}…; a build signed with it would stop updating the installed app"
   ok "the keystore holds the certificate assetlinks.json pins"
@@ -287,7 +320,7 @@ fi
 if [[ $dry_run == true ]]; then
   step "dry run"
   if [[ $signing_ready == true ]]; then
-    note "would sign with alias $key_alias"
+    note "would sign with the configured release key"
   else
     warn "a real run stops before building until the signing material is configured"
   fi
