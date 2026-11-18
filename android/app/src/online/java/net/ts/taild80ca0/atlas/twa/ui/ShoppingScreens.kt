@@ -1,5 +1,9 @@
 package net.ts.taild80ca0.atlas.twa.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -78,6 +82,9 @@ fun ShoppingScreens(
     val haptics = LocalHapticFeedback.current
     val view = LocalView.current
     val density = LocalDensity.current
+    val animations = alvaAnimationsEnabled()
+    // The toast rises by `--spacing` × 2 (8dp), the smallest step that reads as movement.
+    val toastRise = with(density) { AlvaSpacing.sm.roundToPx() }
     var shoppingFooterHeight by remember { mutableIntStateOf(0) }
     // Hosted here, with this scope and this state, so a mark, removal or correction sent from the Lista tab goes on
     // (and keeps its "sending" hint and its undo) when the person switches to Adicionar before the server answers.
@@ -279,16 +286,23 @@ fun ShoppingScreens(
                 }
             }
             // `#toast`: above the capsule, or above the measured shopping footer (including search and filters),
-            // centered, only on the device that acted.
-            toast?.let { current ->
-                Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+            // centered, only on the device that acted. It rises 8dp and fades in `base`, and leaves in `fast`.
+            AnimatedVisibility(
+                visible = toast != null,
+                enter = slideInVertically(animationSpec = AlvaMotion.spec(animations, AlvaMotion.Base)) { toastRise } +
+                    fadeIn(animationSpec = AlvaMotion.spec(animations, AlvaMotion.Base)),
+                exit = fadeOut(animationSpec = AlvaMotion.spec(animations, AlvaMotion.Fast, AlvaMotion.Exit)),
+                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                     .padding(start = AlvaSpacing.lg, end = AlvaSpacing.lg,
                         bottom = if (shoppingMode) with(density) { shoppingFooterHeight.toDp() } + AlvaSpacing.md else AlvaSpacing.md),
-                    contentAlignment = Alignment.Center) {
-                    UndoToast(current.text, current.actionLabel, onAction = {
-                        toast = null
-                        scope.launch { current.onAction() }
-                    })
+            ) {
+                toast?.let { current ->
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        UndoToast(current.text, current.actionLabel, onAction = {
+                            toast = null
+                            scope.launch { current.onAction() }
+                        })
+                    }
                 }
             }
             }

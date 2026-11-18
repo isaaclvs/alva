@@ -1,5 +1,6 @@
 package net.ts.taild80ca0.atlas.twa.ui
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -40,6 +41,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaColor
+import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaMotion
 import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaShapes
 import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaTheme
 import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaElevation
@@ -47,6 +49,7 @@ import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaIconSize
 import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaRadius
 import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaSize
 import net.ts.taild80ca0.atlas.twa.ui.theme.AlvaSpacing
+import net.ts.taild80ca0.atlas.twa.ui.theme.alvaAnimationsEnabled
 
 /**
  * The PWA's `active:bg-surface-2`: the color shows only while the element is pressed. Elements built with this use
@@ -174,6 +177,7 @@ object FloatingNavigation {
 fun BottomNavigation(current: AppScreen, pending: Int, onSelect: (AppScreen) -> Unit, modifier: Modifier = Modifier) {
     val c = AlvaTheme.colors
     val capsule = AlvaShapes.Capsule
+    val animations = alvaAnimationsEnabled()
     Box(
         modifier.fillMaxWidth()
             .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.displayCutout)
@@ -196,15 +200,18 @@ fun BottomNavigation(current: AppScreen, pending: Int, onSelect: (AppScreen) -> 
         ) {
             AppScreen.entries.forEach { screen ->
                 val selected = screen == current
-                val tint = when {
+                // The pill of the active tab settles in `base`: the same 180ms the PWA's navigation uses.
+                val surface by animateColorAsState(if (selected) c.accentSoft else Color.Transparent,
+                    animationSpec = AlvaMotion.spec(animations, AlvaMotion.Base), label = "tab-pill")
+                val tint by animateColorAsState(when {
                     !selected -> c.inkFaint
                     c.color == AlvaColor.Pink -> c.accent
                     else -> c.accentStrong
-                }
+                }, animationSpec = AlvaMotion.spec(animations, AlvaMotion.Base), label = "tab-tint")
                 Row(
                     Modifier.weight(1f).fillMaxHeight().heightIn(min = FloatingNavigation.MinTabHeight)
                         .clip(AlvaShapes.Pill)
-                        .background(if (selected) c.accentSoft else Color.Transparent)
+                        .background(surface)
                         .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, role = Role.Tab) { onSelect(screen) }
                         .semantics { this.selected = selected }
                         .testTag("nav-${screen.tag}")
