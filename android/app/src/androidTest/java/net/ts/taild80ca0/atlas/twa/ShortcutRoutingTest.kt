@@ -117,23 +117,21 @@ class ShortcutRoutingTest {
         compose.onNodeWithTag("start-shopping").assertExists()
     }
 
-    @Test fun theAddShortcutTypedInOpensThePanelWithTheFieldReady() {
+    @Test fun theAddShortcutOpensTheQuickPanelWithTheFieldReady() {
         follow(Shortcuts.ADD_ITEM)
         compose.waitUntil(10_000) {
             scenario!!.let { launched ->
-                var shown = false
+                var ready = false
                 launched.onActivity { activity ->
-                    shown = activity is QuickAddActivity &&
+                    ready = activity is QuickAddActivity &&
                         activity.findViewById<android.widget.EditText>(R.id.quick_add_product)?.isShown == true
                 }
-                shown
+                ready
             }
         }
-        assertEquals(QuickAddActivity::class.java, scenario!!.let { launched ->
-            var name: Class<*>? = null
-            launched.onActivity { name = it.javaClass }
-            name
-        })
+        val launched = mutableListOf<Class<*>>()
+        scenario!!.onActivity { launched += it.javaClass }
+        assertEquals(listOf<Class<*>>(QuickAddActivity::class.java), launched)
     }
 
     @Test fun anUnpairedDeviceLandsOnTheEntryScreenFromTheAddShortcut() {
