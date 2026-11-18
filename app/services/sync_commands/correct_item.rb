@@ -17,7 +17,8 @@ module SyncCommands
       category_id = @command.payload["category_id"]
       return malformed("payload.public_id") unless public_id
       return malformed("payload.name") unless name.is_a?(String)
-      return rejected("invalid_name") if name.squish.blank?
+      return rejected("invalid_name", "reason" => "blank") if name.squish.blank?
+      return rejected("invalid_name", "reason" => "too_long") if name.squish.length > ListItem::MAX_NAME_LENGTH
       return malformed("payload.category_id") unless category_id.nil? || uuid(category_id)
 
       explicit = @command.preconditions["lock_version"]

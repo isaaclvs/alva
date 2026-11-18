@@ -214,6 +214,32 @@ class Api::V1::CommandsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, reported.size
   end
 
+  test "an envelope over 256 KB is refused with 413 before anything is parsed" do
+    command = add_items_command([ uuid, "Tapioca" ])
+    huge = { commands: [ command ], padding: "x" * (Api::V1::CommandsController::MAX_BODY_BYTES + 1) }
+
+    post "/api/v1/commands", params: huge.to_json, headers: bearer(@ana_token).merge("Content-Type" => "application/json")
+
+    assert_response :content_too_large
+    assert_equal({ "error" => "request_too_large" }, body)
+    assert_nil @home.pending_item_named("Tapioca")
+    assert_equal 0, SyncCommand.count
+  end
+
+  test "a body at the limit still goes through" do
+    command = add_items_command([ uuid, "Tapioca" ])
+    envelope = { commands: [ command ] }
+    # `{"padding":"…"}` and the closing brace are part of the body too.
+    padding = Api::V1::CommandsController::MAX_BODY_BYTES - envelope.merge(padding: "").to_json.bytesize - 1
+    body = envelope.merge(padding: "x" * padding).to_json
+    assert_operator body.bytesize, :<=, Api::V1::CommandsController::MAX_BODY_BYTES
+
+    post "/api/v1/commands", params: body, headers: bearer(@ana_token).merge("Content-Type" => "application/json")
+
+    assert_response :ok
+    assert_equal "applied", JSON.parse(response.body)["results"].first["status"]
+  end
+
   private
 
   def send_commands(token, commands, **envelope)

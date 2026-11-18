@@ -16,6 +16,10 @@ module SyncCommands
   # item is still exactly that; otherwise it is a conflict, so an old request
   # cannot silently revive a purchase someone else just made.
   #
+  # A name over ListItem::MAX_NAME_LENGTH (the limit the add field cuts at) is
+  # `rejected` / `invalid_name` (`data.reason: "too_long"`, `data.field` naming
+  # the entry), like a blank one: the whole command rolls back.
+  #
   # The command is all or nothing: the processor rolls back every item, alias
   # and revision when any entry conflicts or is rejected.
   class AddItems
@@ -156,6 +160,12 @@ module SyncCommands
       name = item["name"].squish
       if name.blank?
         return SyncCommandProcessor::Outcome.rejected("invalid_name", "index" => index, "public_id" => public_id)
+      end
+      # The same limit the add field cuts at (#171): a client that skips the cut
+      # is refused here, so the ledger never keeps a huge name.
+      if name.length > ListItem::MAX_NAME_LENGTH
+        return SyncCommandProcessor::Outcome.rejected("invalid_name", "reason" => "too_long",
+          "field" => "payload.items[#{index}].name", "index" => index, "public_id" => public_id)
       end
 
       revives = revives_from(item["revives"], index)

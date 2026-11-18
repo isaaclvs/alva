@@ -177,7 +177,10 @@ Regras do envelope:
   snapshot antes de decidir o que reemitir; o fim do lote não depende disso.
 - Limites do envelope: de 1 a 50 comandos por requisição e `observed_revision`
   inteiro ≥ 0 (ou ausente); fora disso a requisição inteira é `422
-  malformed_command`, sem efeito (assim como JSON inválido). Um comando mal
+  malformed_command`, sem efeito (assim como JSON inválido). Corpo acima de
+  256 KB é `413 request_too_large` antes de qualquer parsing ou efeito — o
+  mesmo teto que o cliente Android aplica localmente
+  (`CommandLimits.MAX_DOCUMENT_BYTES` + envelope). Um comando mal
   formado dentro de um lote bom falha sozinho, como `rejected`.
 - Um lote bem formado responde com os resultados por comando; os códigos HTTP
   da tabela de erros valem para a requisição inteira (autenticação, envelope
@@ -231,8 +234,10 @@ um comando já enviado.
   gerou, na ordem de `payload.items`. O servidor cria a linha **com esse
   mesmo UUID**; ele nunca é reescrito. De 1 a 30 itens, sem UUID repetido no
   comando. O nome é normalizado com `squish` e não pode ficar vazio
-  (`invalid_name`, com `index` do item); não há limite de comprimento exclusivo
-  do sync. A categoria e a
+  (`invalid_name`, com `index` do item); acima de 100 caracteres — o limite de
+  `ListItem`, o mesmo que o campo de adicionar corta — é `invalid_name` com
+  `reason: "too_long"`, `field` e `index` do item, e o comando inteiro volta
+  atrás. A categoria e a
   duplicidade seguem as regras do Rails (`ItemCategorizer`, `TextNormalizer`,
   `Household#add_item_for_sync`), como se o nome fosse digitado na PWA.
 - Resultado por item, em `data.items` (mesma ordem), com `outcome`:
@@ -643,7 +648,8 @@ errada retorna `conflict/precondition_failed` com `reason: version_changed` e
 `current`. Renomear para outro pendente retorna `reason: duplicate_pending`, sem
 salvar nem aprender. Item arquivado/removido retorna `gone`; desconhecido e item
 de outra casa retornam o mesmo `not_found`. Campos inválidos retornam
-`malformed_command` com `data.field`; nome vazio retorna `invalid_name`.
+`malformed_command` com `data.field`; nome vazio ou acima de 100 caracteres
+(`reason: "too_long"`) retorna `invalid_name`.
 
 O item recebe a categoria manual mesmo quando a revisão do dicionário mudou.
 Nesse caso só o aprendizado é adiado: o resultado consumido (`applied`/`noop`)
@@ -1158,7 +1164,8 @@ um item arquivado **não** gera tombstone.
 | `forbidden_scope` | 403 | não | Escopo `add_only` tentou sync; pedir autorização completa. |
 | `sync_unavailable` | 403 | não | Sem senha da casa configurada; pareamento de sync indisponível. |
 | `malformed_command` | 422 | não | Envelope/campos inválidos; corrigir e reenviar com novo status local. |
-| `invalid_name` | 422 | não | Nome vazio após normalização, como na PWA; `data.index` diz qual item. Mostrar no item, não descartar o texto. |
+| `invalid_name` | 422 | não | Nome vazio após normalização, como na PWA, ou acima de 100 caracteres (`data.reason: "too_long"`); `data.index` diz qual item. Mostrar no item, não descartar o texto. |
+| `request_too_large` | 413 | não | Corpo da requisição acima de 256 KB; recusado antes de qualquer efeito. O cliente recusa o mesmo teto localmente antes de enviar. |
 | `stale_revision` | 409 | sim, após novo snapshot | Precondição de revisão falhou; sincronizar e reavaliar. |
 | `precondition_failed` | 409 | sim, após novo snapshot | Item mudou; apresentar estado atual para revisão, sem sobrescrever. |
 | `not_found` | 404 | não | Registro inexistente nesta casa; remover da fila só após confirmar. |

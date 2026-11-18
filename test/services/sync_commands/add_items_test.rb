@@ -306,12 +306,20 @@ class SyncCommands::AddItemsTest < ActiveSupport::TestCase
     assert_nil @home.pending_item_named("Tapioca")
   end
 
-  test "a name accepted by the PWA is not rejected by an arbitrary sync-only limit" do
-    name = "x" * 121
-    result = submit(@ana, add_items_command([ uuid, name ])).first
-
+  test "a name at the limit is accepted and one over it is rejected, like the add field" do
+    longest = "x" * ListItem::MAX_NAME_LENGTH
+    result = submit(@ana, add_items_command([ uuid, longest ])).first
     assert_equal "applied", result[:status]
-    assert_equal name, @home.pending_item_named(name).name
+    assert_equal longest, @home.pending_item_named(longest).name
+
+    too_long = uuid
+    assert_no_difference "SyncCommand.where(command_type: \"add_items\").count" do
+      result = submit(@ana, add_items_command([ uuid, "Tapioca" ], [ too_long, "x" * (ListItem::MAX_NAME_LENGTH + 1) ])).first
+
+      assert_equal [ "rejected", "invalid_name", "too_long", 1, "payload.items[1].name", too_long ],
+        [ result[:status], result[:error], result[:data]["reason"], result[:data]["index"], result[:data]["field"], result[:data]["public_id"] ]
+    end
+    assert_nil @home.pending_item_named("Tapioca"), "the whole batch rolls back"
   end
 
   test "the list is broadcast once, after the commit, and not at all when the command fails" do
