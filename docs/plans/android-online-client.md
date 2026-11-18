@@ -87,6 +87,29 @@ anterior: repetir a ação é o único reenvio.
   (`precondition_failed`) e a tela avisa que a lista mudou. O prazo de ~5 s é do
   toast, não do servidor.
 
+- `RemoveItem`/`UndoRemove` (`remove_item`, `undo_remove`, #99): a Lista e, desde a
+  #144, o "×" de "Acabou de adicionar" e o Desfazer do painel rápido. Removem com o
+  `lock_version` observado; desfazem pelo `depends_on` do recibo do `remove_item`,
+  porque os atributos vêm só do ledger do servidor. A Adicionar guarda a linha e o
+  toast do host devolve a linha; o painel rápido só oferece o Desfazer de um nome
+  que ele **criou** (um revivido é um comprado de volta e não é desfeito).
+
+## Desfazer adição (#144)
+
+A Adicionar mostra um "×" em cada linha que o último add **criou**; um revivido
+fica sem ele (removê-lo apagaria histórico, não o add). O comando e o desfazer
+são os mesmos da Lista: `remove_item` e, no toast do host, `undo_remove` com o
+`depends_on` do recibo. A resposta HTTP da remoção tira a linha de
+"Acabou de adicionar"; o Desfazer a põe de volta antes da releitura. No Rails o
+mesmo caminho é `ListItemsController#destroy`/`#restore` com `from=recent` e o
+toast levando `from=recent` para a linha voltar.
+
+O painel rápido confirma com a categoria que o servidor escolheu ("Leite
+adicionado em Laticínios", a frase da PWA) e mantém o Desfazer por
+`QuickPanelModel.UNDO_MILLIS` (3 s); desfazer volta ao campo vazio, para o nome
+certo, e não trava o fechamento automático. Um lote de vários nomes só mostra o
+resumo (as linhas têm o "×" na Adicionar).
+
 ## Habituais (#105)
 
 `CreateHabitual`, `RemoveHabitual` e `AddHabituals` usam os comandos existentes do

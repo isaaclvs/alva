@@ -219,7 +219,15 @@ HTTP de quem adicionou.
 `#recent_adds` com os itens criados ou revividos, cada um com a categoria num
 seletor; trocar ali envia `PATCH list_items/:id` com `from=recent`, que corrige
 e ensina o dicionário como o lápis e devolve a linha atualizada. Item que caiu
-em "Outros" tem o seletor destacado. Enquanto se digita, `duplicate_hint_controller.js`
+em "Outros" tem o seletor destacado. Cada linha que o último add **criou** tem um
+"×" que remove pelo mesmo `DELETE list_items/:id` da Lista (`from=recent`): a
+linha sai daqui e o `#toast` de quem agiu oferece "Desfazer", que a reinsere
+(`POST /list_items/restore` com `from=recent`). Um nome **revivido** fica sem o
+"×": é um comprado que voltou, e removê-lo apagaria histórico em vez do add. No
+Android vale o mesmo (`AddScreenState#remove`, `RemoveItem`/`UndoRemove`, toast
+do host) e o painel rápido confirma com a categoria ("Leite adicionado em
+Laticínios") e oferece Desfazer por 3 s só para um nome criado. Enquanto se
+digita, `duplicate_hint_controller.js`
 avisa quais nomes já estão pendentes na lista (comparação sem acento/caixa via
 `text_plain.js`, o par de `TextNormalizer.plain`); é só uma dica, o servidor
 continua decidindo (e pega plurais que a dica não pega).

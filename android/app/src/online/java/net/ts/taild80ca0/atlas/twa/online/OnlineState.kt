@@ -48,3 +48,13 @@ fun ServerSnapshot.liveItems(): List<ListItem> = listItems.map {
         awaitingSync = false,
     )
 }
+
+/**
+ * The label of the category the snapshot holds for [itemPublicId]: what the add feedback says ("Leite adicionado
+ * em Laticínios") and what "Acabou de adicionar" picks in its row. [fallback] is for an item or a category the
+ * snapshot no longer shows.
+ */
+fun ServerSnapshot.categoryLabel(itemPublicId: String, fallback: String = "Sem categoria"): String {
+    val item = listItems.firstOrNull { it.publicId == itemPublicId }
+    return categories.firstOrNull { it.publicId == item?.categoryPublicId }?.name ?: fallback
+}

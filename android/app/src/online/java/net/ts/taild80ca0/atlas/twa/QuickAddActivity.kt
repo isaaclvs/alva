@@ -55,6 +55,7 @@ class QuickAddActivity : ComponentActivity() {
         val status = findViewById<TextView>(R.id.quick_add_status)
         findViewById<View>(R.id.quick_add_password).visibility = View.GONE
         findViewById<View>(R.id.quick_add_close).setOnClickListener { finish() }
+        findViewById<Button>(R.id.quick_add_success_undo).setOnClickListener { model.undo() }
         input.doAfterTextChanged { model.edit(it?.toString().orEmpty()) }
         input.setOnEditorActionListener { _, action, _ ->
             if (action == EditorInfo.IME_ACTION_DONE) { model.submit(); true } else false
@@ -83,6 +84,11 @@ class QuickAddActivity : ComponentActivity() {
                     findViewById<View>(R.id.quick_add_form).visibility = if (current.success == null) View.VISIBLE else View.GONE
                     findViewById<View>(R.id.quick_add_success).visibility = if (current.success != null) View.VISIBLE else View.GONE
                     findViewById<TextView>(R.id.quick_add_success_message).text = current.success.orEmpty()
+                    // Only a name this add created can be taken back while the panel is open.
+                    val undo = findViewById<Button>(R.id.quick_add_success_undo)
+                    undo.visibility = if (current.undo != null) View.VISIBLE else View.GONE
+                    undo.isEnabled = !current.undoing
+                    undo.alpha = if (current.undoing) .65f else 1f
                     if (current.success != null || !current.connected) keyboard().hideSoftInputFromWindow(input.windowToken, 0)
                     if (current.close) finish()
                 }
@@ -125,6 +131,7 @@ class QuickAddActivity : ComponentActivity() {
             background = shape(palette.accentSoft.toArgb(), 28f)
             setTextColor(palette.accent.toArgb())
         }
+        findViewById<Button>(R.id.quick_add_success_undo).setTextColor(palette.accent.toArgb())
         findViewById<TextView>(R.id.quick_add_status).setTextColor(
             if (model.state.value.error != null) palette.danger.toArgb() else palette.inkSoft.toArgb())
     }

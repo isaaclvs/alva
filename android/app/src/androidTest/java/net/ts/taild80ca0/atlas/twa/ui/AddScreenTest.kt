@@ -265,8 +265,39 @@ class AddScreenTest {
         compose.onNodeWithTag("recent-${house.named("Pão").single().id}").assertDoesNotExist()
     }
 
-    @Test fun pickingACategoryCorrectsTheItemAndTeachesTheDictionary() {
+    @Test fun aNameThisAddCreatedCanBeTakenBackFromJustAddedWithTheToast() {
         launch()
+        typeAndAdd("Café")
+        waitForText("feedback", "Café adicionado em Outros")
+        val id = house.named("Café").single().id
+        compose.onNodeWithTag("recent-remove-$id").performScrollTo()
+            .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
+        waitForText("toast-message", "Café removido")
+        compose.onNodeWithTag("recent-$id").assertDoesNotExist()
+        assertTrue(house.rows.isEmpty())
+        assertEquals(listOf("add_items", "remove_item"), commandTypes())
+
+        compose.onNodeWithTag("toast-undo").performClick()
+        compose.waitUntil(10_000) { house.rows.isNotEmpty() }
+        compose.onNodeWithTag("recent-$id").assertExists()
+        assertEquals(listOf("add_items", "remove_item", "undo_remove"), commandTypes())
+    }
+
+    @Test fun aRevivedNameOffersNoRemovalInJustAdded() {
+        house.seed("Leite", status = "purchased")
+        launch()
+        typeAndAdd("leite")
+        waitForText("feedback", "Leite voltou para a lista")
+        val id = house.named("Leite").single().id
+        compose.onNodeWithTag("recent-$id").assertExists()
+        // Removing it would delete a bought item's history, not take back this add.
+        compose.onNodeWithTag("recent-remove-$id").assertDoesNotExist()
+        assertEquals(listOf("add_items"), commandTypes())
+    }
+
+    private fun commandTypes() = house.sent.map { JSONObject(it.second).getString("type") }
+
+    @Test fun pickingACategoryCorrectsTheItemAndTeachesTheDictionary() {        launch()
         typeAndAdd("Café")
         waitForText("feedback", "Café adicionado em Outros")
         val row = house.named("Café").single()
