@@ -19,7 +19,7 @@
 #   ALVA_ANDROID_STORE_PASSWORD       keystore password
 #   ALVA_ANDROID_KEY_PASSWORD         key password
 #
-# Each of the four accepts a `<name>_FILE` twin instead — e.g.
+# Each of the three text values accepts a `<name>_FILE` twin instead — e.g.
 # ALVA_ANDROID_KEY_ALIAS_FILE — pointing at a private file whose first line is
 # the value, so nothing secret has to live in the shell history:
 #   ALVA_ANDROID_STORE_PASSWORD_FILE  file with the keystore password (one line)
@@ -56,9 +56,9 @@ Usage: script/android_release [--dry-run]
               without building, signing or writing any artifact
   -h, --help  show this help
 
-Signing material comes from the environment: ALVA_ANDROID_KEYSTORE,
-ALVA_ANDROID_KEY_ALIAS, ALVA_ANDROID_STORE_PASSWORD and
-ALVA_ANDROID_KEY_PASSWORD. Each of the four also accepts a <name>_FILE twin
+Signing material comes from the environment: ALVA_ANDROID_KEYSTORE (a path, and
+nothing else) plus ALVA_ANDROID_KEY_ALIAS, ALVA_ANDROID_STORE_PASSWORD and
+ALVA_ANDROID_KEY_PASSWORD. Each of those three also accepts a <name>_FILE twin
 naming a private file whose first line is the value. The build reads them from
 its environment; none of them is ever printed.
 USAGE
@@ -84,8 +84,10 @@ latest_json="${ALVA_RELEASE_LATEST_JSON:-$release_dir/latest.json}"
 [[ $release_dir == /* ]] || release_dir="$root_dir/$release_dir"
 [[ $latest_json == /* ]] || latest_json="$root_dir/$latest_json"
 
-# Prints a secret from the environment, or the first line of the file named by
-# its _FILE twin. Never call this where the result would be echoed.
+# Prints a value from the environment, or the first line of the file named by
+# its _FILE twin. Never call this where the result would be echoed. Only for
+# text values: the keystore is a binary file, so its path comes from the
+# environment alone.
 secret_value() {
   local name="$1" file_var value=""
   file_var="${name}_FILE"
@@ -217,7 +219,8 @@ ok "applicationId $application_id"
 ok "artifacts go to ${release_dir#"$root_dir"/}"
 
 step "reading the signing material"
-keystore="$(secret_value ALVA_ANDROID_KEYSTORE)"
+# The keystore is a binary file: only its path is read from the environment.
+keystore="${ALVA_ANDROID_KEYSTORE:-}"
 key_alias="$(secret_value ALVA_ANDROID_KEY_ALIAS)"
 store_password="$(secret_value ALVA_ANDROID_STORE_PASSWORD)"
 key_password="$(secret_value ALVA_ANDROID_KEY_PASSWORD)"
@@ -232,6 +235,9 @@ if [[ ${#missing_signing[@]} -eq 0 ]]; then
   signing_ready=true
   [[ -r $keystore ]] || die "ALVA_ANDROID_KEYSTORE does not name a readable file"
   refuse_repository_file ALVA_ANDROID_KEYSTORE "$keystore"
+  # Gradle runs inside android/, so a path relative to the caller's shell would
+  # point somewhere else there. Resolve it once, before the build.
+  keystore="$(cd "$(dirname "$keystore")" && pwd)/$(basename "$keystore")"
   # A password file inside the working tree is one `git add -A` away from being
   # committed, so its location is refused just like the keystore's.
   refuse_repository_file ALVA_ANDROID_STORE_PASSWORD_FILE "${ALVA_ANDROID_STORE_PASSWORD_FILE:-}"
