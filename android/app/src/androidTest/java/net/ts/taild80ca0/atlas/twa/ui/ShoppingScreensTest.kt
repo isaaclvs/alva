@@ -376,6 +376,31 @@ class ShoppingScreensTest {
     }
 
     /**
+     * Waits until the bounds of [tag] stop changing. Switching screens hides the keyboard and the content moves while
+     * it slides away, so a real touch injected at that moment lands somewhere else. Tests that click through the
+     * semantics action do not depend on this; the ones that must prove a real touch does call it first.
+     */
+    private fun settle(tag: String) {
+        var last = compose.onNodeWithTag(tag).getUnclippedBoundsInRoot()
+        var steady = 0
+        val deadline = System.currentTimeMillis() + 10_000
+        while (steady < 4) {
+            check(System.currentTimeMillis() < deadline) { "the layout never settled: $tag at $last" }
+            Thread.sleep(50)
+            compose.waitForIdle()
+            val now = compose.onNodeWithTag(tag).getUnclippedBoundsInRoot()
+            steady = if (now == last) steady + 1 else 0
+            last = now
+        }
+    }
+
+    /** A real touch on the row, once its layout stopped moving: what a thumb does, without a tap at stale coordinates. */
+    private fun tap(id: String) {
+        settle("item-$id")
+        compose.onNodeWithTag("item-$id").performTouchInput { click() }
+    }
+
+    /**
      * Waits for the Só pendentes switch to be [on] (or off) and asserts it there. The switch is toggled through an
      * action, which recomposes the screen afterwards, and a screen that was rebuilt (navigation, recreation, a
      * reload) only shows the filter once it exists: reading it without waiting reads the previous screen.
@@ -898,7 +923,7 @@ class ShoppingScreensTest {
         compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         waitForText("list-summary", "1 pendente")
 
-        compose.onNodeWithTag("item-${leite.id}").performTouchInput { click() }
+        tap(leite.id)
 
         // Nothing has reached the server, yet the person already sees what they asked for, marked as "sending".
         assertTrue(house.sent.isEmpty())
@@ -925,7 +950,7 @@ class ShoppingScreensTest {
         waitForText("list-summary", "1 pendente")
         house.commandSteps += listOf(Step.NetworkDown, Step.NetworkDown, Step.NetworkDown)
 
-        compose.onNodeWithTag("item-${leite.id}").performTouchInput { click() }
+        tap(leite.id)
         assertMarked(leite.id, true)
         assertSending(leite.id, true)
 
@@ -944,7 +969,7 @@ class ShoppingScreensTest {
         compose.onNodeWithTag("nav-list").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         waitForText("list-summary", "1 pendente")
 
-        compose.onNodeWithTag("item-${leite.id}").performTouchInput { click() }
+        tap(leite.id)
         assertMarked(leite.id, true)
         assertSending(leite.id, true)
         otherPhone()
@@ -1008,7 +1033,7 @@ class ShoppingScreensTest {
     @Test fun aMarkAnsweredWhileTheAddTabIsOpenStillConfirmsToastsAndCanBeUndone() {
         val (held, rows) = openListHeld("Leite")
         val leite = rows.single()
-        compose.onNodeWithTag("item-${leite.id}").performTouchInput { click() }
+        tap(leite.id)
         assertSending(leite.id, true)
         press("nav-add")
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
@@ -1029,13 +1054,13 @@ class ShoppingScreensTest {
     @Test fun comingBackToTheListBeforeTheAnswerKeepsTheRowSendingAndAllowsNoSecondCommand() {
         val (held, rows) = openListHeld("Leite")
         val leite = rows.single()
-        compose.onNodeWithTag("item-${leite.id}").performTouchInput { click() }
+        tap(leite.id)
         goToAddAndBack()
 
         assertMarked(leite.id, true)
         assertSending(leite.id, true)
         compose.onNodeWithTag("item-${leite.id}").assertIsNotEnabled()
-        compose.onNodeWithTag("item-${leite.id}").performTouchInput { click() }
+        tap(leite.id)
 
         held.letGo()
         waitForText("toast-message", "Leite marcado")
@@ -1048,7 +1073,7 @@ class ShoppingScreensTest {
         val (held, rows) = openListHeld("Leite")
         val leite = rows.single()
         house.commandSteps += listOf(Step.NetworkDown, Step.NetworkDown, Step.NetworkDown)
-        compose.onNodeWithTag("item-${leite.id}").performTouchInput { click() }
+        tap(leite.id)
         press("nav-add")
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-input").fetchSemanticsNodes().isNotEmpty() }
 
