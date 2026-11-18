@@ -51,8 +51,10 @@ internal class QuickPanelModel(private val saved: SavedStateHandle, private val 
     fun resume() { viewModelScope.launch { access.refresh(); if (access.credentialForSync() != null) repository?.refresh() } }
     fun edit(value: String) {
         if (mutable.value.busy || mutable.value.success != null) return
-        saved["draft"] = value
-        mutable.update { it.copy(draft = value) }
+        // Each name stops at the limit the server validates, like the PWA's field.
+        val limited = ItemNameSplitter.limitDraft(value)
+        saved["draft"] = limited
+        mutable.update { it.copy(draft = limited) }
     }
     fun submit() {
         val current = mutable.value

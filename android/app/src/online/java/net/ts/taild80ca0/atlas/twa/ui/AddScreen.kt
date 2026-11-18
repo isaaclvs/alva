@@ -77,6 +77,7 @@ import net.ts.taild80ca0.atlas.twa.data.list.AddOutcome
 import net.ts.taild80ca0.atlas.twa.data.list.Category
 import net.ts.taild80ca0.atlas.twa.data.list.ListItem
 import net.ts.taild80ca0.atlas.twa.data.matching.DuplicateHint
+import net.ts.taild80ca0.atlas.twa.data.matching.ItemNameSplitter
 import net.ts.taild80ca0.atlas.twa.data.matching.NameSuggestions
 import net.ts.taild80ca0.atlas.twa.online.ActionResult
 import net.ts.taild80ca0.atlas.twa.online.AddItems
@@ -137,6 +138,15 @@ class AddScreenState internal constructor(
 ) {
     var draft by mutableStateOf(initialDraft)
 
+    /**
+     * The field's own limit: each name is cut at [ItemNameSplitter.MAX_NAME_LENGTH]
+     * as it is typed, like the PWA's `name_limit_controller.js`, so a pasted
+     * paragraph never goes to the queue as a name the server would refuse.
+     */
+    fun editDraft(value: String) {
+        draft = ItemNameSplitter.limitDraft(value)
+    }
+
     var feedback by mutableStateOf<AddFeedback?>(null)
         private set
 
@@ -168,7 +178,7 @@ class AddScreenState internal constructor(
      * either send it or go on typing.
      */
     fun completeDraft(name: String) {
-        draft = NameSuggestions.complete(draft, name)
+        draft = ItemNameSplitter.limitDraft(NameSuggestions.complete(draft, name))
     }
 
     private fun send(action: OnlineAction, submitted: String?) {
@@ -435,7 +445,7 @@ private fun AddField(state: AddScreenState, focus: FocusRequester) {
     ) {
         BasicTextField(
             value = state.draft,
-            onValueChange = { state.draft = it },
+            onValueChange = { state.editDraft(it) },
             modifier = Modifier.weight(1f).focusRequester(focus).onFocusChanged { focused = it.isFocused }
                 .semantics { contentDescription = "Item" }.testTag("add-input"),
             textStyle = AlvaTheme.type.input.copy(color = colors.ink),

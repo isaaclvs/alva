@@ -20,6 +20,7 @@ import androidx.compose.ui.semantics.*
 import androidx.compose.ui.unit.dp
 import net.ts.taild80ca0.atlas.twa.data.list.Category
 import net.ts.taild80ca0.atlas.twa.data.list.ListItem
+import net.ts.taild80ca0.atlas.twa.data.matching.ItemNameSplitter
 import net.ts.taild80ca0.atlas.twa.ui.theme.*
 
 /** Lives above lazy rows and screen navigation, so broadcasts, scrolling and recreation keep the draft. */
@@ -80,7 +81,8 @@ internal fun EditItemForm(state: EditItemState, categories: List<Category>, onCa
     var menu by remember { mutableStateOf(false) }
     Column(modifier.fillMaxWidth().background(colors.surface).padding(AlvaSpacing.md).testTag("edit-form-${state.itemId}"),
         verticalArrangement = Arrangement.spacedBy(AlvaSpacing.sm)) {
-        BasicTextField(state.name, onValueChange = { state.name = it }, singleLine = true, enabled = !state.saving,
+        BasicTextField(state.name, onValueChange = { state.name = ItemNameSplitter.limitName(it) }, singleLine = true,
+            enabled = !state.saving,
             textStyle = AlvaTheme.type.body.copy(color = colors.ink), cursorBrush = SolidColor(colors.accent),
             modifier = Modifier.fillMaxWidth().background(colors.canvas, AlvaShapes.Control)
                 .border(1.dp, colors.line, AlvaShapes.Control).padding(horizontal = AlvaSpacing.md, vertical = AlvaSpacing.sm)

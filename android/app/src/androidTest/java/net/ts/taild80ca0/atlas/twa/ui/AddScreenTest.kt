@@ -12,6 +12,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import net.ts.taild80ca0.atlas.twa.MainActivity
 import net.ts.taild80ca0.atlas.twa.access.*
+import net.ts.taild80ca0.atlas.twa.data.matching.ItemNameSplitter
 import net.ts.taild80ca0.atlas.twa.online.FakeHouse
 import net.ts.taild80ca0.atlas.twa.online.FakeHouse.Step
 import net.ts.taild80ca0.atlas.twa.online.OnlineAccess
@@ -222,6 +223,10 @@ class AddScreenTest {
 
     private fun waitForEmptyField() = compose.waitUntil(10_000) { compose.onAllNodes(hasTestTag("add-input") and emptyInput).fetchSemanticsNodes().isNotEmpty() }
 
+    /** What the add field shows, read from its semantics (the draft, after any cut). */
+    private fun fieldText(): String = compose.onNodeWithTag("add-input")
+        .fetchSemanticsNode().config[SemanticsProperties.EditableText].text
+
     private fun typeAndAdd(text: String) {
         // A tap while the previous add is still being answered is ignored, so wait for the button to be idle.
         compose.waitUntil(10_000) { compose.onAllNodes(hasTestTag("save-add") and isEnabled()).fetchSemanticsNodes().isNotEmpty() }
@@ -273,6 +278,24 @@ class AddScreenTest {
         compose.onNodeWithTag("save-add").performClick()
         waitForText("feedback", "Digite pelo menos um item.")
         assertTrue(house.sent.isEmpty())
+    }
+
+    @Test fun aNameStopsAtTheLimitBeforeItReachesTheQueue() {
+        launch()
+        compose.onNodeWithTag("add-input").performTextInput("x".repeat(140))
+        compose.waitUntil(10_000) {
+            compose.onAllNodes(hasTestTag("add-input") and hasText("x".repeat(ItemNameSplitter.MAX_NAME_LENGTH)))
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        // The rest of the name is gone from the field, not just from the command.
+        assertEquals(ItemNameSplitter.MAX_NAME_LENGTH, fieldText().length)
+
+        compose.onNodeWithTag("add-input").performTextInput(", pão")
+        assertEquals("x".repeat(ItemNameSplitter.MAX_NAME_LENGTH) + ", pão", fieldText())
+
+        compose.onNodeWithTag("save-add").performClick()
+        waitForText("feedback", "2 itens adicionados")
+        assertEquals(listOf("x".repeat(ItemNameSplitter.MAX_NAME_LENGTH), "pão"), house.rows.map { it.name })
     }
 
     @Test fun oneNameGetsItsOwnSentenceAndShowsUpInJustAdded() {

@@ -16,6 +16,7 @@ import androidx.test.espresso.assertion.ViewAssertions.matches
 import androidx.test.espresso.matcher.ViewMatchers.*
 import kotlinx.coroutines.*
 import net.ts.taild80ca0.atlas.twa.access.*
+import net.ts.taild80ca0.atlas.twa.data.matching.ItemNameSplitter
 import net.ts.taild80ca0.atlas.twa.ui.InMemoryHouseholdBinding
 import net.ts.taild80ca0.atlas.twa.online.*
 import net.ts.taild80ca0.atlas.twa.sync.CommandOutcome
@@ -169,6 +170,20 @@ class QuickPanelTest {
         await { it.findViewById<TextView>(R.id.quick_add_success_message).text == "Leite voltou para a lista" }
         onView(withId(R.id.quick_add_success_undo)).check(matches(withEffectiveVisibility(Visibility.GONE)))
         assertEquals(1, house.rows.size)
+    }
+
+    @Test fun aNameStopsAtTheLimitInTheFieldBeforeItIsSent() {
+        launch()
+        onView(withId(R.id.quick_add_product)).perform(replaceText("x".repeat(140)))
+        onView(withId(R.id.quick_add_product)).check(matches(withText("x".repeat(ItemNameSplitter.MAX_NAME_LENGTH))))
+
+        // The second name keeps its own budget after a name at the limit.
+        onView(withId(R.id.quick_add_product)).perform(replaceText("x".repeat(140) + ", pão"))
+        onView(withId(R.id.quick_add_product)).check(matches(withText("x".repeat(ItemNameSplitter.MAX_NAME_LENGTH) + ", pão")))
+        onView(withId(R.id.quick_add_product)).perform(pressImeActionButton())
+
+        await { it.findViewById<TextView>(R.id.quick_add_success_message).text == "2 itens adicionados" }
+        assertEquals(listOf("x".repeat(ItemNameSplitter.MAX_NAME_LENGTH), "pão"), house.rows.map { it.name })
     }
 
     @Test fun duplicateConfirmsAndClosesAfterAFewSeconds() {
