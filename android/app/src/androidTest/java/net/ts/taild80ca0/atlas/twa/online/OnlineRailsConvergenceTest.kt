@@ -112,7 +112,8 @@ class OnlineRailsConvergenceTest {
             val second = newName()
             kotlinx.coroutines.withContext(Dispatchers.Main) { model.edit("$first, $second"); model.submit() }
             val result = kotlinx.coroutines.withTimeout(10_000) { model.state.first { it.success != null || it.error != null } }
-            assertEquals("Adicionado à lista", result.success)
+            // A batch gets the shared summary of the Adicionar screen, without an undo.
+            assertEquals("2 itens adicionados", result.success)
             val b = phone(tokenB)
             b.repository.refresh()
             assertTrue(b.item(first) != null && b.item(second) != null)
