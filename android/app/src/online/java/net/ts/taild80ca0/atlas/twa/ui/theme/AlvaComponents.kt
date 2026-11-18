@@ -1,5 +1,7 @@
 package net.ts.taild80ca0.atlas.twa.ui.theme
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -12,16 +14,22 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.TextFieldColors
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathMeasure
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.unit.dp
 
@@ -29,16 +37,42 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun AlvaCheck(checked: Boolean, modifier: Modifier = Modifier) {
     val colors = AlvaTheme.colors
+    val animations = alvaAnimationsEnabled()
+    // The circle fills and the tick draws in one 120ms answer to the tap. Ticking also pops the mark: it starts at
+    // 0.9 and lands at its own size with the slightly under-damped spring, so the mark reads as landing. The resting
+    // scale is always 1 — an unmarked check is not drawn smaller — and a device with no animations only ever snaps.
+    val fill by animateFloatAsState(if (checked) 1f else 0f,
+        animationSpec = AlvaMotion.spec(animations, AlvaMotion.Fast), label = "check-fill")
+    val pop = remember { Animatable(1f) }
+    LaunchedEffect(checked, animations) {
+        if (!checked || !animations) {
+            pop.snapTo(1f)
+            return@LaunchedEffect
+        }
+        pop.snapTo(0.9f)
+        pop.animateTo(1f, AlvaMotion.springSpec(animations))
+    }
     val tick = remember { PathParser().parsePathString("M2.5 6.5l2.5 2.5 4.5-5").toPath() }
+    val measure = remember { PathMeasure() }
+    val drawn = remember { Path() }
     Box(
-        modifier.size(AlvaSize.Check).background(if (checked) colors.accent else Color.Transparent, CircleShape)
-            .border(1.5.dp, if (checked) colors.accent else colors.inkFaint, CircleShape),
+        modifier.size(AlvaSize.Check)
+            .graphicsLayer {
+                scaleX = pop.value
+                scaleY = pop.value
+            }
+            .background(lerp(Color.Transparent, colors.accent, fill), CircleShape)
+            .border(1.5.dp, lerp(colors.inkFaint, colors.accent, fill), CircleShape),
         contentAlignment = Alignment.Center,
     ) {
-        if (checked) Canvas(Modifier.size(14.dp)) {
+        if (fill > 0f) Canvas(Modifier.size(14.dp)) {
             val scale = size.width / 12f
             withTransform({ scale(scale, scale, pivot = Offset.Zero) }) {
-                drawPath(tick, colors.accentInk, style = Stroke(2f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+                measure.setPath(tick, false)
+                drawn.rewind()
+                measure.getSegment(0f, measure.length * fill, drawn, true)
+                drawPath(drawn, colors.accentInk.copy(alpha = colors.accentInk.alpha * fill),
+                    style = Stroke(2f, cap = StrokeCap.Round, join = StrokeJoin.Round))
             }
         }
     }

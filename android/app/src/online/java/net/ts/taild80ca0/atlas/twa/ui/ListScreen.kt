@@ -2,6 +2,8 @@ package net.ts.taild80ca0.atlas.twa.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -205,8 +207,7 @@ fun ListScreen(
     }
 }
 
-/** `.shopping-category > h2`: category chip, name, and "x/y" once something in it is bought. */
-@Composable
+/** `.shopping-category > h2`: category chip, name, and "x/y" once something in it is bought. */@Composable
 private fun CategoryHeading(group: ListGroup, shoppingMode: Boolean = false) {
     Row(Modifier.fillMaxWidth().padding(start = AlvaSpacing.xs, end = AlvaSpacing.xs, bottom = AlvaSpacing.md)
         .testTag("category-${group.label}"),
@@ -239,6 +240,16 @@ internal fun ListRow(
 ) {
     val bought = (pendingStatus ?: item.status) == ItemStatus.PURCHASED
     val source = remember { MutableInteractionSource() }
+    val animations = alvaAnimationsEnabled()
+    // The bought row crosses from `ink` to `ink-faint` in the same 120ms as the check, instead of flipping: the
+    // strike and the dimming read as one answer. With animations off it flips at once.
+    val nameColor by animateColorAsState(
+        if (bought) AlvaTheme.colors.inkFaint else AlvaTheme.colors.ink,
+        animationSpec = AlvaMotion.spec(animations, AlvaMotion.Fast), label = "row-strike",
+    )
+    // `data-mutation-in-flight` of the PWA: 60% while the mark is on its way, fading in and out in 120ms.
+    val rowAlpha by animateFloatAsState(if (pendingStatus == null) 1f else 0.6f,
+        animationSpec = AlvaMotion.spec(animations, AlvaMotion.Fast), label = "row-sending")
     // `divide-y`: a 1dp line on top of every row but the first, which takes room of its own.
     Row(
         modifier.fillMaxWidth()
@@ -247,7 +258,8 @@ internal fun ListRow(
     ) {
         Row(
             Modifier.weight(1f).testTag("item-${item.publicId}")
-                .then(if (pendingStatus == null) Modifier else Modifier.alpha(0.6f).semantics {
+                .alpha(rowAlpha)
+                .then(if (pendingStatus == null) Modifier else Modifier.semantics {
                     // Replaces the checkbox's own "marcado/desmarcado" for TalkBack, so it must still say which one.
                     stateDescription = if (bought) "Marcado, enviando" else "Desmarcado, enviando"
                 })
@@ -263,7 +275,7 @@ internal fun ListRow(
             // `--text-row` keeps the 1.5 line height of `text-base`, so the row is 22.8dp tall, not 24.
             Text(
                 item.name, style = AlvaTheme.type.row,
-                color = if (bought) AlvaTheme.colors.inkFaint else AlvaTheme.colors.ink,
+                color = nameColor,
                 textDecoration = if (bought) TextDecoration.LineThrough else null,
                 modifier = Modifier.weight(1f),
             )
