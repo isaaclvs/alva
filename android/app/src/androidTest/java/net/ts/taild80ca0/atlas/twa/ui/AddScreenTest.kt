@@ -354,6 +354,44 @@ class AddScreenTest {
         waitUntilGone("duplicate-hint")
     }
 
+    @Test fun suggestionsCompleteTheNameBeingTypedWithoutAddingIt() {
+        house.seed("Leite")
+        house.seed("Pão")
+        house.seed("Sabão em pó")
+        launch()
+        // The dictionary (Leite) and the history (Pão, Sabão em pó) both count; accents and case do not.
+        compose.onNodeWithTag("add-input").performTextInput("pao")
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-suggestion-Pão").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("add-suggestion-Pão").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
+        compose.onNodeWithTag("add-input").assertTextEquals("Pão")
+        // Completing does not add: the server only hears about what was sent.
+        assertTrue(house.sent.isEmpty())
+
+        // The last comma segment is the one completed; the names before it stay as typed.
+        compose.onNodeWithTag("add-input").performTextReplacement("Sabão em pó, lei")
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-suggestion-Leite").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("add-suggestion-Leite").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
+        compose.onNodeWithTag("add-input").assertTextEquals("Sabão em pó, Leite")
+
+        // What was completed is added like typed text, with the duplicate the server finds.
+        compose.onNodeWithTag("add-input").performTextReplacement("Leite, Pão")
+        compose.onNodeWithTag("save-add").performClick()
+        waitForText("feedback", "Nada adicionado · Leite e Pão já estavam na lista")
+        assertEquals(listOf("Leite", "Pão", "Sabão em pó"), house.rows.map { it.name }.sorted())
+    }
+
+    @Test fun aNameTypedExactlyOffersNoSuggestionAndTheRowsAre48DpTall() {
+        house.seed("Leite")
+        house.seed("Leite condensado")
+        launch()
+        compose.onNodeWithTag("add-suggestion-Leite condensado").assertDoesNotExist()
+        compose.onNodeWithTag("add-input").performTextInput("Leite")
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("add-suggestion-Leite condensado").fetchSemanticsNodes().isNotEmpty() }
+        // The name typed in full is not offered again.
+        compose.onNodeWithTag("add-suggestion-Leite").assertDoesNotExist()
+        compose.onNodeWithTag("add-suggestion-Leite condensado").assertHeightIsAtLeast(48.dp)
+    }
+
     @Test fun theDraftSurvivesTheListScreenAndTheFieldIsFocusedAgain() {
         launch()
         compose.onNodeWithTag("add-input").performTextInput("Café")
