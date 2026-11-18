@@ -963,7 +963,8 @@ consistente; não há modo incremental na v1.
   "habitual_items": [ { "public_id": "…", "name": "Café", "normalized_name": "cafe",
                         "created_at": "…" } ],
   "buy_again": [ { "name": "Leite", "category_public_id": "…", "trips": 4,
-                  "last_purchased_at": "2026-11-08T18:30:00.123456Z" } ],
+                  "last_purchased_at": "2026-11-08T18:30:00.123456Z",
+                  "cadence_days": 12, "due": true } ],
   "tombstones": [ { "record_type": "list_item", "public_id": "…", "revision": 838 } ]
 }
 ```
@@ -989,14 +990,26 @@ consistente; não há modo incremental na v1.
 - **`buy_again`** (campo aditivo, issue #106; `schema_version` continua 1):
   as sugestões de "Comprar de novo" que a PWA mostra, calculadas por
   `BuyAgainSuggestions` na mesma transação do snapshot, para o app nativo online
-  não reimplementar o ranking. Até 5 entradas, **já na ordem de exibição** (nº de
-  compras em que o nome aparece, depois compra mais recente, depois nome), sem os
-  nomes que estão na lista viva. Cada entrada: `name` (grafia mais recente),
+  não reimplementar o ranking. Até 5 entradas, **já na ordem de exibição** (as que
+  estão provavelmente acabando primeiro, depois nº de compras em que o nome
+  aparece, depois compra mais recente, depois nome), sem os nomes que estão na
+  lista viva. Cada entrada: `name` (grafia mais recente),
   `category_public_id` (`null` sem categoria), `trips` e `last_purchased_at`
   (UTC com microssegundos). A lista é derivada do histórico e não tem
   identidade própria: o cliente a substitui inteira a cada snapshot. Clientes
   que não conhecem o campo o ignoram; o par offline continua podendo calcular o
   ranking a partir de `archived_items`.
+- **`cadence_days` e `due`** (campos aditivos, issue #163; `schema_version`
+  continua 1): a cadência de cada sugestão, calculada sobre os dias de compra do
+  nome no histórico (`archived_items` + `shopping_trips.finished_at`, no relógio
+  da casa) — `cadence_days` é a mediana dos intervalos entre dias de compra,
+  arredondada, e vem `null` quando o nome tem menos de 3 dias de compra;
+  `due` é `true` quando `hoje − último dia de compra > cadence_days`, sempre
+  `false` junto com `cadence_days: null`. Duas compras no mesmo dia (dois itens
+  na mesma viagem, ou viagens diferentes) contam **um** dia de compra. Os
+  aparelhos só exibem esses campos (o rótulo "costuma acabar a cada ~N dias" e o
+  "Agora não", que é preferência local do aparelho, nunca do servidor): um
+  cliente que não os conhece continua lendo `buy_again` como antes.
 - Fica de fora, por decisão: segredos, digests, dispositivos e credenciais; dados
   de outra casa; preferências do aparelho (tema, tela, modo compras); resultados
   de comandos e aliases. Campos novos só entram de forma **aditiva**: o cliente
@@ -1091,8 +1104,16 @@ por teste contra ele):
 3. A linha representante é a de maior `purchased_at` (ou `updated_at` quando
    nulo); empate vai para a que vem **depois** no array. Nome e categoria
    exibidos são os dela, e a data é a dela.
-4. Ordenar por `trips` desc, data desc, nome asc (comparação binária de bytes
-   UTF-8) e mostrar as 5 primeiras.
+4. Ordenar as que estão `due` primeiro (as que têm histórico bastante e passaram
+   da mediana), depois por `trips` desc, data desc, nome asc (comparação binária
+   de bytes UTF-8), e mostrar as 5 primeiras.
+
+A cadência (#163) sai do mesmo histórico: para cada nome, os dias de compra (uma
+viagem por dia, no relógio da casa) sobem em ordem; `cadence_days` é a mediana
+dos intervalos entre dias consecutivos, arredondada, e só existe com pelo menos
+3 dias de compra; `due` é `hoje − último dia > cadence_days`. O cliente **não**
+recalcula isso: os dois campos vêm no `buy_again`, e o par offline pode fazer a
+mesma conta a partir de `archived_items` + `shopping_trips`.
 
 Viagem mais recente (desfazer compra): maior `finished_at`, empate para a que
 vem depois no array; seus itens são os `archived_items` com o seu

@@ -99,7 +99,10 @@ class SyncSnapshot
   def buy_again
     BuyAgainSuggestions.call(@household).map do |suggestion|
       { name: suggestion.name, category_public_id: suggestion.category&.public_id,
-        trips: suggestion.trips, last_purchased_at: time(suggestion.last_purchased_at) }
+        trips: suggestion.trips, last_purchased_at: time(suggestion.last_purchased_at),
+        # Additive (issue #163): the median days between purchases and whether
+        # today is already past it. `null`/`false` when history is too short.
+        cadence_days: suggestion.cadence_days, due: suggestion.due? }
     end
   end
 
