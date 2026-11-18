@@ -66,6 +66,7 @@ class QuickAddActivity : ComponentActivity() {
         }
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
+                var wasConfirmed = false
                 model.state.collect { current ->
                     if (input.text.toString() != current.draft) { input.setText(current.draft); input.setSelection(input.length()) }
                     input.visibility = if (current.connected) View.VISIBLE else View.GONE
@@ -89,6 +90,9 @@ class QuickAddActivity : ComponentActivity() {
                     undo.visibility = if (current.undo != null) View.VISIBLE else View.GONE
                     undo.isEnabled = !current.undoing
                     undo.alpha = if (current.undoing) .65f else 1f
+                    // Taking the name back returns to the field, empty, for the one that was meant.
+                    if (wasConfirmed && current.success == null && current.connected) focusInput()
+                    wasConfirmed = current.success != null
                     if (current.success != null || !current.connected) keyboard().hideSoftInputFromWindow(input.windowToken, 0)
                     if (current.close) finish()
                 }
