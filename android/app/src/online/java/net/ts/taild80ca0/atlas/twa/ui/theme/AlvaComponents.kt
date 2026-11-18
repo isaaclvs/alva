@@ -25,13 +25,13 @@ import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.unit.dp
 
-/** `rounded-full` check of a list row: 1.4rem, 1.5px border, accent fill with the tick when bought. */
+/** `rounded-full` check of a list row: [AlvaSize.Check] (28dp in the checklist), 1.5px border, accent fill when bought. */
 @Composable
 fun AlvaCheck(checked: Boolean, modifier: Modifier = Modifier) {
     val colors = AlvaTheme.colors
     val tick = remember { PathParser().parsePathString("M2.5 6.5l2.5 2.5 4.5-5").toPath() }
     Box(
-        modifier.size(22.4.dp).background(if (checked) colors.accent else Color.Transparent, CircleShape)
+        modifier.size(AlvaSize.Check).background(if (checked) colors.accent else Color.Transparent, CircleShape)
             .border(1.5.dp, if (checked) colors.accent else colors.inkFaint, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
@@ -68,16 +68,16 @@ internal object CategoryIcons {
 /** The tone of the category icon for a category name; unknown names get the neutral one. */
 fun categoryTone(category: String?): CategoryTone = CategoryIcons.tone(category)
 
-/** `.category-icon`: a 1.75rem rounded chip with a 1.05rem outline icon in the category's tint. */
+/** `.category-icon`: the [AlvaSize.Chip] with a [AlvaIconSize.Inline] outline icon in the category's tint. */
 @Composable
 fun CategoryIcon(category: String?, modifier: Modifier = Modifier) {
     val tone = AlvaTheme.colors.tone(categoryTone(category))
     val path = remember(category) { PathParser().parsePathString(CategoryIcons.path(category)).toPath() }
-    Box(modifier.size(28.dp).background(tone.background, RoundedCornerShape(9.6.dp)), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.size(16.8.dp)) {
+    Box(modifier.size(AlvaSize.Chip).background(tone.background, AlvaShapes.Chip), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.size(AlvaIconSize.Inline)) {
             val scale = size.width / 24f
             withTransform({ scale(scale, scale, pivot = Offset.Zero) }) {
-                drawPath(path, tone.icon, style = Stroke(1.6f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+                drawPath(path, tone.icon, style = Stroke(AlvaIconSize.Stroke, cap = StrokeCap.Round, join = StrokeJoin.Round))
             }
         }
     }

@@ -7,7 +7,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -64,12 +63,12 @@ internal fun SearchButton(focus: FocusRequester) {
     val keyboard = LocalSoftwareKeyboardController.current
     val color = AlvaTheme.colors.inkSoft
     IconButton(onClick = { focus.requestFocus(); keyboard?.show() },
-        modifier = Modifier.size(40.dp).background(AlvaTheme.colors.surface2, CircleShape)
+        modifier = Modifier.size(AlvaSpacing.xxxl).background(AlvaTheme.colors.surface2, AlvaShapes.Full)
             .semantics { contentDescription = "Buscar na lista" }.testTag("search-icon")) {
-        Canvas(Modifier.size(20.dp)) {
+        Canvas(Modifier.size(AlvaIconSize.Bar)) {
             val u = size.width / 20f
-            drawCircle(color, 5.25f*u, Offset(9*u, 9*u), style = Stroke(1.75f*u))
-            drawLine(color, Offset(13*u, 13*u), Offset(17*u, 17*u), 1.75f*u, StrokeCap.Round)
+            drawCircle(color, 5.25f*u, Offset(9*u, 9*u), style = Stroke(AlvaIconSize.Stroke*u))
+            drawLine(color, Offset(13*u, 13*u), Offset(17*u, 17*u), AlvaIconSize.Stroke*u, StrokeCap.Round)
         }
     }
 }
@@ -80,7 +79,7 @@ internal fun ListSearchField(state: ListFilterState, focus: FocusRequester, modi
     val c = AlvaTheme.colors
     val filters = state.value
     val keyboard = LocalSoftwareKeyboardController.current
-    Row(modifier.fillMaxWidth().heightIn(min = 44.dp).background(c.surface, AlvaShapes.Control)
+    Row(modifier.fillMaxWidth().heightIn(min = AlvaSize.TouchMin).background(c.surface, AlvaShapes.Control)
         .border(1.dp, c.line, AlvaShapes.Control), verticalAlignment = Alignment.CenterVertically) {
         BasicTextField(filters.query, onValueChange = { state.value = filters.copy(query = it) }, singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
@@ -90,13 +89,13 @@ internal fun ListSearchField(state: ListFilterState, focus: FocusRequester, modi
                 if (filters.query.isEmpty()) Text("Buscar na lista", style = AlvaTheme.type.body, color = c.inkFaint)
                 field()
             } },
-            modifier = Modifier.weight(1f).padding(horizontal = 12.dp, vertical = 8.dp).focusRequester(focus)
+            modifier = Modifier.weight(1f).padding(horizontal = AlvaSpacing.md, vertical = AlvaSpacing.sm).focusRequester(focus)
                 .semantics { contentDescription = "Buscar na lista" }.testTag("list-search"))
         if (filters.query.isNotEmpty()) IconButton(onClick = {
             state.value = filters.copy(query = ""); focus.requestFocus(); keyboard?.show()
-        }, modifier = Modifier.size(44.dp).semantics { contentDescription = "Limpar busca" }.testTag("clear-search")) {
+        }, modifier = Modifier.size(AlvaSize.TouchMin).semantics { contentDescription = "Limpar busca" }.testTag("clear-search")) {
             Text("×", color = c.inkSoft)
-        } else Spacer(Modifier.width(44.dp))
+        } else Spacer(Modifier.width(AlvaSize.TouchMin))
     }
 }
 
@@ -104,13 +103,14 @@ internal fun ListSearchField(state: ListFilterState, focus: FocusRequester, modi
 internal fun ListSearchFilters(state: ListFilterState, focus: FocusRequester) {
     val c = AlvaTheme.colors
     val filters = state.value
-    Column(Modifier.fillMaxWidth().padding(top = 12.dp).testTag("list-filters"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxWidth().padding(top = AlvaSpacing.md).testTag("list-filters"),
+        verticalArrangement = Arrangement.spacedBy(AlvaSpacing.md)) {
         ListSearchField(state, focus)
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Row(Modifier.heightIn(min = 44.dp).toggleable(filters.pendingOnly, role = Role.Switch,
+            Row(Modifier.heightIn(min = AlvaSize.TouchMin).toggleable(filters.pendingOnly, role = Role.Switch,
                 onValueChange = { state.value = filters.copy(pendingOnly = it) }).testTag("pending-only"),
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Canvas(Modifier.size(36.dp, 22.dp)) {
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AlvaSpacing.sm)) {
+                Canvas(Modifier.size(AlvaSpacing.xxxl + AlvaSpacing.xs, AlvaSize.Check)) {
                     val u = size.width / 36f
                     drawRoundRect(if (filters.pendingOnly) c.accent else c.surface2, cornerRadius = CornerRadius(11*u))
                     drawRoundRect(if (filters.pendingOnly) c.accent else c.inkFaint, cornerRadius = CornerRadius(11*u), style = Stroke(u))
@@ -131,15 +131,15 @@ internal fun ListSearchFilters(state: ListFilterState, focus: FocusRequester) {
 @Composable
 internal fun ShoppingSearchToggle(filtering: Boolean, onClick: () -> Unit) {
     val c = AlvaTheme.colors
-    IconButton(onClick, modifier = Modifier.size(48.dp)
-        .background(if (filtering) c.accentSoft else c.surface2, CircleShape)
+    IconButton(onClick, modifier = Modifier.size(AlvaSize.TouchMin)
+        .background(if (filtering) c.accentSoft else c.surface2, AlvaShapes.Full)
         .semantics { contentDescription = if (filtering) "Buscar na lista, filtro ativo" else "Buscar na lista" }
         .testTag("shopping-search-toggle")) {
-        Canvas(Modifier.size(20.dp)) {
+        Canvas(Modifier.size(AlvaIconSize.Bar)) {
             val u = size.width / 20f
             val color = if (filtering) c.accentStrong else c.inkSoft
-            drawCircle(color, 5.25f*u, Offset(9*u, 9*u), style = Stroke(1.75f*u))
-            drawLine(color, Offset(13*u, 13*u), Offset(17*u, 17*u), 1.75f*u, StrokeCap.Round)
+            drawCircle(color, 5.25f*u, Offset(9*u, 9*u), style = Stroke(AlvaIconSize.Stroke*u))
+            drawLine(color, Offset(13*u, 13*u), Offset(17*u, 17*u), AlvaIconSize.Stroke*u, StrokeCap.Round)
         }
     }
 }
@@ -153,10 +153,10 @@ internal fun ShoppingBoughtChip(purchased: Int, pendingOnly: Boolean, onToggle: 
     if (purchased == 0) return
     val c = AlvaTheme.colors
     val source = remember { MutableInteractionSource() }
-    Box(Modifier.heightIn(min = 48.dp).background(if (pendingOnly) c.surface2 else c.accentSoft, AlvaShapes.Control)
+    Box(Modifier.heightIn(min = AlvaSize.TouchMin).background(if (pendingOnly) c.surface2 else c.accentSoft, AlvaShapes.Control)
         .pressedSurface(source, if (pendingOnly) c.surface else c.accentSoft, AlvaShapes.Control)
         .clickable(interactionSource = source, indication = null, role = Role.Button, onClick = onToggle)
-        .padding(horizontal = 12.dp).testTag("shopping-bought-toggle"), contentAlignment = Alignment.Center) {
+        .padding(horizontal = AlvaSpacing.md).testTag("shopping-bought-toggle"), contentAlignment = Alignment.Center) {
         Text(if (pendingOnly) "Mostrar comprados ($purchased)" else "Só pendentes",
             style = AlvaTheme.type.bodySmall, color = if (pendingOnly) c.inkSoft else c.accentStrong)
     }
