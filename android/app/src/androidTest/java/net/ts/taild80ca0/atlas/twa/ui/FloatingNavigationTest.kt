@@ -209,8 +209,10 @@ class FloatingNavigationInAppTest {
 
         compose.onNodeWithTag("item-${leite.id}").performClick()
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("toast-undo").fetchSemanticsNodes().isNotEmpty() }
-        val undo = compose.onNodeWithTag("toast-undo").getUnclippedBoundsInRoot()
-        assertTrue("Desfazer is above the capsule, not under it", undo.bottom <= capsule.top)
+        // The keyboard may still be sliding away, so the capsule and the toast are read from the same settled sample
+        // instead of comparing the toast to a capsule from a layout that no longer exists.
+        val (capsuleWithToast, undo) = settledBounds(FloatingNavigation.CapsuleTag, "toast-undo")
+        assertTrue("Desfazer is above the capsule, not under it: $undo vs $capsuleWithToast", undo.bottom <= capsuleWithToast.top)
         compose.onNodeWithTag("toast-undo").assertIsDisplayed()
     }
 
