@@ -17,7 +17,7 @@
 
   <%# Adicionar: on phones the field sits at the bottom, next to the thumb and
       the keyboard; what was just added shows above it with its category. %>
-  <section id="add_screen" aria-labelledby="add_screen_title" class="add-screen flex flex-col px-5 pt-5 pb-24"
+  <section id="add_screen" aria-labelledby="add_screen_title" class="add-screen flex flex-col px-5 pt-5"
            data-screen-target="panel" data-screen-name="add" <%= "hidden" unless screen == "add" %>>
     <header class="flex items-center justify-between gap-3">
       <div class="flex items-center gap-2.5">
@@ -54,7 +54,7 @@
     </div>
   </section>
 
-  <section id="list_screen" aria-labelledby="list_screen_title" class="shopping-screen pb-28" data-controller="list-filter" data-action="shopping:exited@window->list-filter#reset"
+  <section id="list_screen" aria-labelledby="list_screen_title" class="shopping-screen" data-controller="list-filter" data-action="shopping:exited@window->list-filter#reset"
            data-screen-target="panel" data-screen-name="list" <%= "hidden" unless screen == "list" %>>
     <header class="list-screen-header sticky top-0 z-10 bg-canvas px-4 pt-5 pb-3">
       <div class="list-brand-row mb-5 flex items-center gap-2.5">
