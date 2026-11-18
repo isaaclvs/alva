@@ -2,9 +2,15 @@ name: CI
 
 on:
   pull_request:
-  # Every branch, so staging and feature branches are checked before main.
+  # Only main: every other branch is checked through its pull request, so one
+  # commit is one run instead of two (`refs/heads/x` and `refs/pull/N/merge`).
   push:
-    branches: [ "**" ]
+    branches: [ main ]
+  # A new advisory breaks main without any commit: the weekly run only audits
+  # Ruby (see the `if` of every other job).
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
 
 # A newer push to the same branch cancels the older run, except on main, where
 # every commit keeps its own result.
@@ -36,6 +42,7 @@ jobs:
 
   scan_js:
     runs-on: ubuntu-24.04
+    if: github.event_name != 'schedule'
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -50,6 +57,7 @@ jobs:
 
   lint:
     runs-on: ubuntu-24.04
+    if: github.event_name != 'schedule'
     env:
       RUBOCOP_CACHE_ROOT: tmp/rubocop
     steps:
@@ -77,6 +85,7 @@ jobs:
   test:
     name: test (Ruby ${{ matrix.ruby }})
     runs-on: ubuntu-24.04
+    if: github.event_name != 'schedule'
     strategy:
       fail-fast: false
       matrix:
@@ -116,6 +125,7 @@ jobs:
 
   system-test:
     runs-on: ubuntu-24.04
+    if: github.event_name != 'schedule'
     steps:
       - name: Install packages
         run: sudo apt-get update && sudo apt-get install --no-install-recommends -y libvips
@@ -144,6 +154,7 @@ jobs:
   android:
     name: Android debug build, tests and lint
     runs-on: ubuntu-24.04
+    if: github.event_name != 'schedule'
     defaults:
       run:
         working-directory: android
@@ -156,12 +167,17 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-          cache: gradle
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
         with:
           packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+
+      # Restores the whole Gradle user home (wrapper, dependencies, build cache
+      # and the transformed Maven artifacts) instead of only `caches/modules-2`,
+      # so a run stops asking Maven Central for what a previous run already had.
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
 
       # No release keystore is configured in CI: the release APK is built
       # unsigned, only to catch problems that are exclusive to that variant.
@@ -183,6 +199,7 @@ jobs:
     name: Android Room tests on an emulator
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    if: github.event_name != 'schedule'
     defaults:
       run:
         working-directory: android
@@ -195,12 +212,14 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-          cache: gradle
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
         with:
           packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
 
       # The emulator needs hardware acceleration, which hosted Linux runners offer through KVM.
       - name: Enable KVM
@@ -210,6 +229,30 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      # The AVD and its booted snapshot are reused instead of created and booted
+      # from scratch on every run: same image, same device, same tests.
+      - name: Restore the AVD
+        id: avd-cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-34-google_apis-x86_64
+
+      - name: Create the AVD and its snapshot
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: false
+          working-directory: android
+          script: echo "Generated AVD snapshot for caching."
+
       # Real SQLite on a real Android: atomic queueing, reopening, ordering and migrations.
       - name: Run instrumented tests
         uses: reactivecircus/android-emulator-runner@v2
@@ -217,6 +260,8 @@ jobs:
           api-level: 34
           target: google_apis
           arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           working-directory: android
           script: ./gradlew --no-daemon connectedDebugAndroidTest
@@ -235,6 +280,7 @@ jobs:
     name: Android command transport against real Rails
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    if: github.event_name != 'schedule'
     steps:
       - name: Install packages
         run: sudo apt-get update && sudo apt-get install --no-install-recommends -y libvips
@@ -252,12 +298,14 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-          cache: gradle
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
         with:
           packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
 
       # RAILS_ENV=test, a throwaway SQLite file and fixtures only; the script starts Rails on
       # loopback, runs the Kotlin transport against it (including an answer lost after commit)
@@ -271,6 +319,7 @@ jobs:
     name: Android sync cycle on an emulator against real Rails
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    if: github.event_name != 'schedule'
     steps:
       - name: Install packages
         run: sudo apt-get update && sudo apt-get install --no-install-recommends -y libvips
@@ -288,18 +337,43 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-          cache: gradle
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
         with:
           packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
 
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+
+      # The AVD and its booted snapshot are reused instead of created and booted
+      # from scratch on every run: same image, same device, same tests.
+      - name: Restore the AVD
+        id: avd-cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-34-google_apis-x86_64
+
+      - name: Create the AVD and its snapshot
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: false
+          script: echo "Generated AVD snapshot for caching."
 
       # Two devices with their own Room files and the emulator's HTTP stack, syncing through an isolated
       # RAILS_ENV=test server (throwaway SQLite, fixtures only) reached with `adb reverse`.
@@ -313,6 +387,8 @@ jobs:
           api-level: 34
           target: google_apis
           arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
             script/android_rails_sync_check
@@ -321,6 +397,7 @@ jobs:
   database:
     name: migrations, seeds and autoloading
     runs-on: ubuntu-24.04
+    if: github.event_name != 'schedule'
     env:
       RAILS_ENV: development
     steps:
@@ -349,6 +426,7 @@ jobs:
   production:
     name: production boot (like the Atlas)
     runs-on: ubuntu-24.04
+    if: github.event_name != 'schedule'
     env:
       RAILS_ENV: production
       BUNDLE_WITHOUT: development:test
