@@ -27,6 +27,13 @@ catalog.each.with_index(1) do |(category_name, item_names), position|
   end
 end
 
+# Names that had no match before were added to "Outros" and stayed there. Only
+# when the catalog actually changed is there anything new to fix, and a
+# hand-picked category (Outros included) is in the dictionary as learned, so the
+# household's own decisions are never overwritten. The revision comes from
+# DictionaryChange.record! below, which already moves every household.
+DictionaryRecategorizer.call_all(sync: false) if dictionary_changed
+
 # The dictionary is shared by every household, so a real change moves its own
 # revision and each household's. A deploy with no catalog change bumps nothing.
 DictionaryChange.record! if dictionary_changed

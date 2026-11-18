@@ -83,4 +83,33 @@ class SeedsTest < ActiveSupport::TestCase
 
     assert_equal "Laticínios", leite.reload.category.name
   end
+
+  test "moves items that were stuck in Outros once the catalog knows their name" do
+    Rails.application.load_seed
+    household = Household.find_by!(name: "Casa")
+    others = Category.find_by!(name: "Outros")
+    # An older catalog: neither name was there, so both landed in Outros.
+    CatalogItem.where(normalized_name: [ "presunto", "racao" ]).delete_all
+    ham = household.list_items.create!(name: "Presunto", category: others)
+    food = household.list_items.create!(name: "Ração", category: others)
+    # "Ração" in Outros was the household's own decision, so it stays.
+    ItemCategorizer.learn("Ração", others)
+
+    Rails.application.load_seed
+
+    assert_equal "Frios e congelados", ham.reload.category.name
+    assert_equal others, food.reload.category
+  end
+
+  test "seeding again leaves a list that is already right untouched" do
+    Rails.application.load_seed
+    household = Household.find_by!(name: "Casa")
+    item = household.list_items.create!(name: "Ração", category: Category.find_by!(name: "Outros"))
+    ItemCategorizer.learn("Ração", Category.find_by!(name: "Outros"))
+
+    assert_no_difference -> { household.reload.sync_revision } do
+      Rails.application.load_seed
+    end
+    assert_equal "Outros", item.reload.category.name
+  end
 end
