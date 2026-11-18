@@ -67,10 +67,10 @@ object AlvaPalettes {
         AlvaColors(
             dark = false, color = AlvaColor.Teal,
             canvas = rgb(0xF4F4F5), surface = rgb(0xFFFFFF), surface2 = surface2, line = rgb(0xE0E0E5),
-            ink = rgb(0x18181B), inkSoft = inkSoft, inkFaint = rgb(0x6B6B74),
+            ink = rgb(0x18181B), inkSoft = inkSoft, inkFaint = rgb(0x656570),
             accent = rgb(0x0F766E), accentStrong = rgb(0x115E59), accentInk = rgb(0xFFFFFF),
             accentSoft = rgb(0x0F766E).copy(alpha = 0.10f),
-            warn = rgb(0xB45309), danger = rgb(0xDC2626),
+            warn = rgb(0xB45309), danger = rgb(0xC81E1E),
             tones = lightTones(surface2, inkSoft),
         )
     }
@@ -80,7 +80,7 @@ object AlvaPalettes {
         AlvaColors(
             dark = true, color = AlvaColor.Pink,
             canvas = rgb(0x151014), surface = rgb(0x211B20), surface2 = surface2, line = rgb(0x3B2D36),
-            ink = rgb(0xFAF4F7), inkSoft = inkSoft, inkFaint = rgb(0x95818C),
+            ink = rgb(0xFAF4F7), inkSoft = inkSoft, inkFaint = rgb(0xA28F99),
             accent = rgb(0xF59ABE), accentStrong = rgb(0xFFB6D1), accentInk = rgb(0x351323),
             accentSoft = rgb(0xF59ABE).copy(alpha = 0.14f),
             warn = rgb(0xFBBF24), danger = rgb(0xF87171),
@@ -89,11 +89,11 @@ object AlvaPalettes {
     }
 
     val PinkLight: AlvaColors = run {
-        val surface2 = rgb(0xF6EDF2); val inkSoft = rgb(0x806D78)
+        val surface2 = rgb(0xF6EDF2); val inkSoft = rgb(0x66535E)
         AlvaColors(
             dark = false, color = AlvaColor.Pink,
             canvas = rgb(0xFCF8FA), surface = rgb(0xFFFFFF), surface2 = surface2, line = rgb(0xEADDE4),
-            ink = rgb(0x30242C), inkSoft = inkSoft, inkFaint = rgb(0x806D78),
+            ink = rgb(0x30242C), inkSoft = inkSoft, inkFaint = rgb(0x786570),
             accent = rgb(0xB73570), accentStrong = rgb(0x922955), accentInk = rgb(0xFFFFFF),
             accentSoft = rgb(0xF8E8F0),
             warn = rgb(0x805000), danger = rgb(0xA32636),
