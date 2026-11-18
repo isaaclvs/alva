@@ -25,7 +25,7 @@
   <% if undoable %>
     <%= button_to list_item_path(item), method: :delete, params: { lock_version: item.lock_version, from: "recent" },
           form: { class: "shrink-0" }, aria: { label: "Remover #{item.name}" }, title: "Remover #{item.name}",
-          class: "grid size-7 place-items-center rounded-lg text-base leading-none text-ink-faint active:text-danger" do %>
+          class: "grid size-11 place-items-center rounded-lg text-base leading-none text-ink-faint active:text-danger" do %>
       ×
     <% end %>
   <% end %>

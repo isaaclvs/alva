@@ -458,7 +458,7 @@ private fun RecentAdds(state: AddScreenState, rows: List<ListItem>, undoable: Se
 private fun RecentRemoveButton(item: ListItem, enabled: Boolean, onRemove: () -> Unit) {
     val colors = AlvaTheme.colors
     Box(
-        Modifier.size(28.dp).clip(RoundedCornerShape(8.dp))
+        Modifier.size(48.dp).clip(RoundedCornerShape(8.dp))
             .clickable(enabled = enabled, role = Role.Button, onClickLabel = "Remover ${item.name}", onClick = onRemove)
             .semantics { contentDescription = "Remover ${item.name}"; if (!enabled) disabled() }
             .testTag("recent-remove-${item.publicId}"),
