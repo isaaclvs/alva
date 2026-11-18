@@ -214,7 +214,14 @@ dica de vírgula e Habituais recolhido — sem a lista) e `#list_screen` (Lista 
 compras: cabeçalho com busca visível e menu ⋯, resumo pendentes/comprados,
 Iniciar compras, categorias, edição, desfazer e Compra feita). O menu ⋯
 (`list_items/_menu`) reúne tema, cor, PDF (só na Lista) e Sair. A navegação inferior ("Adicionar" e "Lista" com `#list_counter` de
-pendentes) troca de tela no cliente (`screen_controller.js`), sem request. A
+pendentes) troca de tela no cliente (`screen_controller.js`), sem request. No
+celular ela é a mesma cápsula flutuante do Android (`FloatingNavigation`,
+variante A): 16px das laterais, 8px acima da área segura, raio `--radius-capsule`
+sobre `--color-surface` com a hairline de `--color-line`, `--shadow-float` e a
+aba atual numa pílula `--radius-pill` sobre `--color-accent-soft`; não há barra
+de borda a borda nem `backdrop-blur`. O que o conteúdo e o `#toast` deixam livre
+embaixo é um único `--navigation-clearance` (área segura + 60px da cápsula + 8px),
+e o desktop (≥1024px) mantém a coluna lateral. A
 tela aberta é preferência do aparelho (cookie `screen`, sem broadcast); a
 renderização inicial respeita o cookie e só dá autofocus no campo quando abre
 em Adicionar. O antigo cookie `market_mode=true` abre a Lista até o aparelho
