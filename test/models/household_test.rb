@@ -350,6 +350,26 @@ class HouseholdTest < ActiveSupport::TestCase
     assert_equal 2, households(:home).list_items.count
   end
 
+  test "add_items cuts a pasted name at the same limit the row validates" do
+    text = "x" * 101 + ", pão"
+
+    assert_difference -> { households(:home).list_items.count }, 2 do
+      results = households(:home).add_items(text)
+
+      assert_equal [ :created, :created ], results.map(&:outcome)
+    end
+    assert_equal [ "x" * ListItem::MAX_NAME_LENGTH, "pão" ], households(:home).list_items.on_list.order(:id).last(2).map(&:name)
+  end
+
+  test "names sent by the habits panel or the history get the same cut" do
+    longest = "y" * ListItem::MAX_NAME_LENGTH
+    results = households(:home).add_item_names([ "y" * 101, "  " ])
+
+    assert_equal [ :created, :invalid ], results.map(&:outcome)
+    assert_equal longest, results.first.item.name
+    assert results.last.item.errors.of_kind?(:name, :blank)
+  end
+
   test "add_items broadcasts the list once for the whole batch" do
     assert_list_broadcast households(:home) do
       households(:home).add_items("Banana, Leite, Detergente, Arroz, Feijão")

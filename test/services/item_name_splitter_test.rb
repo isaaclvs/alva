@@ -37,4 +37,20 @@ class ItemNameSplitterTest < ActiveSupport::TestCase
 
     assert_equal 30, ItemNameSplitter.call(text).size
   end
+
+  test "cuts each name at the model's limit, before dropping repeats" do
+    longest = "x" * ItemNameSplitter::MAX_NAME_LENGTH
+
+    assert_equal [ longest ], ItemNameSplitter.call("x" * 101)
+    assert_equal [ longest, "pão" ], ItemNameSplitter.call("x" * 101 + ", pão")
+    assert_equal [ longest ], ItemNameSplitter.call("x" * 101 + ", " + longest)
+  end
+
+  test "the limit is the one ListItem validates" do
+    assert_equal ListItem::MAX_NAME_LENGTH, ItemNameSplitter::MAX_NAME_LENGTH
+  end
+
+  test "a cut that lands on a space strips it" do
+    assert_equal [ "x" * 99 ], ItemNameSplitter.call("x" * 99 + " y")
+  end
 end
