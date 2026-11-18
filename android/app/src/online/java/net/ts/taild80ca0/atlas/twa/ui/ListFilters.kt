@@ -3,6 +3,8 @@ package net.ts.taild80ca0.atlas.twa.ui
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
@@ -54,7 +56,8 @@ class ListFilterState(initial: ListFilters = ListFilters()) {
 }
 
 @Composable
-fun rememberListFilterState() = rememberSaveable(saver = ListFilterState.Saver) { ListFilterState() }
+fun rememberListFilterState(initial: ListFilters = ListFilters()) =
+    rememberSaveable(saver = ListFilterState.Saver) { ListFilterState(initial) }
 
 @Composable
 internal fun SearchButton(focus: FocusRequester) {
@@ -71,30 +74,38 @@ internal fun SearchButton(focus: FocusRequester) {
     }
 }
 
+/** The search field alone, so the shopping footer can show it only when the magnifier asks for it. */
 @Composable
-internal fun ListSearchFilters(state: ListFilterState, focus: FocusRequester, shoppingMode: Boolean = false) {
+internal fun ListSearchField(state: ListFilterState, focus: FocusRequester, modifier: Modifier = Modifier) {
     val c = AlvaTheme.colors
     val filters = state.value
     val keyboard = LocalSoftwareKeyboardController.current
+    Row(modifier.fillMaxWidth().heightIn(min = 44.dp).background(c.surface, AlvaShapes.Control)
+        .border(1.dp, c.line, AlvaShapes.Control), verticalAlignment = Alignment.CenterVertically) {
+        BasicTextField(filters.query, onValueChange = { state.value = filters.copy(query = it) }, singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = { keyboard?.hide() }),
+            textStyle = AlvaTheme.type.body.copy(color = c.ink), cursorBrush = SolidColor(c.accent),
+            decorationBox = { field -> Box {
+                if (filters.query.isEmpty()) Text("Buscar na lista", style = AlvaTheme.type.body, color = c.inkFaint)
+                field()
+            } },
+            modifier = Modifier.weight(1f).padding(horizontal = 12.dp, vertical = 8.dp).focusRequester(focus)
+                .semantics { contentDescription = "Buscar na lista" }.testTag("list-search"))
+        if (filters.query.isNotEmpty()) IconButton(onClick = {
+            state.value = filters.copy(query = ""); focus.requestFocus(); keyboard?.show()
+        }, modifier = Modifier.size(44.dp).semantics { contentDescription = "Limpar busca" }.testTag("clear-search")) {
+            Text("×", color = c.inkSoft)
+        } else Spacer(Modifier.width(44.dp))
+    }
+}
+
+@Composable
+internal fun ListSearchFilters(state: ListFilterState, focus: FocusRequester) {
+    val c = AlvaTheme.colors
+    val filters = state.value
     Column(Modifier.fillMaxWidth().padding(top = 12.dp).testTag("list-filters"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(Modifier.fillMaxWidth().heightIn(min = 44.dp).background(c.surface, AlvaShapes.Control)
-            .border(1.dp, c.line, AlvaShapes.Control), verticalAlignment = Alignment.CenterVertically) {
-            BasicTextField(filters.query, onValueChange = { state.value = filters.copy(query = it) }, singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { keyboard?.hide() }),
-                textStyle = AlvaTheme.type.body.copy(color = c.ink), cursorBrush = SolidColor(c.accent),
-                decorationBox = { field -> Box {
-                    if (filters.query.isEmpty()) Text("Buscar na lista", style = AlvaTheme.type.body, color = c.inkFaint)
-                    field()
-                } },
-                modifier = Modifier.weight(1f).padding(horizontal = 12.dp, vertical = 8.dp).focusRequester(focus)
-                    .semantics { contentDescription = "Buscar na lista" }.testTag("list-search"))
-            if (filters.query.isNotEmpty()) IconButton(onClick = {
-                state.value = filters.copy(query = ""); focus.requestFocus(); keyboard?.show()
-            }, modifier = Modifier.size(44.dp).semantics { contentDescription = "Limpar busca" }.testTag("clear-search")) {
-                Text("×", color = c.inkSoft)
-            } else Spacer(Modifier.width(44.dp))
-        }
+        ListSearchField(state, focus)
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Row(Modifier.heightIn(min = 44.dp).toggleable(filters.pendingOnly, role = Role.Switch,
                 onValueChange = { state.value = filters.copy(pendingOnly = it) }).testTag("pending-only"),
@@ -107,8 +118,46 @@ internal fun ListSearchFilters(state: ListFilterState, focus: FocusRequester, sh
                 }
                 Text("Só pendentes", style = AlvaTheme.type.bodySmall, color = c.inkSoft)
             }
-            // The A–Z hint describes the grouped list; the shopping checklist keeps only the switch.
-            if (!shoppingMode) Text("Seções · A–Z", style = AlvaTheme.type.caption, color = c.inkFaint)
+            // The A–Z hint describes the grouped list.
+            Text("Seções · A–Z", style = AlvaTheme.type.caption, color = c.inkFaint)
         }
+    }
+}
+
+/**
+ * The shopping footer's magnifier: the search field is not kept on screen, only opened when asked for, so the
+ * checklist keeps the room. It takes the accent while a query is filtering the list.
+ */
+@Composable
+internal fun ShoppingSearchToggle(filtering: Boolean, onClick: () -> Unit) {
+    val c = AlvaTheme.colors
+    IconButton(onClick, modifier = Modifier.size(40.dp)
+        .background(if (filtering) c.accentSoft else c.surface2, CircleShape)
+        .semantics { contentDescription = if (filtering) "Buscar na lista, filtro ativo" else "Buscar na lista" }
+        .testTag("shopping-search-toggle")) {
+        Canvas(Modifier.size(20.dp)) {
+            val u = size.width / 20f
+            val color = if (filtering) c.accentStrong else c.inkSoft
+            drawCircle(color, 5.25f*u, Offset(9*u, 9*u), style = Stroke(1.75f*u))
+            drawLine(color, Offset(13*u, 13*u), Offset(17*u, 17*u), 1.75f*u, StrokeCap.Round)
+        }
+    }
+}
+
+/**
+ * "Só pendentes" is on while shopping, so the bought items start out of the way; this chip says how many are
+ * hidden and brings them back with one touch.
+ */
+@Composable
+internal fun ShoppingBoughtChip(purchased: Int, pendingOnly: Boolean, onToggle: () -> Unit) {
+    if (purchased == 0) return
+    val c = AlvaTheme.colors
+    val source = remember { MutableInteractionSource() }
+    Box(Modifier.heightIn(min = 40.dp).background(if (pendingOnly) c.surface2 else c.accentSoft, AlvaShapes.Control)
+        .pressedSurface(source, if (pendingOnly) c.surface else c.accentSoft, AlvaShapes.Control)
+        .clickable(interactionSource = source, indication = null, role = Role.Button, onClick = onToggle)
+        .padding(horizontal = 12.dp).testTag("shopping-bought-toggle"), contentAlignment = Alignment.Center) {
+        Text(if (pendingOnly) "Mostrar comprados ($purchased)" else "Só pendentes",
+            style = AlvaTheme.type.bodySmall, color = if (pendingOnly) c.inkSoft else c.accentStrong)
     }
 }

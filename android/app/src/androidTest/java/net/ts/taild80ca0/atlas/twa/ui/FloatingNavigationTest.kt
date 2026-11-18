@@ -244,7 +244,11 @@ class FloatingNavigationInAppTest {
         val undo = compose.onNodeWithTag("toast-undo").getUnclippedBoundsInRoot()
         assertTrue("undo must clear the entire shopping footer", undo.bottom <= footer.top)
         compose.onNodeWithTag("finish-shopping").assertIsDisplayed()
-        compose.onNodeWithTag("list-search").assertIsDisplayed()
+        // The search field stays behind the magnifier and the footer keeps one row, not the two stacked blocks it
+        // used to: a few dozen dp instead of about a fifth of the screen.
+        compose.onNodeWithTag("list-search").assertDoesNotExist()
+        compose.onNodeWithTag("shopping-search-toggle").assertIsDisplayed()
+        assertTrue("the shopping footer stays lean: ${footer.top}..${footer.bottom}", footer.bottom - footer.top < 80.dp)
         compose.onNodeWithTag("toast-undo").performClick()
         compose.waitUntil(10_000) { leite.status == "pending" }
     }

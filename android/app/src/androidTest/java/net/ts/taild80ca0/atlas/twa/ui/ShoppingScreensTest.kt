@@ -63,7 +63,11 @@ class ShoppingScreensTest {
         compose.onNodeWithTag("nav-add").assertDoesNotExist()
         compose.onNodeWithTag("house-menu").assertDoesNotExist()
         compose.onNodeWithTag("edit-${item.id}").assertDoesNotExist()
-        compose.onNodeWithTag("pending-only").assertExists().assertIsOff()
+        // The search field is behind the magnifier and the bought items are out of the way, said by the chip.
+        compose.onNodeWithTag("list-search").assertDoesNotExist()
+        compose.onNodeWithTag("shopping-search-toggle").assertExists()
+        compose.onNodeWithTag("pending-only").assertDoesNotExist()
+        compose.onNodeWithTag("shopping-bought-toggle").assertDoesNotExist()
         compose.onNodeWithText("1 restantes").assertExists()
         fun awake(view: android.view.View): Boolean = view.keepScreenOn || (view is android.view.ViewGroup && (0 until view.childCount).any { awake(view.getChildAt(it)) })
         scenario!!.onActivity { assertTrue(awake(it.window.decorView)) }
@@ -85,7 +89,7 @@ class ShoppingScreensTest {
         assertEquals("purchased", house.rows.single().status)
     }
 
-    @Test fun pendingOnlyIsAvailableInShoppingModeCombinesWithSearchAndSurvivesRefreshUntilExit() {
+    @Test fun shoppingModeHidesBoughtBehindACHipAndSearchBehindTheMagnifier() {
         val milk = house.seed("Leite")
         val bread = house.seed("Pão integral")
         val boughtBread = house.seed("Pão doce", status = "purchased")
@@ -95,11 +99,14 @@ class ShoppingScreensTest {
         press("start-shopping")
         compose.onNodeWithTag("list-title").assertTextEquals("Em compras")
         compose.onNodeWithTag("nav-add").assertDoesNotExist()
-        compose.onNodeWithTag("list-search").assertIsNotFocused()
         compose.onNodeWithText("Seções · A–Z").assertDoesNotExist()
-        // The switch sits with the fixed search and starts off: the purchased item is still in the checklist.
-        compose.onNodeWithTag("pending-only").assertExists().assertIsOff()
-        compose.onNodeWithTag("item-${boughtBread.id}").assertExists()
+        // Neither the search field nor the switch take room: the magnifier opens the field and the chip says how
+        // many bought items are out of the way.
+        compose.onNodeWithTag("list-search").assertDoesNotExist()
+        compose.onNodeWithTag("pending-only").assertDoesNotExist()
+        compose.onNodeWithTag("shopping-search-toggle").assertExists()
+        compose.onNodeWithTag("item-${boughtBread.id}").assertDoesNotExist()
+        compose.onNodeWithTag("shopping-bought-toggle").assertTextEquals("Mostrar comprados (1)")
         fun assertWholeSnapshotCounts() {
             compose.onNodeWithTag("list-summary").assertTextEquals("2 pendentes · 1 comprado")
             compose.onNodeWithTag("shopping-progress").assert(SemanticsMatcher("1 of 3 bought") {
@@ -108,27 +115,28 @@ class ShoppingScreensTest {
             })
         }
         assertWholeSnapshotCounts()
-
-        press("pending-only")
-        compose.onNodeWithTag("pending-only").assertIsOn()
-        compose.onNodeWithTag("item-${boughtBread.id}").assertDoesNotExist()
-        compose.onNodeWithTag("item-${milk.id}").assertExists()
-        compose.onNodeWithTag("item-${bread.id}").assertExists()
-        assertWholeSnapshotCounts()
         assertTrue(house.sent.isEmpty())
 
-        compose.onNodeWithTag("list-search").performTextInput("PAO")
+        // The chip brings the bought items back, and takes them away again.
+        press("shopping-bought-toggle")
+        compose.onNodeWithTag("item-${boughtBread.id}").assertExists()
+        compose.onNodeWithTag("shopping-bought-toggle").assertTextEquals("Só pendentes")
+        press("shopping-bought-toggle")
+        compose.onNodeWithTag("item-${boughtBread.id}").assertDoesNotExist()
+
+        // The magnifier opens the search field; it filters only on what is on screen.
+        press("shopping-search-toggle")
+        compose.onNodeWithTag("list-search").assertIsDisplayed().performTextInput("PAO")
         compose.onNodeWithTag("list-search").performImeAction()
         compose.onNodeWithTag("item-${milk.id}").assertDoesNotExist()
         compose.onNodeWithTag("item-${bread.id}").assertExists()
         compose.onNodeWithTag("item-${boughtBread.id}").assertDoesNotExist()
         assertWholeSnapshotCounts()
 
-        // A refresh that brings a new matching item keeps both filters and the whole-list counters.
+        // A refresh that brings a new matching item keeps the query and the bought items out of the way.
         val newBread = house.seed("Pão francês")
         kotlinx.coroutines.runBlocking { repository.refresh() }
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("item-${newBread.id}").fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithTag("pending-only").assertIsOn()
         compose.onNodeWithTag("list-search").assertTextContains("PAO")
         compose.onNodeWithTag("item-${boughtBread.id}").assertDoesNotExist()
         compose.onNodeWithTag("list-summary").assertTextEquals("3 pendentes · 1 comprado")
@@ -141,12 +149,11 @@ class ShoppingScreensTest {
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("item-${bread.id}").fetchSemanticsNodes().isNotEmpty() }
         assertEquals(listOf("set_item_state", "undo_item_state"), commandTypes())
 
-        press("pending-only")
-        compose.onNodeWithTag("pending-only").assertIsOff()
-        compose.onNodeWithTag("item-${boughtBread.id}").assertExists()
-        assertEquals(2, house.sent.size)
+        // The magnifier closes the field again; a query stays in place, so it keeps the accent.
+        press("shopping-search-toggle")
+        compose.onNodeWithTag("list-search").assertDoesNotExist()
+        compose.onNodeWithTag("shopping-search-toggle").assertExists()
 
-        press("pending-only")
         press("exit-shopping")
         compose.onNodeWithTag("nav-add").assertExists()
         press("nav-list")
@@ -154,6 +161,22 @@ class ShoppingScreensTest {
         compose.onNodeWithTag("list-search").assert(SemanticsMatcher("search cleared") {
             it.config[androidx.compose.ui.semantics.SemanticsProperties.EditableText].text.isEmpty()
         })
+        assertEquals(2, house.sent.size)
+    }
+
+    @Test fun aSectionWhoseItemsAreAllBoughtStillSaysTudoPegoWhileShopping() {
+        house.seed("Leite", status = "purchased")
+        house.categories = listOf(
+            SnapshotFixtures.category(SnapshotFixtures.DAIRY, "Laticínios", 2),
+            SnapshotFixtures.category(fruit, "Hortifruti", 1),
+        )
+        house.seed("Maçã", category = fruit)
+        openList()
+        press("start-shopping")
+        compose.onNodeWithTag("item-${house.named("Maçã").single().id}").assertExists()
+        compose.onNodeWithTag("category-Laticínios").assertExists()
+        compose.onNodeWithText("tudo pego").assertExists()
+        compose.onNodeWithTag("item-${house.named("Leite").single().id}").assertDoesNotExist()
     }
 
     @Test fun editingBlocksShoppingWithoutLosingTheDraftAndExitClearsSearch() {
