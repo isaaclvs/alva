@@ -1,58 +1,68 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  The quick add panel: the sheet of the "Adicionar rápido" widget.
+
+  It has no color of its own. QuickAddActivity paints every piece from the app's design system
+  (AlvaPalettes for the theme and the accent, AlvaRadius and AlvaSpacing for the measures), so the
+  panel follows teal, pink, light and dark like the rest of the app. This file only describes the
+  structure and reads every measure from values/alva_dimens.xml.
+-->
 <ScrollView android:id="@+id/quick_add_panel" xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent" android:layout_height="wrap_content"
-    android:background="@drawable/quick_add_sheet_bg" android:fillViewport="true">
+    android:layout_width="match_parent" android:layout_height="wrap_content" android:fillViewport="true">
   <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-      android:orientation="vertical" android:paddingLeft="20dp" android:paddingRight="20dp" android:paddingTop="12dp" android:paddingBottom="20dp">
-    <View android:id="@+id/quick_add_handle" android:layout_width="30dp" android:layout_height="3dp" android:layout_gravity="center_horizontal"
-        android:background="#EFDEE6" android:importantForAccessibility="no"/>
-    <LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:gravity="center_vertical">
+      android:orientation="vertical"
+      android:paddingLeft="@dimen/alva_space_xl" android:paddingRight="@dimen/alva_space_xl"
+      android:paddingTop="@dimen/alva_space_md" android:paddingBottom="@dimen/alva_space_xl">
+    <View android:id="@+id/quick_add_handle" android:layout_width="@dimen/alva_space_xxxl" android:layout_height="@dimen/alva_space_xs"
+        android:layout_gravity="center_horizontal" android:importantForAccessibility="no"/>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="@dimen/alva_size_touch" android:gravity="center_vertical">
       <TextView android:id="@+id/quick_add_brand" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
-          android:text="@string/quick_add_brand" android:textSize="11sp" android:textStyle="bold" android:letterSpacing="0.14" android:textColor="#A93F70"/>
-      <Button android:id="@+id/quick_add_close" android:layout_width="48dp" android:layout_height="48dp"
-          android:text="@string/quick_add_close_symbol" android:textSize="24sp" android:textColor="#846674" android:background="?android:attr/selectableItemBackgroundBorderless"
+          android:text="@string/quick_add_brand" android:textSize="11sp" android:textStyle="bold" android:letterSpacing="0.14"/>
+      <Button android:id="@+id/quick_add_close" android:layout_width="@dimen/alva_size_touch" android:layout_height="@dimen/alva_size_touch"
+          android:text="@string/quick_add_close_symbol" android:textSize="24sp" android:background="?android:attr/selectableItemBackgroundBorderless"
           android:contentDescription="@string/quick_add_close_label" android:minWidth="0dp" android:padding="0dp"/>
     </LinearLayout>
     <LinearLayout android:id="@+id/quick_add_form" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
       <TextView android:id="@+id/quick_add_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/quick_add_title"
-          android:textSize="26sp" android:textStyle="bold" android:fontFamily="sans-serif-medium" android:textColor="#392430"/>
-      <TextView android:id="@+id/quick_add_subtitle" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp"
-          android:layout_marginBottom="22dp" android:text="@string/quick_add_subtitle" android:textSize="13sp" android:textColor="#846674"/>
+          android:textSize="26sp" android:textStyle="bold" android:fontFamily="sans-serif-medium"/>
+      <TextView android:id="@+id/quick_add_subtitle" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="@dimen/alva_space_sm"
+          android:layout_marginBottom="@dimen/alva_space_xxl" android:text="@string/quick_add_subtitle" android:textSize="13sp"/>
       <EditText android:id="@+id/quick_add_product" android:layout_width="match_parent" android:layout_height="wrap_content"
-          android:minHeight="56dp" android:padding="16dp" android:background="@drawable/quick_add_input_bg"
+          android:minHeight="@dimen/alva_size_touch" android:padding="@dimen/alva_space_lg"
           android:hint="@string/quick_add_hint"
-          android:textSize="16sp" android:textColor="#392430" android:textColorHint="#846674"
+          android:textSize="16sp"
           android:inputType="textCapSentences" android:singleLine="true" android:imeOptions="actionDone"/>
       <EditText android:id="@+id/quick_add_password" android:layout_width="match_parent" android:layout_height="wrap_content"
-          android:layout_marginTop="10dp" android:minHeight="56dp" android:padding="16dp"
-          android:background="@drawable/quick_add_input_bg" android:hint="@string/quick_add_password_hint"
-          android:textSize="16sp" android:textColor="#392430"
-          android:textColorHint="#846674" android:inputType="textPassword" android:singleLine="true"
+          android:layout_marginTop="@dimen/alva_space_md" android:minHeight="@dimen/alva_size_touch" android:padding="@dimen/alva_space_lg"
+          android:hint="@string/quick_add_password_hint"
+          android:textSize="16sp" android:inputType="textPassword" android:singleLine="true"
           android:saveEnabled="false" android:imeOptions="actionDone" android:visibility="gone"/>
       <TextView android:id="@+id/quick_add_status" android:layout_width="match_parent" android:layout_height="wrap_content"
-          android:layout_marginTop="10dp" android:textColor="#846674" android:textSize="12sp"
+          android:layout_marginTop="@dimen/alva_space_md" android:textSize="12sp"
           android:accessibilityLiveRegion="polite" android:visibility="gone"/>
       <Button android:id="@+id/quick_add_submit" android:layout_width="match_parent" android:layout_height="wrap_content"
-          android:minHeight="56dp" android:layout_marginTop="10dp" android:padding="14dp"
-          android:background="@drawable/quick_add_submit_bg" android:backgroundTint="@null" android:text="@string/quick_add_submit_label"
-          android:textSize="14sp" android:textStyle="bold" android:textColor="#FFFFFF" android:textAllCaps="false"/>
-      <TextView android:id="@+id/quick_add_multiple" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp"
-          android:gravity="center" android:text="@string/quick_add_multiple_hint" android:textColor="#846674" android:textSize="11sp"/>
+          android:minHeight="@dimen/alva_size_touch" android:layout_marginTop="@dimen/alva_space_md" android:padding="@dimen/alva_space_md"
+          android:backgroundTint="@null" android:text="@string/quick_add_submit_label"
+          android:textSize="14sp" android:textStyle="bold" android:textAllCaps="false"/>
+      <TextView android:id="@+id/quick_add_multiple" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="@dimen/alva_space_md"
+          android:gravity="center" android:text="@string/quick_add_multiple_hint" android:textSize="11sp"/>
     </LinearLayout>
     <LinearLayout android:id="@+id/quick_add_success" android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:orientation="vertical" android:gravity="center" android:paddingTop="24dp" android:paddingBottom="24dp" android:visibility="gone">
-      <TextView android:id="@+id/quick_add_success_icon" android:layout_width="56dp" android:layout_height="56dp" android:background="@drawable/quick_add_success_bg"
-          android:gravity="center" android:text="@string/quick_add_success_symbol" android:textSize="26sp" android:textColor="#A93F70" android:importantForAccessibility="no"/>
+        android:orientation="vertical" android:gravity="center"
+        android:paddingTop="@dimen/alva_space_xxl" android:paddingBottom="@dimen/alva_space_xxl" android:visibility="gone">
+      <TextView android:id="@+id/quick_add_success_icon" android:layout_width="@dimen/alva_space_huge" android:layout_height="@dimen/alva_space_huge"
+          android:gravity="center" android:text="@string/quick_add_success_symbol" android:textSize="26sp" android:importantForAccessibility="no"/>
       <TextView android:id="@+id/quick_add_success_message" android:layout_width="match_parent" android:layout_height="wrap_content"
-          android:layout_marginTop="14dp" android:gravity="center" android:textSize="19sp" android:textStyle="bold"
-          android:textColor="#392430" android:accessibilityLiveRegion="polite"/>
+          android:layout_marginTop="@dimen/alva_space_md" android:gravity="center" android:textSize="19sp" android:textStyle="bold"
+          android:accessibilityLiveRegion="polite"/>
       <Button android:id="@+id/quick_add_success_undo" android:layout_width="wrap_content" android:layout_height="wrap_content"
-          android:layout_marginTop="10dp" android:minHeight="48dp" android:paddingLeft="18dp" android:paddingRight="18dp"
+          android:layout_marginTop="@dimen/alva_space_md" android:minHeight="@dimen/alva_size_touch"
+          android:paddingLeft="@dimen/alva_space_lg" android:paddingRight="@dimen/alva_space_lg"
           android:background="?android:attr/selectableItemBackground" android:text="@string/quick_add_undo_label"
-          android:textSize="14sp" android:textStyle="bold" android:textColor="#A93F70" android:textAllCaps="false"
+          android:textSize="14sp" android:textStyle="bold" android:textAllCaps="false"
           android:visibility="gone"/>
-      <TextView android:id="@+id/quick_add_success_hint" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp"
-          android:text="@string/quick_add_success_hint" android:gravity="center" android:textSize="12sp" android:textColor="#846674"/>
+      <TextView android:id="@+id/quick_add_success_hint" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="@dimen/alva_space_sm"
+          android:text="@string/quick_add_success_hint" android:gravity="center" android:textSize="12sp"/>
     </LinearLayout>
   </LinearLayout>
 </ScrollView>
