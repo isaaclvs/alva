@@ -181,10 +181,21 @@ arquivados ficam intactos.
 
 **Vários itens de uma vez:** o campo de adicionar aceita nomes separados por
 vírgula, ponto e vírgula ou quebra de linha (`ItemNameSplitter`, máx. 30,
-sem repetidos). `Household#add_items(texto)` passa cada nome por `add_item` e
+sem repetidos, cada nome com no máximo `ListItem::MAX_NAME_LENGTH` = 100
+caracteres — o mesmo limite de `HabitualItem` e de `ListItem.name`).
+`Household#add_items(texto)` passa cada nome por `add_item` e
 devolve os `AddResult`s. Todo `ListItem` salvo chama `Household#list_changed`
 (não `broadcast_list` direto); dentro de `Household#batch_list_broadcasts { }`
 isso só marca a mudança e a lista é transmitida uma única vez no fim do bloco.
+O corte de 100 é o mesmo em todos os caminhos: `ItemNameSplitter.clean` corta
+o texto digitado (PWA e Android, com o aviso "Cada nome pode ter até 100
+caracteres") e `Household#add_item_names` corta o que vem dos habituais e do
+histórico, para o mesmo nome cair na mesma linha dos dois lados. O comando
+`add_items` do sync **recusa** `invalid_name` / `reason: "too_long"` em vez de
+cortar, e `correct_item` faz o mesmo, então `ListItem#validates :name,
+length: { maximum: 100 }` (só quando o nome chega agora: um item salvo antes do
+limite continua marcável, categorizável e arquivável) é a última barreira do
+ledger.
 
 **Comprar de novo:** abaixo do campo de adicionar, até 5 atalhos (`#buy_again`,
 `BuyAgainSuggestions`) vêm do histórico arquivado, agrupados por nome normalizado
