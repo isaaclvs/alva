@@ -74,11 +74,11 @@ internal fun EditItemButton(name: String, modifier: Modifier = Modifier, onClick
 
 @Composable
 internal fun EditItemForm(state: EditItemState, categories: List<Category>, onCancel: () -> Unit, onSave: () -> Unit,
-    remove: (@Composable () -> Unit)? = null) {
+    remove: (@Composable () -> Unit)? = null, modifier: Modifier = Modifier) {
     val colors = AlvaTheme.colors
     val focus = remember { FocusRequester() }
     var menu by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxWidth().background(colors.surface).padding(AlvaSpacing.md).testTag("edit-form-${state.itemId}"),
+    Column(modifier.fillMaxWidth().background(colors.surface).padding(AlvaSpacing.md).testTag("edit-form-${state.itemId}"),
         verticalArrangement = Arrangement.spacedBy(AlvaSpacing.sm)) {
         BasicTextField(state.name, onValueChange = { state.name = it }, singleLine = true, enabled = !state.saving,
             textStyle = AlvaTheme.type.body.copy(color = colors.ink), cursorBrush = SolidColor(colors.accent),
