@@ -30,5 +30,8 @@
     </main>
     <div id="mutation_status" role="alert" aria-live="assertive" hidden
          class="pointer-events-none fixed inset-x-0 top-0 z-30 mx-auto max-w-md px-4 pt-3 text-sm text-danger"></div>
+    <%# What the tapped row is sending ("Marcado, enviando"), outside the row:
+        a row marked aria-busy suppresses announcements from inside itself. %>
+    <div id="mutation_progress" role="status" aria-live="polite" class="sr-only"></div>
   </body>
 </html>

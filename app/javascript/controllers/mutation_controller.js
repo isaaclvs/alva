@@ -3,6 +3,10 @@ import { Controller } from "@hotwired/stimulus"
 const REQUEST_ERROR = "Falha ao salvar. Conferindo a lista antes de liberar outra tentativa."
 const RESYNCED_ERROR = "A lista foi atualizada. Confira o estado antes de tentar novamente."
 const RESYNC_FAILED_ERROR = "Não foi possível confirmar o resultado. Atualize a lista antes de tentar novamente."
+const WAIT_ERROR = "Aguarde a resposta antes de tentar novamente."
+// What an Android row says while a mark is on its way (ListScreen's pendingStatus).
+const SENDING_MARKED = "Marcado, enviando"
+const SENDING_UNMARKED = "Desmarcado, enviando"
 
 // A failed response can mean that the server committed the action and only the
 // response was lost, so every failed mutation asks list-refresh to reconcile
@@ -37,10 +41,19 @@ export default class extends Controller {
     if (!this.isTurboMutation(form)) return
 
     const key = this.actionKey(form)
-    if (this.inFlight.has(form) || this.activeActions.has(key) || this.pendingActions.has(key)) {
+    if (this.inFlight.has(form) || this.activeActions.has(key)) {
+      // The same action is already on its way: a second tap on a slow network
+      // is impatience, not a mistake. The row already shows it as sending.
       event.preventDefault()
       event.stopImmediatePropagation()
-      this.showError(form, "Aguarde a resposta antes de tentar novamente.")
+      return
+    }
+    if (this.pendingActions.has(key)) {
+      // An earlier attempt has an unknown outcome; list-refresh has to settle
+      // it before another submission is safe.
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      this.showError(form, WAIT_ERROR)
       return
     }
 
@@ -49,6 +62,7 @@ export default class extends Controller {
     form.dataset.mutationInFlight = "true"
     form.dataset.mutationActionKey = key
     this.clearError(form)
+    this.showOptimisticState(form)
   }
 
   handleSubmitStart(event) {
@@ -77,7 +91,13 @@ export default class extends Controller {
       delete control.dataset.mutationWasEnabled
     })
 
-    if (event.detail.success) return
+    // A success replaces the row with the server's state; a failure has to
+    // take the optimistic mark back before anything else is shown.
+    if (event.detail.success) {
+      this.forgetOptimisticState(form)
+      return
+    }
+    this.revertOptimisticState(form)
 
     // A 422 is an application validation response whose form already explains
     // the problem. Other failures leave the submitted values available.
@@ -116,6 +136,60 @@ export default class extends Controller {
     this.pendingActionForms.delete(key)
     delete form.dataset.mutationPendingAction
     this.showError(form, RESYNCED_ERROR)
+  }
+
+  // The tap gets an answer before the server gives one, mirroring the native
+  // row's pendingStatus: the check goes straight to the state just asked for,
+  // the row dims, and the change is announced as "sending".
+  showOptimisticState(form) {
+    const row = this.rowFor(form)
+    const toggle = this.toggleFor(form)
+    if (!row || !toggle) return
+
+    toggle.dataset.mutationServerPressed = toggle.getAttribute("aria-pressed") || "false"
+    const pressed = toggle.getAttribute("aria-pressed") !== "true"
+    toggle.setAttribute("aria-pressed", String(pressed))
+    row.dataset.mutationInFlight = "true"
+    row.setAttribute("aria-busy", "true")
+    this.announce(pressed ? SENDING_MARKED : SENDING_UNMARKED)
+  }
+
+  revertOptimisticState(form) {
+    const toggle = this.toggleFor(form)
+    if (!toggle) return
+
+    if (toggle.dataset.mutationServerPressed) {
+      toggle.setAttribute("aria-pressed", toggle.dataset.mutationServerPressed)
+    }
+    this.forgetOptimisticState(form)
+  }
+
+  // The row is about to be replaced by the server's own markup, so the
+  // optimistic attributes only have to stop applying: the settled look and
+  // the confirmation come from that response.
+  forgetOptimisticState(form) {
+    delete this.toggleFor(form)?.dataset.mutationServerPressed
+    const row = this.rowFor(form)
+    if (!row) return
+    delete row.dataset.mutationInFlight
+    row.removeAttribute("aria-busy")
+    this.announce("")
+  }
+
+  // Outside the row: an aria-busy row hides its own live regions.
+  announce(message) {
+    const progress = document.getElementById("mutation_progress")
+    if (progress) progress.textContent = message
+  }
+
+  // Only the toggle itself is optimistic; the row's other forms (swipe to
+  // remove) keep their own handling.
+  rowFor(form) {
+    return this.toggleFor(form) ? form.closest("li") : null
+  }
+
+  toggleFor(form) {
+    return form.querySelector("button[aria-pressed]")
   }
 
   actionKey(form) {

@@ -199,6 +199,37 @@ html[data-shopping-mode="on"] #list_search_panel > .relative {
 .shopping-toggle { padding-left: .35rem; font-size: .9rem; }
 .shopping-toggle > span:last-child { font-size: .95rem; }
 .shopping-check { border-width: 1.5px; width: 1.4rem; height: 1.4rem; }
+
+/* A tap has to show its result before the server answers, or a slow network
+   makes the row look dead and invites a second tap. mutation_controller.js
+   flips `aria-pressed` and marks the row while the mark is in flight, so these
+   rules only paint that unconfirmed state; the server's own markup still owns
+   how a settled row looks. The row dims to 60%, like the native row with a
+   pending mark, and the frame the edit link loads into dims the same way while
+   Turbo keeps it busy (that is the row's `aria-busy`). */
+.shopping-toggle:not([aria-pressed="true"]) .mutation-check { display: none; }
+li[data-mutation-in-flight] .shopping-toggle[aria-pressed="true"] .shopping-check {
+  border-color: var(--color-accent);
+  background-color: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+li[data-mutation-in-flight] .shopping-toggle[aria-pressed="false"] .shopping-check {
+  border-color: var(--color-ink-faint);
+  background-color: transparent;
+  color: var(--color-ink-faint);
+}
+li[data-mutation-in-flight] .shopping-toggle[aria-pressed="true"] .shopping-name {
+  color: var(--color-ink-faint);
+  text-decoration: line-through;
+  text-decoration-color: var(--color-ink-faint);
+}
+li[data-mutation-in-flight] .shopping-toggle[aria-pressed="false"] .shopping-name {
+  color: var(--color-ink);
+  text-decoration: none;
+}
+li[data-mutation-in-flight],
+li:has(> turbo-frame[busy]),
+li:has(> turbo-frame[aria-busy="true"]) { opacity: .6; }
 .navigation-items > button[aria-current="page"] { color: var(--color-accent-strong); background: var(--color-accent-soft); }
 .navigation-items > button { min-height: 2.8rem; border-radius: .85rem; font-size: .8rem; }
 html[data-shopping-mode="on"] #list_summary > [role="progressbar"] { display: block; }
