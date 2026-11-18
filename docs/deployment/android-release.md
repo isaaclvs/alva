@@ -21,7 +21,8 @@ do aparelho) e a republicar o `assetlinks.json`.
 
 ## Env de assinatura
 
-As quatro variáveis vêm do ambiente e nunca do repositório:
+As quatro variáveis vêm do ambiente e nunca do repositório (o keystore é um
+arquivo binário, então dele se lê só o caminho):
 
 ```text
 ALVA_ANDROID_KEYSTORE    caminho do keystore (.jks), fora do repositório
@@ -30,8 +31,9 @@ ALVA_ANDROID_STORE_PASSWORD   senha do keystore
 ALVA_ANDROID_KEY_PASSWORD     senha da chave
 ```
 
-Cada uma aceita um par `<nome>_FILE` apontando para um arquivo privado (0600)
-cuja primeira linha é o valor — por exemplo `ALVA_ANDROID_STORE_PASSWORD_FILE` e
+Os três valores de texto aceitam um par `<nome>_FILE` apontando para um arquivo
+privado (0600) cuja primeira linha é o valor — por exemplo
+`ALVA_ANDROID_KEY_ALIAS_FILE`, `ALVA_ANDROID_STORE_PASSWORD_FILE` e
 `ALVA_ANDROID_KEY_PASSWORD_FILE`. Use essa forma: assim a senha não fica no
 histórico do shell. Um arquivo de senha dentro do repositório é recusado.
 
