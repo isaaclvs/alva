@@ -305,8 +305,40 @@ li[data-mutation-in-flight] .shopping-toggle[aria-pressed="false"] .shopping-nam
 li[data-mutation-in-flight],
 li:has(> turbo-frame[busy]),
 li:has(> turbo-frame[aria-busy="true"]) { opacity: .6; }
+
+/* The row answers the tap, like the Compose row: the circle fills, the tick
+   draws in, the name crosses color and the row dims, all in `fast`. Only the
+   properties the settled markup changes are animated, so the server's own row
+   still decides the resting look. */
+.shopping-check {
+  transition: background-color var(--duration-fast) var(--ease-standard),
+              border-color var(--duration-fast) var(--ease-standard),
+              color var(--duration-fast) var(--ease-standard);
+}
+.shopping-name {
+  transition: color var(--duration-fast) var(--ease-standard),
+              text-decoration-color var(--duration-fast) var(--ease-standard);
+}
+/* Going from `display: none` to the drawn tick, only an animation runs. */
+li[data-mutation-in-flight] .shopping-toggle[aria-pressed="true"] .mutation-check {
+  animation: tick-in var(--duration-fast) var(--ease-standard);
+}
+@keyframes tick-in {
+  from { opacity: 0; transform: scale(.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+li[data-mutation-in-flight],
+li:has(> turbo-frame[busy]),
+li:has(> turbo-frame[aria-busy="true"]) {
+  transition: opacity var(--duration-fast) var(--ease-standard);
+}
 .navigation-items > button[aria-current="page"] { color: var(--color-accent-strong); background: var(--color-accent-soft); }
-.navigation-items > button { min-height: calc(var(--spacing) * 11); border-radius: var(--radius-control); font-size: .8rem; }
+/* The selected tab settles into its pill in `base`, the same 180ms as the Compose capsule. */
+.navigation-items > button {
+  min-height: calc(var(--spacing) * 11); border-radius: var(--radius-control); font-size: .8rem;
+  transition: background-color var(--duration-base) var(--ease-standard),
+              color var(--duration-base) var(--ease-standard);
+}
 html[data-shopping-mode="on"] #list_summary > [role="progressbar"] { display: block; }
 html[data-shopping-mode="on"] .list-brand-row { margin-bottom: calc(var(--spacing) * 4); }
 html[data-shopping-mode="on"] .list-finish { position: static; padding-bottom: calc(var(--spacing) * 4); background: none; }
@@ -332,6 +364,9 @@ html[data-shopping-mode="on"] #list_search_panel > .relative { background: var(-
   height: 100dvh;
 }
 .list-screen-header { position: relative; flex-shrink: 0; }
+/* The bought share of the checklist summary grows in `slow`, the measured move of the scale. */
+.shopping-progress-fill { transition: width var(--duration-slow) var(--ease-standard); }
+
 #list_items { flex: 1; min-height: 0; overflow-y: auto; align-content: start; }
 
 /* Muted category cues share a single rounded outline style: the chip is
@@ -361,6 +396,15 @@ html[data-theme="light"] .category-icon:not([data-tone="other"]) {
   background: oklch(65% .07 var(--category-hue) / .10);
 }
 
+/* The toast enters from a few pixels below, in `base`, and leaves in `fast`: the same slide + fade the Compose
+   undo toast uses. `#toast` never animates on its own, only the card inside it, so a replacement toast reads as
+   one message changing instead of two overlapping. */
+#toast > [role="status"] { animation: toast-in var(--duration-base) var(--ease-standard); }
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(var(--spacing)); }
+  to { opacity: 1; transform: none; }
+}
+
 /* Keep local confirmation close to the action, with room for long batches. */
 #recent_adds { display: none; }
 #recent_adds:has(li) { display: block; margin-bottom: 1.5rem; }
@@ -377,20 +421,38 @@ html[data-theme="light"] .category-icon:not([data-tone="other"]) {
   appearance: none; flex-shrink: 0; cursor: pointer; position: relative;
   width: 2.25rem; height: 1.375rem; margin: 0;
   border: 1px solid var(--color-ink-faint); border-radius: 999px;
-  background: var(--color-surface-2); transition: background-color 150ms, border-color 150ms;
+  background: var(--color-surface-2);
+  transition: background-color var(--duration-switch) var(--ease-standard),
+              border-color var(--duration-switch) var(--ease-standard);
 }
 .pending-switch::before {
   content: ""; position: absolute; top: 2px; left: 2px;
   width: 1rem; height: 1rem; border-radius: 50%;
-  background: var(--color-ink-soft); transition: transform 150ms, background-color 150ms;
+  background: var(--color-ink-soft);
+  transition: transform var(--duration-switch) var(--ease-standard),
+              background-color var(--duration-switch) var(--ease-standard);
 }
 .pending-switch:checked { background: var(--color-accent); border-color: var(--color-accent); }
 .pending-switch:checked::before { transform: translateX(.875rem); background: var(--color-accent-ink); }
 .pending-switch:focus-visible { outline: 2px solid var(--color-accent-strong); outline-offset: 3px; }
-@media (prefers-reduced-motion: reduce) {
-  .pending-switch, .pending-switch::before { transition: none; }
-}
 @media (forced-colors: active) {
   .pending-switch { appearance: auto; }
   .pending-switch::before { display: none; }
+}
+
+/* Every transition of the motion layer is decoration: whoever asks the browser
+   for less motion gets the same states with no waiting. This one block owns the
+   whole layer, so a new `transition`/`animation` above has to land here too. */
+@media (prefers-reduced-motion: reduce) {
+  .pending-switch, .pending-switch::before,
+  .shopping-check, .shopping-name,
+  li[data-mutation-in-flight], li:has(> turbo-frame[busy]),
+  li:has(> turbo-frame[aria-busy="true"]),
+  .navigation-items > button, .shopping-progress-fill {
+    transition: none;
+  }
+  li[data-mutation-in-flight] .shopping-toggle[aria-pressed="true"] .mutation-check,
+  #toast > [role="status"], .animate-highlight {
+    animation: none;
+  }
 }
