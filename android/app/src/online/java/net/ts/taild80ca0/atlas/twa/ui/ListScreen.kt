@@ -79,7 +79,7 @@ fun ListScreen(
     onMarked: () -> Unit = {},
     onShoppingFooterHeightChanged: (Int) -> Unit = {},
     /** The operations and their in-flight state. The host passes its own so they outlive this tab being composed. */
-    actions: ListActions = rememberListActions(repository, editState, showToast, onFailure, onMarked) { shoppingMode },
+    actions: ListActions = rememberListActions(repository, editState, showToast, onFailure, onMarked = onMarked) { shoppingMode },
 ) {
     val items = remember(snapshot) { snapshot.liveItems() }
     val filters = filterState.value

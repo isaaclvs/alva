@@ -46,6 +46,7 @@ class ListActions internal constructor(
     private val editState: EditItemState,
     private val showToast: (ToastMessage) -> Unit,
     private val onFailure: (String) -> Unit,
+    private val onActionStart: () -> Unit,
     private val onMarked: () -> Unit,
     private val shoppingMode: () -> Boolean,
 ) {
@@ -67,6 +68,7 @@ class ListActions internal constructor(
 
     fun finishShopping(observed: ServerSnapshot) {
         if (finishing || busy.isNotEmpty()) return
+        onActionStart()
         val observedItems = observed.listItems
         finishing = true
         scope.launch {
@@ -78,6 +80,8 @@ class ListActions internal constructor(
                             if (undone !is ActionResult.Success) onFailure(OnlineMessages.failure(undone))
                         })
                     } ?: onFailure("A compra foi registrada, mas não foi possível preparar o desfazer. Atualize a lista.")
+                    // "Tentar de novo" repeats the request from the list the failure's own reload brought back: a
+                    // command the server had applied answers `duplicate` instead of finishing the trip twice.
                     else -> onFailure(OnlineMessages.failure(result))
                 }
             } finally { finishing = false }
@@ -86,6 +90,7 @@ class ListActions internal constructor(
 
     fun remove(item: ListItem, observedVersion: Int? = null) {
         if (item.publicId in busy || shoppingMode() || finishing) return
+        onActionStart()
         busy += item.publicId
         val editing = editState.itemId == item.publicId
         if (editing) editState.saving = true
@@ -113,6 +118,7 @@ class ListActions internal constructor(
 
     fun mark(item: ListItem) {
         if (item.publicId in busy || finishing) return
+        onActionStart()
         busy += item.publicId
         val purchasing = item.status != ItemStatus.PURCHASED
         val desired = if (purchasing) ItemStatus.PURCHASED else ItemStatus.PENDING
@@ -148,6 +154,7 @@ class ListActions internal constructor(
     /** Saves the inline correction form. The draft stays in [editState]: only a server answer closes or annotates it. */
     fun saveEdit(itemPublicId: String) {
         if (editState.saving) return
+        onActionStart()
         editState.saving = true
         scope.launch {
             try {
@@ -175,15 +182,18 @@ fun rememberListActions(
     editState: EditItemState,
     showToast: (ToastMessage) -> Unit,
     onFailure: (String) -> Unit,
+    onActionStart: () -> Unit = {},
     onMarked: () -> Unit = {},
     shoppingMode: () -> Boolean = { false },
 ): ListActions {
     val scope = rememberCoroutineScope()
     val latestToast by rememberUpdatedState(showToast)
     val latestFailure by rememberUpdatedState(onFailure)
+    val latestStart by rememberUpdatedState(onActionStart)
     val latestMarked by rememberUpdatedState(onMarked)
     val latestShopping by rememberUpdatedState(shoppingMode)
     return remember(repository, editState, scope) {
-        ListActions(repository, scope, editState, { latestToast(it) }, { latestFailure(it) }, { latestMarked() }, { latestShopping() })
+        ListActions(repository, scope, editState, { latestToast(it) }, { latestFailure(it) },
+            { latestStart() }, { latestMarked() }, { latestShopping() })
     }
 }
