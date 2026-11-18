@@ -287,6 +287,21 @@ são tokens semânticos em `app/assets/tailwind/application.css` (`canvas`,
 Views usam os tokens, não a paleta fixa do Tailwind (exceção: os fundos
 translúcidos dos ícones de categoria, que funcionam nos dois temas).
 
+**Tokens de dimensão:** raio, espaço, elevação, ícone e tamanhos de controle têm
+uma escala única declarada no bloco `@theme` de `application.css` (`--spacing`,
+`--radius-*`: `xs 8`, `control 12`, `card 16`, `pill 21`, `capsule 26`,
+`sheet 28`; `--shadow-float`; `--size-icon-*` e os strokes; `--size-touch`
+44px, `--size-check`, `--size-chip`; `--container-content`/`--container-search`)
+e lida nas views por utilitários (`rounded-card`, `shadow-float`,
+`size-icon-bar`, `text-title`, `text-row`). No Android os mesmos números vivem
+em `ui/theme/AlvaDimens.kt` (`AlvaSpacing`, `AlvaRadius`/`AlvaShapes`,
+`AlvaElevation`, `AlvaIconSize`, `AlvaSize`, também via `AlvaTheme.space` etc.)
+e no XML em `values/alva_dimens.xml`. Nada de valor fracionário transliterado de
+`rem` (`18.9.dp`, `22.4.dp`, `5.6.dp`): arredonde para o degrau da escala. O
+`PwaThemeParityTest` compara as três camadas e falha quando uma diverge; ao
+mudar uma escala, mude as três. Os alvos de toque continuam 44px na PWA e 48dp
+no Android.
+
 **Desfazer:** remover um item e "Compra feita" não pedem confirmação; em vez disso
 a resposta HTTP (nunca o broadcast, então só o aparelho que agiu) preenche o
 `#toast` por ~5 s com "Desfazer". Remoção: o toast leva um `ListItemSnapshot`
