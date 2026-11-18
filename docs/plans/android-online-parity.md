@@ -48,6 +48,7 @@ Tela Compose ──ação──▶ OnlineRepository ──POST /commands──�
 | Temas escuro/claro, cores teal/rosa, Nunito Sans | — (tokens no CSS) | — | 0 (#93) |
 | Tempo real entre os dois celulares | ActionCable `/api/v1/cable` | — | 0 (#94) |
 | Adicionar (vírgula/linha, até 30, dedup) | `add_items` | — | 1 (#97) |
+| Sugestão de nomes ao digitar (datalist) | snapshot (dicionário + itens vivos e arquivados) | `NameSuggestions` no cliente, mesma fonte e ordenação | 1 (#156) |
 | Dica de duplicado ao digitar | catálogo no snapshot | — | 1 (#97) |
 | "Acabou de adicionar" com troca de categoria e "×" (desfazer) | `add_items` + `correct_item` + `remove_item`/`undo_remove` | — | 1 (#97, #144) |
 | Categorias com contagem | snapshot | — | 1 (#98) |

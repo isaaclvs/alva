@@ -94,6 +94,27 @@ anterior: repetir a ação é o único reenvio.
   toast do host devolve a linha; o painel rápido só oferece o Desfazer de um nome
   que ele **criou** (um revivido é um comprado de volta e não é desfeito).
 
+## Sugestão de nomes ao digitar (#156)
+
+A PWA preenche um `<datalist>` com `NameSuggestions` (`app/services/name_suggestions.rb`):
+todo nome já escrito pela casa, de qualquer status (o arquivado conta como histórico),
+mais o dicionário, um por nome normalizado, com a grafia da casa ganhando da do
+dicionário e a mais recente ganhando das antigas, ordenados sem acento nem caixa.
+
+O Android não pede nada novo ao servidor: `ServerSnapshot.suggestionNames()` monta
+essa mesma lista com o que o snapshot já traz (`list_items`, `archived_items` e
+`catalog_items`). `NameSuggestions` (em `data/matching`, ao lado de `DuplicateHint`)
+filtra pelo nome que está sendo digitado — o último segmento separado por vírgula,
+ponto e vírgula ou linha, como `ItemNameSplitter` — comparando `TextNormalizer.plain`.
+É prefixo, como o dropdown do navegador: um nome digitado por inteiro não aparece, e
+os nomes anteriores à vírgula não são remexidos. Até 5 sugestões (as que cabem acima
+do campo), em `AddScreen`, cada uma com 48dp de toque.
+
+Tocar na sugestão **completa** o campo (não adiciona): o nome anterior à vírgula fica
+como estava, o campo mantém o foco e a pessoa envia ou continua digitando. A dica de
+duplicado e "Acabou de adicionar" seguem iguais — a sugestão só ajuda a não criar
+grafias diferentes do mesmo item.
+
 ## Desfazer adição (#144)
 
 A Adicionar mostra um "×" em cada linha que o último add **criou**; um revivido
