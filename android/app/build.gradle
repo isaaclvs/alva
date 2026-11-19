@@ -231,7 +231,7 @@ dependencies {
     implementation fileTree(include: ['*.jar'], dir: 'libs')
 
     implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.6.2'
-    implementation 'androidx.security:security-crypto:1.1.0-alpha06'
+    implementation 'androidx.security:security-crypto:1.1.0'
     implementation 'com.google.code.findbugs:jsr305:3.0.2'
 
     // Native online UI shared by debug and the signed production app.
