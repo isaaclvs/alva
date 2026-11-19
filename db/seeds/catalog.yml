@@ -84,18 +84,7 @@ Frios e congelados:
   - Queijo prato
   - Salsicha
   - Lombo defumado
-  - Sorvete
-  - Picolé
-  - Açaí
-  - Pizza congelada
-  - Lasanha congelada
   - Hambúrguer
-  - Nuggets
-  - Batata frita congelada
-  - Pão de queijo congelado
-  - Polpa de fruta
-  - Ervilha congelada
-  - Legumes congelados
 Açougue:
   - Frango
   - Frango inteiro
@@ -122,6 +111,31 @@ Açougue:
   - Pernil
   - Fígado
   - Moela
+Congelados:
+  - Sorvete
+  - Picolé
+  - Açaí
+  - Pizza congelada
+  - Lasanha congelada
+  - Hambúrguer congelado
+  - Nuggets
+  - Batata congelada
+  - Batata frita congelada
+  - Pão de queijo congelado
+  - Legumes congelados
+  - Ervilha congelada
+  - Polpa de fruta
+  - Polpa de acerola
+  - Polpa de cajá
+  - Polpa de macurujá
+  - Polpa de maracujá
+  - Polpa de goiaba
+  - Polpa de manga
+  - Polpa de morango
+  - Polpa de abacaxi
+  - Polpa de caju
+  - Polpa de graviola
+  - Polpa de cupuaçu
 Padaria:
   - Pão
   - Pão francês
