@@ -17,7 +17,7 @@ class ListPdf
   CATEGORY_COLORS = {
     "Hortifruti" => "10b981",
     "Laticínios" => "0ea5e9",
-    "Frios e congelados" => "8b5cf6",
+    "Frios" => "8b5cf6",
     "Mercearia" => "f59e0b",
     "Açougue" => "f43f5e",
     "Congelados" => "3b82f6",
