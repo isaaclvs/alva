@@ -49,7 +49,7 @@ class SeedsTest < ActiveSupport::TestCase
     # through to the fallback and needed a manual fix.
     expected = {
       "Presunto" => "Frios e congelados", "Mussarela" => "Frios e congelados",
-      "Sorvete" => "Frios e congelados", "Salsicha" => "Frios e congelados",
+      "Sorvete" => "Congelados", "Salsicha" => "Frios e congelados",
       "Margarina" => "Laticínios", "Leite em pó" => "Laticínios",
       "Maionese" => "Mercearia", "Ketchup" => "Mercearia", "Cuscuz" => "Mercearia",
       "Tapioca" => "Mercearia", "Pipoca" => "Mercearia", "Fubá" => "Mercearia",
