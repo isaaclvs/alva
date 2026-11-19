@@ -24,6 +24,28 @@ class SeedsTest < ActiveSupport::TestCase
     end
   end
 
+  test "Congelados sits between Açougue and Bebidas" do
+    names = Category.order(:position).pluck(:name)
+    index = names.index("Congelados")
+
+    assert_equal "Açougue", names[index - 1]
+    # Padaria and Mercearia come between; the next shopping aisle is Drinks.
+    assert_operator names.index("Bebidas"), :>, index
+    assert_equal %w[Sorvete Açaí Nuggets], CATALOG["Congelados"] & %w[Sorvete Açaí Nuggets]
+  end
+
+  test "polpas and frozen food land in Congelados, frios stay put" do
+    {
+      "Polpa de acerola" => "Congelados", "Polpa de cajá" => "Congelados",
+      "Polpa de macurujá" => "Congelados", "Sorvete" => "Congelados",
+      "Pizza congelada" => "Congelados", "Pão de queijo congelado" => "Congelados",
+      "Nuggets" => "Congelados", "Presunto" => "Frios e congelados",
+      "Mussarela" => "Frios e congelados"
+    }.each do |name, category|
+      assert_equal category, ItemCategorizer.call(name)&.name, name
+    end
+  end
+
   test "maps every catalog item to its category" do
     CATALOG.each do |category_name, item_names|
       item_names.each do |item_name|
