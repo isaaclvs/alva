@@ -1,4 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
+import { plain } from "text_plain"
 
 // "Agora não" on a due "Comprar de novo" suggestion (#163): hides that
 // suggestion on this device for a few days, so the hint does not become noise.
@@ -8,12 +9,6 @@ import { Controller } from "@hotwired/stimulus"
 // suggestion again, and a window that is over stops hiding it.
 const STORAGE_KEY = "alva.buy_again.dismissed"
 const DISMISS_FOR_MS = 3 * 24 * 60 * 60 * 1000
-
-// The same key the Rails side matches with (TextNormalizer.plain): no accent,
-// no case, single spaces.
-function plain(text) {
-  return text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().trim().replace(/\s+/g, " ")
-}
 
 function openStorage() {
   try {

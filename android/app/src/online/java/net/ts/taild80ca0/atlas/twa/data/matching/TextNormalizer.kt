@@ -12,12 +12,47 @@ package net.ts.taild80ca0.atlas.twa.data.matching
 object TextNormalizer {
     private const val MIN_STEM_LENGTH = 4
 
+    /**
+     * Someone typing on a phone reaches a digit for a letter inside a word:
+     * "far0fa", "b4n4na", "l3it3". A digit is read that way only when a letter comes
+     * right before it and no digit comes right after it — a letter, the end of the
+     * word or a punctuation mark. Digits anywhere else keep their meaning: "leite 0%",
+     * "coca 2l", "500g", "7up", "vitamina b12" and "v8" are untouched. 2, 6, 8 and 9
+     * have no look-alike letter and always stay.
+     */
+    private val DIGIT_LOOKALIKES = mapOf('0' to 'o', '1' to 'i', '3' to 'e', '4' to 'a', '5' to 's', '7' to 't')
+
     /** Key for matching: no accents, lowercase, single spaces, each word reduced to a singular-ish stem. */
     fun key(text: String?): String =
         plain(text).split(' ').filter { it.isNotEmpty() }.joinToString(" ") { stem(it) }
 
     /** The same text without accents, case or extra spaces, but not stemmed (`TextNormalizer.plain`). */
-    fun plain(text: String?): String = squish(Transliteration.transliterate(text.orEmpty()).asciiLowercase())
+    fun plain(text: String?): String =
+        foldLookalikeDigits(squish(Transliteration.transliterate(text.orEmpty()).asciiLowercase()))
+
+    /** Reads look-alike digits as letters inside each word, leaving any other digit alone. */
+    private fun foldLookalikeDigits(text: String): String {
+        val out = StringBuilder(text.length)
+        for (word in text.split(' ')) {
+            if (word.isEmpty()) continue
+            if (out.isNotEmpty()) out.append(' ')
+            out.append(foldWord(word))
+        }
+        return out.toString()
+    }
+
+    private fun foldWord(word: String): String {
+        val chars = word.toCharArray()
+        for (index in 1 until chars.size) {
+            val lookalike = DIGIT_LOOKALIKES[chars[index]] ?: continue
+            if (!chars[index - 1].isAsciiLetter()) continue
+            if (chars.getOrNull(index + 1)?.isDigit() == true) continue
+            chars[index] = lookalike
+        }
+        return String(chars)
+    }
+
+    private fun Char.isAsciiLetter(): Boolean = this in 'a'..'z'
 
     /** Ruby's `squish` on ASCII text: runs of whitespace become one space, the edges are stripped (NUL included). */
     private fun squish(text: String): String {
