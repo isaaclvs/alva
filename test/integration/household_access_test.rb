@@ -97,4 +97,14 @@ class HouseholdAccessTest < ActionDispatch::IntegrationTest
     get rails_health_check_path
     assert_response :success
   end
+
+  test "login and logout are no-ops when access is open" do
+    ENV["ALVA_PASSWORD_DIGEST"] = nil
+
+    get login_path
+    assert_redirected_to root_path
+    post login_path, params: { password: "tanto faz" }
+    assert_redirected_to root_path
+    assert_nil cookies[HouseholdAccess::COOKIE]
+  end
 end

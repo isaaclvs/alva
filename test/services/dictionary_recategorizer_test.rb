@@ -74,4 +74,14 @@ class DictionaryRecategorizerTest < ActiveSupport::TestCase
   ensure
     Rake::Task["dictionary:recategorize"].reenable
   end
+
+  test "the task says one item was recategorized in the singular" do
+    Rails.application.load_tasks unless Rake::Task.task_defined?("dictionary:recategorize")
+    @household.list_items.create!(name: "Banana", category: @other)
+    CatalogItem.find_by!(normalized_name: "banana").update!(category: @produce)
+
+    assert_output("1 item recategorized\n") { Rake::Task["dictionary:recategorize"].invoke }
+  ensure
+    Rake::Task["dictionary:recategorize"].reenable
+  end
 end

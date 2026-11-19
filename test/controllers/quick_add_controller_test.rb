@@ -122,6 +122,17 @@ class QuickAddControllerTest < ActionDispatch::IntegrationTest
     assert_equal QuickAddController::RATE_LIMIT_WINDOW.to_i.to_s, response.headers["Retry-After"]
   end
 
+  test "quick add refuses a name with nothing usable left with 422" do
+    _, token = AndroidDevice.issue(household: households(:home), name: "Phone")
+
+    assert_no_difference "ListItem.count" do
+      post "/api/quick_add", params: { name: " , ;\n " }, headers: { "Authorization" => "Bearer #{token}" }
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal({ "error" => "invalid_name" }, JSON.parse(response.body))
+  end
+
   test "quick add refuses an old token without a 500 once the password is gone" do
     _, token = AndroidDevice.issue(household: households(:home), name: "Phone")
     ENV.delete("ALVA_PASSWORD_DIGEST")
