@@ -88,14 +88,20 @@ pequenos e coerentes; uma entrega revisável por PR; dependência integrada à
   não são afetados.
 - **Categorização automática sem IA.** Matching por nome normalizado contra um
   dicionário pré-cadastrado (`CatalogItem`). Sem match → categoria "Outros".
-  O seed cobre a cesta brasileira (~300 nomes, sinônimos incluídos) e o
+  O seed cobre a cesta brasileira (~330 nomes, sinônimos incluídos) e o
   `DictionaryRecategorizer` (também `rake dictionary:recategorize`) move, uma
   única vez por mudança de catálogo, itens que já estavam em "Outros" para a
   categoria que o dicionário agora conhece — nunca os que a casa escolheu à mão.
-- **Categorias fixas** (criar/renomear categorias não existe). O dicionário
-  aprende: corrigir a categoria de um item à mão (lápis na linha) grava a
-  entrada em `CatalogItem` com `learned: true` via `ItemCategorizer.learn`, e o
-  `db:seed` (que roda a cada deploy) não sobrescreve entradas aprendidas.
+- **Categorias fixas** (criar/renomear categorias não existe). São 13, na ordem
+  do `db/seeds/catalog.yml`: Hortifruti, Laticínios, Frios e congelados,
+  Açougue, Congelados, Padaria, Mercearia, Bebidas, Limpeza, Higiene, Farmácia,
+  Pet, Outros. "Congelados" reúne polpas de fruta e o que é claramente
+  congelado (sorvete, açaí, pizza e lasanha congeladas, nuggets, pão de queijo
+  congelado, legumes congelados); "Frios e congelados" ficou com o que é de
+  frios e embutidos. O dicionário aprende: corrigir a categoria de um item à
+  mão (lápis na linha) grava a entrada em `CatalogItem` com `learned: true` via
+  `ItemCategorizer.learn`, e o `db:seed` (que roda a cada deploy) não sobrescreve
+  entradas aprendidas.
   Digitar de novo um item comprado que ainda está na lista o traz de volta já
   na categoria atual do dicionário (`Household#add_item`); desmarcar o item
   pela caixinha mantém a categoria que ele tinha.
@@ -355,7 +361,13 @@ acoplar o dicionário à lista viva.
   usuário (labels, categorias, seeds) em português.
 - Normalização de texto para matching (categorização automática e detecção de
   duplicados) deve reaproveitar uma única implementação — não duplicar lógica
-  de "remover acento + downcase" em vários lugares. No Android há um par Kotlin
+  de "remover acento + downcase" em vários lugares. `TextNormalizer.plain` também
+  lê um dígito entre letras como a letra parecida (`far0fa` → `farofa`,
+  `b4n4na` → `banana`, `l3it3` → `leite`; `0→o`, `1→i`, `3→e`, `4→a`, `5→s`,
+  `7→t`), e só nesse lugar: um dígito sem letra antes, ou logo seguido de outro
+  dígito, não muda (`leite 0%`, `coca 2l`, `500g`, `7up`, `vitamina b12`, `v8`).
+  Fica em `plain` porque ordenação, dica de duplicado e categorização precisam
+  concordar, e `call` já parte dele. No Android há um par Kotlin
   (`android/.../data/matching`, usado por telas e widget); os dois lados são
   verificados pelos mesmos exemplos em `test/fixtures/files/matching_corpus.json`.
   Mudou `TextNormalizer`, `ItemCategorizer`, `ItemNameSplitter` ou a regra de
