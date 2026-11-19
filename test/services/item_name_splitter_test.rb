@@ -53,4 +53,10 @@ class ItemNameSplitterTest < ActiveSupport::TestCase
   test "a cut that lands on a space strips it" do
     assert_equal [ "x" * 99 ], ItemNameSplitter.call("x" * 99 + " y")
   end
+
+  test "a part cut down to whitespace only gives no name" do
+    # No-break spaces survive strip/blank? until the cut, then leave nothing.
+    assert_nil ItemNameSplitter.clean("\u00A0" * 101)
+    assert_equal [], ItemNameSplitter.call("\u00A0" * 101)
+  end
 end
