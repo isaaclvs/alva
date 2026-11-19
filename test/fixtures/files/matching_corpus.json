@@ -276,7 +276,7 @@
       {"name":"Mercearia","position":3},
       {"name":"Padaria","position":4},
       {"name":"Higiene","position":5},
-      {"name":"Frios e congelados","position":6},
+      {"name":"Frios","position":6},
       {"name":"Pet","position":7},
       {"name":"Outros","position":99}
     ],
@@ -293,7 +293,7 @@
       {"name":"Pão de queijo","category":"Padaria","learned":false},
       {"name":"Smørrebrød","category":"Padaria","learned":false},
       {"name":"Papel higiênico","category":"Higiene","learned":false},
-      {"name":"Presunto","category":"Frios e congelados","learned":false},
+      {"name":"Presunto","category":"Frios","learned":false},
       {"name":"Ração","category":"Pet","learned":false},
       {"name":"Ração do gato","category":"Mercearia","learned":true}
     ]
@@ -322,9 +322,9 @@
     {"input":"Leite condensado","category":"Laticínios"},
     {"input":"leites condensados","category":"Laticínios"},
     {"input":"Papéis higiênicos","category":"Higiene"},
-    {"input":"Presunto","category":"Frios e congelados"},
-    {"input":"presuntos","category":"Frios e congelados"},
-    {"input":"PRESUNTO","category":"Frios e congelados"},
+    {"input":"Presunto","category":"Frios"},
+    {"input":"presuntos","category":"Frios"},
+    {"input":"PRESUNTO","category":"Frios"},
     {"input":"Ração","category":"Pet"},
     {"input":"rações","category":"Pet"},
     {"input":"racoes","category":"Pet"},

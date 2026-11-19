@@ -84,7 +84,7 @@ internal object CategoryIcons {
     private val byCategory = mapOf(
         "Hortifruti" to ("M20 4C10 2 3 7 5 14c2 6 13 6 15-10Z M4 21 15 10" to CategoryTone.Produce),
         "Laticínios" to ("M9 3h6v4l3 4v10H6V11l3-4V3Z M9 7h6 M6 13h12" to CategoryTone.Dairy),
-        "Frios e congelados" to ("M12 3v18 M4.5 7.5l15 9 M19.5 7.5l-15 9 M9 5l3 2 3-2 M9 19l3-2 3 2" to CategoryTone.Frozen),
+        "Frios" to ("M12 3v18 M4.5 7.5l15 9 M19.5 7.5l-15 9 M9 5l3 2 3-2 M9 19l3-2 3 2" to CategoryTone.Frozen),
         "Mercearia" to ("M5 8h14l1 13H4L5 8Z M9 8V6a3 3 0 0 1 6 0v2" to CategoryTone.Pantry),
         "Açougue" to ("M15 3c5 0 7 5 4 9l-6 7c-3 3-9 1-10-3S6 8 9 7s2-4 6-4Z M14 7c3-1 5 2 3 4s-5-1-3-4Z" to CategoryTone.Meat),
         "Congelados" to ("M4 9h16v9H4V9Z M4 9l2-5h12l2 5 M8 13h8" to CategoryTone.Freezer),
