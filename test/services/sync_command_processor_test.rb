@@ -257,6 +257,24 @@ class SyncCommandProcessorTest < ActiveSupport::TestCase
     assert_equal id, submit(valid.merge("type" => "x y")).first[:id]
   end
 
+  test "ActionController::Parameters envelopes parse like the request body" do
+    id = SecureRandom.uuid
+    raw = ActionController::Parameters.new(command(id, names: [ "Tapioca" ]))
+
+    result = submit(raw).first
+
+    assert_equal [ id, "applied" ], result.values_at(:id, :status)
+    assert @home.list_items.on_list.pending.exists?(name: "Tapioca")
+  end
+
+  test "an unparseable envelope still reports its string id when it has one" do
+    id = SecureRandom.uuid
+
+    result = submit(ActionController::Parameters.new("id" => id, "type" => "Add Items")).first
+
+    assert_equal [ id, "rejected", "malformed_command" ], result.values_at(:id, :status, :error)
+  end
+
   test "an unknown type is unsupported, but a recorded command still replays without its executor" do
     unknown = submit(command(SecureRandom.uuid).merge("type" => "future_command")).first
     assert_equal "unsupported_command", unknown[:error]

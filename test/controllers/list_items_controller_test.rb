@@ -466,6 +466,32 @@ class ListItemsControllerTest < ActionDispatch::IntegrationTest
     assert_nil item.purchased_at
   end
 
+  test "toggle conflicts when unticking would duplicate a pending name" do
+    household = households(:home)
+    purchased = household.list_items.create!(name: "Feijão", status: :purchased, purchased_at: Time.current)
+    household.list_items.create!(name: "Feijao")
+
+    patch toggle_list_item_path(purchased), as: :turbo_stream
+
+    assert_response :conflict
+    assert_includes response.body, "A lista mudou em outro aparelho"
+    assert purchased.reload.purchased?
+  end
+
+  test "a frame request for a removed row answers not_found instead of resyncing" do
+    item = list_items(:milk)
+
+    get edit_list_item_path(item), headers: { "Turbo-Frame" => "row" }
+    assert_response :success
+
+    household = households(:home)
+    other = Household.create!(name: "Outra").list_items.create!(name: "Arroz")
+
+    get edit_list_item_path(other), headers: { "Turbo-Frame" => "row" }
+    assert_response :not_found
+    assert_not household.list_items.exists?(other.id)
+  end
+
   test "shows the finish shopping button when something was purchased" do
     get root_path
     assert_select "form[action='#{shopping_trips_path}']:not([data-turbo-confirm])" do

@@ -116,6 +116,17 @@ class ListItemTest < ActiveSupport::TestCase
     assert purchased.errors.of_kind?(:name, :duplicate_pending)
   end
 
+  test "toggle_purchased! and correct refuse an archived item instead of editing history" do
+    household = households(:home)
+    trip = household.shopping_trips.create!(finished_at: Time.current)
+    archived = list_items(:milk)
+    archived.update_columns(shopping_trip_id: trip.id, status: ListItem.statuses["purchased"])
+
+    assert_raises(ListItem::StaleAction) { archived.reload.toggle_purchased! }
+    assert_raises(ListItem::StaleAction) { archived.reload.correct(name: "Leite novo", category_id: nil) }
+    assert_equal [ "Leite", trip.id ], [ archived.reload.name, archived.shopping_trip_id ]
+  end
+
   test "broadcasts the list to the household on create" do
     assert_list_broadcast households(:home) do
       ListItem.create!(name: "Arroz", household: households(:home))
