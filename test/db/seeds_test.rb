@@ -97,7 +97,7 @@ class SeedsTest < ActiveSupport::TestCase
 
     Rails.application.load_seed
 
-    assert_equal "Frios e congelados", ham.reload.category.name
+    assert_equal "Frios", ham.reload.category.name
     assert_equal others, food.reload.category
   end
 

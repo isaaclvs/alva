@@ -39,11 +39,24 @@ class SeedsTest < ActiveSupport::TestCase
       "Polpa de acerola" => "Congelados", "Polpa de cajá" => "Congelados",
       "Polpa de macurujá" => "Congelados", "Sorvete" => "Congelados",
       "Pizza congelada" => "Congelados", "Pão de queijo congelado" => "Congelados",
-      "Nuggets" => "Congelados", "Presunto" => "Frios e congelados",
-      "Mussarela" => "Frios e congelados"
+      "Nuggets" => "Congelados", "Presunto" => "Frios",
+      "Mussarela" => "Frios"
     }.each do |name, category|
       assert_equal category, ItemCategorizer.call(name)&.name, name
     end
+  end
+
+  test "a database seeded before the split has Frios renamed in place" do
+    frios = Category.find_by!(name: "Frios")
+    prior_id = frios.id
+    prior_public_id = frios.public_id
+    frios.update!(name: "Frios e congelados")
+
+    Rails.application.load_seed
+
+    renamed = Category.find_by!(name: "Frios")
+    assert_equal [ prior_id, prior_public_id ], [ renamed.id, renamed.public_id ]
+    assert_not Category.exists?(name: "Frios e congelados")
   end
 
   test "maps every catalog item to its category" do
@@ -70,8 +83,8 @@ class SeedsTest < ActiveSupport::TestCase
     # The first three waves of the roadmap issue #148: names that used to fall
     # through to the fallback and needed a manual fix.
     expected = {
-      "Presunto" => "Frios e congelados", "Mussarela" => "Frios e congelados",
-      "Sorvete" => "Congelados", "Salsicha" => "Frios e congelados",
+      "Presunto" => "Frios", "Mussarela" => "Frios",
+      "Sorvete" => "Congelados", "Salsicha" => "Frios",
       "Margarina" => "Laticínios", "Leite em pó" => "Laticínios",
       "Maionese" => "Mercearia", "Ketchup" => "Mercearia", "Cuscuz" => "Mercearia",
       "Tapioca" => "Mercearia", "Pipoca" => "Mercearia", "Fubá" => "Mercearia",
