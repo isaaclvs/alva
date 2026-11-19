@@ -55,8 +55,11 @@ class ItemNameSplitterTest < ActiveSupport::TestCase
   end
 
   test "a part cut down to whitespace only gives no name" do
-    # No-break spaces survive strip/blank? until the cut, then leave nothing.
-    assert_nil ItemNameSplitter.clean("\u00A0" * 101)
-    assert_equal [], ItemNameSplitter.call("\u00A0" * 101)
+    # No-break spaces survive strip/blank? until the cut, then leave nothing:
+    # the real character sits past the limit, so the cut keeps only spaces.
+    part = "\u00A0" * ItemNameSplitter::MAX_NAME_LENGTH + "a"
+
+    assert_nil ItemNameSplitter.clean(part)
+    assert_equal [], ItemNameSplitter.call(part)
   end
 end

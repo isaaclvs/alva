@@ -41,6 +41,27 @@ class SyncCable::ConnectionTest < ActionCable::Connection::TestCase
     assert_not connection.authorized_device?
   end
 
+  test "a command on a revoked connection closes it with unauthorized" do
+    connect headers: { "Authorization" => "Bearer #{@secret}" }
+    closed = []
+    connection.define_singleton_method(:close) { |**options| closed << options }
+    @device.revoke!
+
+    connection.handle_channel_command("command" => "subscribe", "identifier" => '{"channel":"SyncCable::Channel"}')
+
+    assert_equal [ { reason: "unauthorized", reconnect: false } ], closed
+  end
+
+  test "an identifier that is not JSON closes the connection as invalid" do
+    connect headers: { "Authorization" => "Bearer #{@secret}" }
+    closed = []
+    connection.define_singleton_method(:close) { |**options| closed << options }
+
+    connection.handle_channel_command("command" => "subscribe", "identifier" => "{nao-json")
+
+    assert_equal [ { reason: "invalid_request", reconnect: false } ], closed
+  end
+
   test "native endpoint uses its isolated connection and the shared adapter" do
     server = SyncCable::Server.instance
     assert_equal SyncCable::Connection, server.config.connection_class.call

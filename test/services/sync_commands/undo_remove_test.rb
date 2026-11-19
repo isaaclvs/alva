@@ -150,6 +150,25 @@ class SyncCommands::UndoRemoveTest < ActiveSupport::TestCase
     assert_nil @home.list_items.find_by!(public_id: @milk.public_id).category_id
   end
 
+  test "a category whose UUID no longer resolves blocks the restore" do
+    removal = remove(@milk)
+    submit(removal)
+    categories(:dairy).update_columns(public_id: uuid) # the receipt now names no category
+
+    refused = undo(removal)
+    assert_refused(refused, "category_missing")
+    assert_not ListItem.exists?(public_id: @milk.public_id)
+  end
+
+  test "the executor refuses a dependency it was handed without a receipt" do
+    command = SyncCommandProcessor::Command.new(id: uuid, type: "undo_remove", depends_on: uuid,
+      observed_revision: 0, preconditions: {}, payload: {}, household: @home, dependency: nil)
+
+    result = SyncCommands::UndoRemove.call(command)
+
+    assert_equal [ :rejected, "invalid_removal" ], [ result.status, result.error ]
+  end
+
   test "reauthorized credential of the original lineage can compensate" do
     removal = remove(@milk)
     submit(removal)
