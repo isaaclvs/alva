@@ -7,6 +7,7 @@ module ListItemsHelper
     "Frios e congelados" => [ "M12 3v18 M4.5 7.5l15 9 M19.5 7.5l-15 9 M9 5l3 2 3-2 M9 19l3-2 3 2", "frozen" ],
     "Mercearia" => [ "M5 8h14l1 13H4L5 8Z M9 8V6a3 3 0 0 1 6 0v2", "pantry" ],
     "Açougue" => [ "M15 3c5 0 7 5 4 9l-6 7c-3 3-9 1-10-3S6 8 9 7s2-4 6-4Z M14 7c3-1 5 2 3 4s-5-1-3-4Z", "meat" ],
+    "Congelados" => [ "M4 9h16v9H4V9Z M4 9l2-5h12l2 5 M8 13h8", "freezer" ],
     "Padaria" => [ "M4 20c-3-3 1-8 5-12s9-7 12-4-1 8-5 12-9 7-12 4Z M8 10l3 3 M12 6l3 3 M5 14l3 3", "bakery" ],
     "Bebidas" => [ "M6 8h12l-2 13H8L6 8Z M5 8h14 M12 8l3-6h4", "drinks" ],
     "Limpeza" => [ "M8 10h8l3 4v7H5v-7l3-4Z M10 10V6h4v4 M10 6V3h7l2 2 M8 16h8", "cleaning" ],

@@ -10,7 +10,7 @@ enum class AlvaColor { Teal, Pink }
  * The tint of a category icon (`data-tone` in the PWA). Bakery shares the pantry hue,
  * and [Other] has no hue: it uses the neutral surface colors.
  */
-enum class CategoryTone { Produce, Dairy, Frozen, Pantry, Bakery, Meat, Drinks, Cleaning, Hygiene, Pharmacy, Pet, Other }
+enum class CategoryTone { Produce, Dairy, Frozen, Freezer, Pantry, Bakery, Meat, Drinks, Cleaning, Hygiene, Pharmacy, Pet, Other }
 
 /** Icon color and the translucent chip behind it. */
 @Immutable
