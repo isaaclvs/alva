@@ -158,6 +158,51 @@ class SyncCommands::CorrectItemTest < ActiveSupport::TestCase
     end
   end
 
+  test "malformed payload fields are rejected before any lookup" do
+    item = list_items(:milk)
+
+    [ [ correct_item_command("nao-uuid", "Novo", lock_version: 0), "payload.public_id" ],
+      [ correct_item_command(42, "Novo", lock_version: 0), "payload.public_id" ],
+      [ correct_item_command(item.public_id, 42, lock_version: 0), "payload.name" ],
+      [ correct_item_command(item.public_id, "Novo", lock_version: 0, category_id: "nao-uuid"), "payload.category_id" ] ].each do |command, field|
+      result = submit(command).first
+
+      assert_equal [ "rejected", "malformed_command", field ],
+        [ result[:status], result[:error], result[:data]["field"] ]
+    end
+    assert_equal "Leite", item.reload.name
+  end
+
+  test "a version is required when nothing in the batch established one" do
+    item = list_items(:milk)
+
+    result = submit(correct_item_command(item.public_id, "Leite novo")).first
+
+    assert_equal [ "rejected", "malformed_command", "preconditions.lock_version" ],
+      [ result[:status], result[:error], result[:data]["field"] ]
+    assert_equal "Leite", item.reload.name
+  end
+
+  test "an unknown category is rejected after the preconditions" do
+    item = list_items(:milk)
+    result = submit(correct_item_command(item.public_id, "Leite novo", lock_version: 0,
+      category_id: uuid, dictionary_revision: 0)).first
+
+    assert_equal [ "rejected", "not_found", "payload.category_id" ],
+      [ result[:status], result[:error], result[:data]["field"] ]
+    assert_equal "Leite", item.reload.name
+  end
+
+  test "an item without a category reports no category id instead of failing" do
+    item = list_items(:milk)
+    item.update_columns(category_id: nil)
+
+    result = submit(correct_item_command(item.public_id, item.name, lock_version: 0)).first
+
+    assert_equal "noop", result[:status]
+    assert_nil result[:data]["item"]["category_public_id"]
+  end
+
   private
   def submit(*commands) = SyncCommandProcessor.new(device: @ana).call(commands)
 end

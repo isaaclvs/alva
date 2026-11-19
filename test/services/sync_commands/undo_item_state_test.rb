@@ -103,6 +103,26 @@ class SyncCommands::UndoItemStateTest < ActiveSupport::TestCase
     assert_equal 1, SyncCommand.where(command_type: "undo_item_state").count, "a noop is consumed so a resend replays it"
   end
 
+  test "an undo of an unmark that already happened is a noop with the same date" do
+    original = @detergent.purchased_at.utc.iso8601(6)
+    revision = @home.reload.sync_revision
+
+    result = submit(@ana, undo_item_state_command(@detergent.public_id, "purchased",
+      purchased_at: original, lock_version: 7)).first
+
+    assert_equal "noop", result[:status]
+    assert_equal [ "purchased", original ], result[:data]["item"].values_at("status", "purchased_at")
+    assert_equal revision, @home.reload.sync_revision
+  end
+
+  test "the same status with another date is not restored and conflicts on the version" do
+    result = submit(@ana, undo_item_state_command(@detergent.public_id, "purchased",
+      purchased_at: 3.days.ago.utc.iso8601(6), lock_version: 7)).first
+
+    assert_equal [ "conflict", "version_changed" ], [ result[:status], result[:data]["reason"] ]
+    assert_equal @detergent.purchased_at, @detergent.reload.purchased_at
+  end
+
   test "a later edit by another device wins: the undo conflicts and overwrites nothing" do
     mark = submit(@ana, set_item_state_command(@milk.public_id, "purchased", lock_version: 0)).first
     version = mark[:data]["item"]["lock_version"]

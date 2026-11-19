@@ -249,6 +249,14 @@ class BuyAgainSuggestionsTest < ActiveSupport::TestCase
     end
   end
 
+  test "a limit of zero asks for nothing and a negative limit is a bug" do
+    buy "Arroz"
+
+    assert_empty BuyAgainSuggestions.call(@household, limit: 0)
+    error = assert_raises(ArgumentError) { BuyAgainSuggestions.call(@household, limit: -1) }
+    assert_equal "limit must be nonnegative", error.message
+  end
+
   test "the due ones are cut before the rest when the limit is small" do
     travel_to Time.zone.local(2026, 11, 18, 9) do
       buy_on "Arroz", Date.new(2026, 10, 1), Date.new(2026, 10, 3), Date.new(2026, 10, 5)
