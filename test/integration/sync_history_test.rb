@@ -75,6 +75,20 @@ class SyncHistoryTest < ActionDispatch::IntegrationTest
     assert_equal "2026-11", response.parsed_body["month"]
   end
 
+  test "a trip item without a category reports a null category id" do
+    trip = finished_trip(Time.zone.local(2026, 11, 12, 18), {})
+    item = @household.list_items.create!(name: "Cimento", status: :purchased,
+      purchased_at: trip.finished_at, shopping_trip: trip)
+    item.update_columns(category_id: nil)
+
+    get_history
+
+    assert_response :success
+    entry = response.parsed_body["trips"].sole
+    assert_equal [ { "public_id" => item.public_id, "name" => "Cimento", "category_public_id" => nil } ],
+      entry["items"]
+  end
+
   test "writes nothing: the revision does not move" do
     finished_trip(Time.zone.local(2026, 11, 12, 18), { "Sabão" => categories(:other) })
     revision = @household.reload.sync_revision

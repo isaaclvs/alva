@@ -78,7 +78,7 @@ class HabitualItemsControllerTest < ActionDispatch::IntegrationTest
   test "malformed and cross-household selected ids add nothing" do
     other = Household.create!(name: "Outra")
     foreign_habit = other.habitual_items.create!(name: "Arroz")
-    [ [ "oops" ], [ foreign_habit.id ] ].each do |ids|
+    [ [ "oops" ], [ foreign_habit.id ], [], [ 0 ], [ "1.5" ] ].each do |ids|
       assert_no_difference "ListItem.count" do
         post add_selected_habitual_items_path, params: { habitual_item_ids: ids }, as: :turbo_stream
       end
@@ -87,6 +87,19 @@ class HabitualItemsControllerTest < ActionDispatch::IntegrationTest
       assert_select "turbo-stream[target=toast]", text: /Selecione hábitos válidos/
     end
   end
+
+  test "adding with no habits saved explains there is nothing to add" do
+    household = households(:home)
+    household.habitual_items.destroy_all
+
+    assert_no_difference "ListItem.count" do
+      post add_all_habitual_items_path, as: :turbo_stream
+    end
+
+    assert_response :unprocessable_entity
+    assert_select "turbo-stream[target=toast]", text: /Ainda não há itens habituais salvos/
+  end
+
 
   test "add all handles more than the typed-input limit without truncating" do
     household = households(:home)
