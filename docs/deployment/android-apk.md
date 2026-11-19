@@ -1,6 +1,6 @@
 # APK nativo do Alva
 
-A versão 2.0.4 (código 9) é o cliente Android nativo online, em Kotlin/Compose.
+A versão 2.0.6 (código 11) é o cliente Android nativo online, em Kotlin/Compose.
 Instala como atualização das versões TWA 1.x: mantém o identificador
 `net.ts.taild80ca0.atlas.twa` e a chave original de assinatura. Na primeira
 abertura do cliente nativo, informe a senha da casa uma vez; o app e o widget
@@ -59,16 +59,11 @@ que a release não resolve dependências de Room ou WorkManager.
 O certificado SHA-256 deve continuar igual ao de `public/.well-known/assetlinks.json`:
 `51:3D:D0:F0:B8:21:DD:09:80:54:02:9C:EE:70:35:DC:B3:AD:D1:48:03:0C:6F:69:5D:3A:02:FA:6F:6B:13:21`.
 
-## Entrega 2.0.0
+## Versão publicada
 
-O APK assinado para avaliação está em `tmp/releases/Alva-2.0.0.apk` (não versionado).
-Instale por cima do Alva existente, sem desinstalar. O teste físico de atualização,
-o widget e o aceite de paridade nos dois celulares continuam sendo a etapa do
-usuário na #111. A publicação padrão em `/downloads` fica para depois desse aceite;
-o download antigo não é substituído por este build de avaliação.
-
-Validação deste artefato: assinatura v2 e certificado conferidos contra o APK
-original e o assetlinks; instalação por cima do APK público 1.0 no emulador
-concluída sem desinstalar; abertura nativa confirmada. A compatibilidade física
-com o Alva 1.3 e o aceite nos dois aparelhos ainda precisam ser conferidos.
-SHA-256: `857a561f512d4390403647a8c8ae8d68a26c61ff1985a664cc5d0b21aa1efdbc`.
+A 2.0.6 (código 11) está em `/downloads`: `Alva-2.0.6.apk`, o `.sha256` e o
+`latest.json` (SHA-256 `1610f085e944d01ba91a901423858490933b6b47ad3a8b5d113b4cac6cc9502f`).
+Em 19/11/2026 o usuário aprovou o app nativo nos dois celulares (#111), que
+passaram a usar só ele. Os APKs TWA 1.x continuam em `/downloads` como
+histórico, e a PWA continua disponível no mesmo endereço, para quem não usa o
+APK.
