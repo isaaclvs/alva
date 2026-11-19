@@ -20,6 +20,7 @@ class ListPdf
     "Frios e congelados" => "8b5cf6",
     "Mercearia" => "f59e0b",
     "Açougue" => "f43f5e",
+    "Congelados" => "3b82f6",
     "Padaria" => "f97316",
     "Bebidas" => "06b6d4",
     "Limpeza" => "6366f1",
