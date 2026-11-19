@@ -1,7 +1,7 @@
 # Turns an item name into the key used for matching (categorization and
-# duplicate detection): no accents, lowercase, single spaces, and each word
-# reduced to a singular-ish stem so "Bananas" matches "Banana" and "Pães"
-# matches "Pão".
+# duplicate detection): no accents, lowercase, single spaces, look-alike digits
+# read as letters, and each word reduced to a singular-ish stem so "Bananas"
+# matches "Banana" and "Pães" matches "Pão".
 #
 # The stem only needs to be the same for the singular and plural forms of a
 # word, not a real Portuguese word: "vinagre" and "vinagres" both become
@@ -19,6 +19,14 @@ class TextNormalizer
 
   MIN_STEM_LENGTH = 4
 
+  # Someone typing on a phone reaches a digit for a letter inside a word:
+  # "far0fa", "b4n4na", "l3it3". A digit is read that way only when a letter
+  # comes right before it and no digit comes right after it — a letter, the end
+  # of the word or a punctuation mark. Digits anywhere else keep their meaning:
+  # "leite 0%", "coca 2l", "500g", "7up", "vitamina b12" and "v8" are
+  # untouched. 2, 6, 8 and 9 have no look-alike letter and always stay.
+  DIGIT_LOOKALIKES = { "0" => "o", "1" => "i", "3" => "e", "4" => "a", "5" => "s", "7" => "t" }.freeze
+
   def self.call(text)
     plain(text).split(" ").map { |word| stem(word) }.join(" ")
   end
@@ -26,8 +34,29 @@ class TextNormalizer
   # The same text without accents, case or extra spaces, but not stemmed:
   # what to sort names by so "Água" sits with "agua" and before "Banana".
   def self.plain(text)
-    I18n.transliterate(text.to_s).downcase.squish
+    fold_lookalike_digits(I18n.transliterate(text.to_s).downcase.squish)
   end
+
+  def self.fold_lookalike_digits(text)
+    text.split(" ").map { |word| fold_word(word) }.join(" ")
+  end
+  private_class_method :fold_lookalike_digits
+
+  def self.fold_word(word)
+    chars = word.chars
+    chars.each_with_index.map do |char, index|
+      lookalike = DIGIT_LOOKALIKES[char]
+      next char if lookalike.nil? || index.zero?
+
+      previous = chars[index - 1]
+      following = chars[index + 1]
+      next char unless previous.match?(/[a-z]/)
+      next char if following&.match?(/\d/)
+
+      lookalike
+    end.join
+  end
+  private_class_method :fold_word
 
   def self.stem(word)
     return word if word.length < MIN_STEM_LENGTH
