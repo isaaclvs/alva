@@ -235,6 +235,19 @@
     {"input":"","plain":"","key":""},
     {"input":"\u0000leite","plain":"leite","key":"leite","note":"the edges are stripped of NUL like Ruby's String#strip"},
     {"input":"Weißbier","plain":"weissbier","key":"weissbier"},
+    {"input":"fAroFà","plain":"farofa","key":"farofa"},
+    {"input":"far0fa","plain":"farofa","key":"farofa","note":"a look-alike digit between letters is the letter"},
+    {"input":"b4n4na","plain":"banana","key":"banana","note":"every look-alike digit is folded"},
+    {"input":"l3it3","plain":"leite","key":"leite","note":"the last digit counts: a letter before it and the end of the word"},
+    {"input":"FAR0F4","plain":"farofa","key":"farofa"},
+    {"input":"S0rvete","plain":"sorvete","key":"sorvete"},
+    {"input":"Leite 0%","plain":"leite 0%","key":"leite 0%","note":"a digit with no letter before it keeps its meaning"},
+    {"input":"Coca 2l","plain":"coca 2l","key":"coca 2l","note":"2 has no look-alike letter"},
+    {"input":"500g","plain":"500g","key":"500g","note":"a digit at the start of the word is untouched"},
+    {"input":"7up","plain":"7up","key":"7up"},
+    {"input":"Vitamina B12","plain":"vitamina b12","key":"vitamina b12","note":"a digit followed by a digit is not folded"},
+    {"input":"V8","plain":"v8","key":"v8"},
+    {"input":"Açúcar 1kg","plain":"acucar 1kg","key":"acucar 1kg"},
     {"input":"Æon","plain":"aeon","key":"aeon"},
     {"input":"Smørrebrød","plain":"smorrebrod","key":"smorrebrod"},
     {"input":"Łódź","plain":"lodz","key":"lodz"},
@@ -313,6 +326,10 @@
     {"input":"Rações do gato","category":"Mercearia"},
     {"input":"SMØRREBRØD","category":"Padaria"},
     {"input":"smorrebrod","category":"Padaria"},
+    {"input":"B4n4n4","category":"Hortifruti","note":"a look-alike digit is the letter, as in TextNormalizer.plain"},
+    {"input":"l3it3","category":"Laticínios"},
+    {"input":"C4f3","category":"Mercearia"},
+    {"input":"Leite 0%","category":"Outros","note":"a digit that is not inside a word keeps its meaning"},
     {"input":"Leite integral","category":"Outros"},
     {"input":"Pão de forma","category":"Outros"},
     {"input":"Coisa desconhecida","category":"Outros"},
@@ -335,6 +352,7 @@
     {"input":"   ","names":[]},
     {"input":"Leite, leite, LEITES, Pão, pães, pao","names":["Leite","Pão"]},
     {"input":"Maçã, maca, MAÇÃS, Banana","names":["Maçã","Banana"]},
+    {"input":"Leite, l3it3, LEIT3S","names":["Leite"],"note":"a look-alike digit is folded before the duplicate check"},
     {"input":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","names":["xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"]},
     {"input":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","names":["xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"]},
     {"input":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx y","names":["xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"]},
@@ -507,6 +525,29 @@
         {"name":"hábito 32","status":"pending","category":"Outros"}
       ]
     },
+    {
+      "title": "a look-alike digit makes the same name",
+      "existing": [
+        {"name":"Leite","status":"pending","category":"Laticínios"}
+      ],
+      "input": "l3it3",
+      "outcomes": ["duplicate"],
+      "final": [
+        {"name":"Leite","status":"pending","category":"Laticínios"}
+      ]
+    },
+    {
+      "title": "a digit that is not a look-alike still means the same name as it did",
+      "existing": [
+        {"name":"Leite 0%","status":"pending","category":"Outros"}
+      ],
+      "input": "leite 0%",
+      "outcomes": ["duplicate"],
+      "final": [
+        {"name":"Leite 0%","status":"pending","category":"Outros"}
+      ]
+    },
+
     {
       "title": "a text with no names is one invalid attempt",
       "existing": [
