@@ -20,11 +20,11 @@ class TextNormalizer
   MIN_STEM_LENGTH = 4
 
   # Someone typing on a phone reaches a digit for a letter inside a word:
-  # "far0fa", "b4n4na", "l3it3". A digit is read that way only when a letter
-  # comes right before it and no digit comes right after it — a letter, the end
-  # of the word or a punctuation mark. Digits anywhere else keep their meaning:
-  # "leite 0%", "coca 2l", "500g", "7up", "vitamina b12" and "v8" are
-  # untouched. 2, 6, 8 and 9 have no look-alike letter and always stay.
+  # "far0fa", "b4n4na", "l3ite". A digit is read that way only when it has a
+  # letter right before it and another letter right after it. A digit at either
+  # edge of the word, or next to punctuation, keeps its meaning: "leite 0%",
+  # "coca 2l", "500g", "7up", "vitamina b12", "vitamina d3", "omega3" and "v8"
+  # are untouched. 2, 6, 8 and 9 have no look-alike letter and always stay.
   DIGIT_LOOKALIKES = { "0" => "o", "1" => "i", "3" => "e", "4" => "a", "5" => "s", "7" => "t" }.freeze
 
   def self.call(text)
@@ -50,8 +50,7 @@ class TextNormalizer
 
       previous = chars[index - 1]
       following = chars[index + 1]
-      next char unless previous.match?(/[a-z]/)
-      next char if following&.match?(/\d/)
+      next char unless previous.match?(/[a-z]/) && following&.match?(/[a-z]/)
 
       lookalike
     end.join

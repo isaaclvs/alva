@@ -14,11 +14,11 @@ object TextNormalizer {
 
     /**
      * Someone typing on a phone reaches a digit for a letter inside a word:
-     * "far0fa", "b4n4na", "l3it3". A digit is read that way only when a letter comes
-     * right before it and no digit comes right after it — a letter, the end of the
-     * word or a punctuation mark. Digits anywhere else keep their meaning: "leite 0%",
-     * "coca 2l", "500g", "7up", "vitamina b12" and "v8" are untouched. 2, 6, 8 and 9
-     * have no look-alike letter and always stay.
+     * "far0fa", "b4n4na", "l3ite". A digit is read that way only when it has a letter
+     * right before it and another letter right after it. A digit at either edge of the
+     * word, or next to punctuation, keeps its meaning: "leite 0%", "coca 2l", "500g",
+     * "7up", "vitamina b12", "vitamina d3", "omega3" and "v8" are untouched. 2, 6, 8
+     * and 9 have no look-alike letter and always stay.
      */
     private val DIGIT_LOOKALIKES = mapOf('0' to 'o', '1' to 'i', '3' to 'e', '4' to 'a', '5' to 's', '7' to 't')
 
@@ -46,7 +46,7 @@ object TextNormalizer {
         for (index in 1 until chars.size) {
             val lookalike = DIGIT_LOOKALIKES[chars[index]] ?: continue
             if (!chars[index - 1].isAsciiLetter()) continue
-            if (chars.getOrNull(index + 1)?.isDigit() == true) continue
+            if (chars.getOrNull(index + 1)?.isAsciiLetter() != true) continue
             chars[index] = lookalike
         }
         return String(chars)

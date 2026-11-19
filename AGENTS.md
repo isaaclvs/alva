@@ -362,11 +362,13 @@ acoplar o dicionário à lista viva.
 - Normalização de texto para matching (categorização automática e detecção de
   duplicados) deve reaproveitar uma única implementação — não duplicar lógica
   de "remover acento + downcase" em vários lugares. `TextNormalizer.plain` também
-  lê um dígito entre letras como a letra parecida (`far0fa` → `farofa`,
-  `b4n4na` → `banana`, `l3it3` → `leite`; `0→o`, `1→i`, `3→e`, `4→a`, `5→s`,
-  `7→t`), e só nesse lugar: um dígito sem letra antes, ou logo seguido de outro
-  dígito, não muda (`leite 0%`, `coca 2l`, `500g`, `7up`, `vitamina b12`, `v8`).
-  Fica em `plain` porque ordenação, dica de duplicado e categorização precisam
+  lê um dígito como a letra parecida (`far0fa` → `farofa`, `b4n4na` → `banana`,
+  `l3ite` → `leite`; `0→o`, `1→i`, `3→e`, `4→a`, `5→s`, `7→t`), mas só quando
+  ele tem uma letra imediatamente antes **e** outra imediatamente depois. Um
+  dígito na ponta da palavra ou ao lado de outra coisa que não seja letra fica
+  como está: `vitamina d3`, `omega3`, `complexo b1`, `vitamina b5`, `v8`, `b12`,
+  `7up`, `500g`, `coca 2l` e `leite 0%` não mudam. Fica em `plain` porque
+  ordenação, dica de duplicado e categorização precisam
   concordar, e `call` já parte dele. No Android há um par Kotlin
   (`android/.../data/matching`, usado por telas e widget); os dois lados são
   verificados pelos mesmos exemplos em `test/fixtures/files/matching_corpus.json`.
