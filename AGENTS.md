@@ -93,15 +93,18 @@ pequenos e coerentes; uma entrega revisável por PR; dependência integrada à
   única vez por mudança de catálogo, itens que já estavam em "Outros" para a
   categoria que o dicionário agora conhece — nunca os que a casa escolheu à mão.
 - **Categorias fixas** (criar/renomear categorias não existe). São 13, na ordem
-  do `db/seeds/catalog.yml`: Hortifruti, Laticínios, Frios e congelados,
+  do `db/seeds/catalog.yml`: Hortifruti, Laticínios, Frios,
   Açougue, Congelados, Padaria, Mercearia, Bebidas, Limpeza, Higiene, Farmácia,
   Pet, Outros. "Congelados" reúne polpas de fruta e o que é claramente
   congelado (sorvete, açaí, pizza e lasanha congeladas, nuggets, pão de queijo
-  congelado, legumes congelados); "Frios e congelados" ficou com o que é de
-  frios e embutidos. O dicionário aprende: corrigir a categoria de um item à
-  mão (lápis na linha) grava a entrada em `CatalogItem` com `learned: true` via
-  `ItemCategorizer.learn`, e o `db:seed` (que roda a cada deploy) não sobrescreve
-  entradas aprendidas.
+  congelado, legumes congelados); "Frios" ficou com o que é de
+  frios e embutidos. O nome antigo "Frios e congelados" nunca existiu em
+  produção, mas bancos de dev/teste antigos ainda o têm: o `db/seeds.rb`
+  renomeia a categoria no lugar (mesmo id e `public_id`) antes de rodar o
+  catálogo, de forma idempotente. O dicionário aprende: corrigir a categoria de
+  um item à mão (lápis na linha) grava a entrada em `CatalogItem` com
+  `learned: true` via `ItemCategorizer.learn`, e o `db:seed` (que roda a cada
+  deploy) não sobrescreve entradas aprendidas.
   Digitar de novo um item comprado que ainda está na lista o traz de volta já
   na categoria atual do dicionário (`Household#add_item`); desmarcar o item
   pela caixinha mantém a categoria que ele tinha.
