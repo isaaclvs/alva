@@ -178,6 +178,7 @@ Mercearia:
   - Farinha de trigo
   - Farinha de mandioca
   - Farofa
+  - Farofa branca
   - Fubá
   - Cuscuz
   - Tapioca
@@ -191,6 +192,9 @@ Mercearia:
   - Maionese
   - Mostarda
   - Shoyu
+  - Molho shoyu
+  - Molho barbecue
+  - Barbecue
   - Molho de pimenta
   - Caldo de carne
   - Caldo de legumes
@@ -217,6 +221,9 @@ Mercearia:
   - Ameixa seca
   - Mel
   - Geleia
+  - Goiabada
+  - Rosquinha
+  - Rosquinha de coco
   - Atum
   - Sardinha
   - Milho em conserva
@@ -268,6 +275,7 @@ Limpeza:
   - Odorizador
   - Inseticida
   - Esponja
+  - Flanela
   - Saco de lixo
   - Lava louças
   - Lava-louças
@@ -277,6 +285,7 @@ Limpeza:
   - Filme plástico
   - Álcool
   - Pano de chão
+  - Pano de prato
   - Rodo
   - Vassoura
   - Balde
