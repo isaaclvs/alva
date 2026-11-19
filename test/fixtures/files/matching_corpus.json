@@ -237,17 +237,23 @@
     {"input":"Weißbier","plain":"weissbier","key":"weissbier"},
     {"input":"fAroFà","plain":"farofa","key":"farofa"},
     {"input":"far0fa","plain":"farofa","key":"farofa","note":"a look-alike digit between letters is the letter"},
-    {"input":"b4n4na","plain":"banana","key":"banana","note":"every look-alike digit is folded"},
-    {"input":"l3it3","plain":"leite","key":"leite","note":"the last digit counts: a letter before it and the end of the word"},
-    {"input":"FAR0F4","plain":"farofa","key":"farofa"},
+    {"input":"b4n4na","plain":"banana","key":"banana","note":"every look-alike digit with a letter on each side is folded"},
+    {"input":"l3ite","plain":"leite","key":"leite"},
+    {"input":"F4R0FA","plain":"farofa","key":"farofa"},
     {"input":"S0rvete","plain":"sorvete","key":"sorvete"},
     {"input":"Leite 0%","plain":"leite 0%","key":"leite 0%","note":"a digit with no letter before it keeps its meaning"},
     {"input":"Coca 2l","plain":"coca 2l","key":"coca 2l","note":"2 has no look-alike letter"},
     {"input":"500g","plain":"500g","key":"500g","note":"a digit at the start of the word is untouched"},
     {"input":"7up","plain":"7up","key":"7up"},
     {"input":"Vitamina B12","plain":"vitamina b12","key":"vitamina b12","note":"a digit followed by a digit is not folded"},
+    {"input":"Vitamina D3","plain":"vitamina d3","key":"vitamina d3","note":"a digit at the end of the word is not folded: the supplement names keep their number"},
+    {"input":"Ômega 3","plain":"omega 3","key":"omega 3"},
+    {"input":"Omega3","plain":"omega3","key":"omega3"},
+    {"input":"Complexo B1","plain":"complexo b1","key":"complexo b1"},
+    {"input":"Vitamina B5","plain":"vitamina b5","key":"vitamina b5"},
     {"input":"V8","plain":"v8","key":"v8"},
     {"input":"Açúcar 1kg","plain":"acucar 1kg","key":"acucar 1kg"},
+    {"input":"Leite 1l","plain":"leite 1l","key":"leite 1l"},
     {"input":"Æon","plain":"aeon","key":"aeon"},
     {"input":"Smørrebrød","plain":"smorrebrod","key":"smorrebrod"},
     {"input":"Łódź","plain":"lodz","key":"lodz"},
@@ -326,10 +332,12 @@
     {"input":"Rações do gato","category":"Mercearia"},
     {"input":"SMØRREBRØD","category":"Padaria"},
     {"input":"smorrebrod","category":"Padaria"},
-    {"input":"B4n4n4","category":"Hortifruti","note":"a look-alike digit is the letter, as in TextNormalizer.plain"},
-    {"input":"l3it3","category":"Laticínios"},
-    {"input":"C4f3","category":"Mercearia"},
+    {"input":"B4n4na","category":"Hortifruti","note":"a look-alike digit is the letter, as in TextNormalizer.plain"},
+    {"input":"l3ite","category":"Laticínios"},
+    {"input":"C4fe","category":"Mercearia"},
     {"input":"Leite 0%","category":"Outros","note":"a digit that is not inside a word keeps its meaning"},
+    {"input":"Vitamina D3","category":"Outros","note":"a trailing digit is not folded, so the supplement does not become a word"},
+    {"input":"Ômega 3","category":"Outros"},
     {"input":"Leite integral","category":"Outros"},
     {"input":"Pão de forma","category":"Outros"},
     {"input":"Coisa desconhecida","category":"Outros"},
@@ -352,7 +360,7 @@
     {"input":"   ","names":[]},
     {"input":"Leite, leite, LEITES, Pão, pães, pao","names":["Leite","Pão"]},
     {"input":"Maçã, maca, MAÇÃS, Banana","names":["Maçã","Banana"]},
-    {"input":"Leite, l3it3, LEIT3S","names":["Leite"],"note":"a look-alike digit is folded before the duplicate check"},
+    {"input":"Leite, l3ite, LEIT3S","names":["Leite"],"note":"a look-alike digit is folded before the duplicate check"},
     {"input":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","names":["xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"]},
     {"input":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","names":["xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"]},
     {"input":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx y","names":["xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"]},
@@ -530,10 +538,34 @@
       "existing": [
         {"name":"Leite","status":"pending","category":"Laticínios"}
       ],
-      "input": "l3it3",
+      "input": "l3ite",
       "outcomes": ["duplicate"],
       "final": [
         {"name":"Leite","status":"pending","category":"Laticínios"}
+      ]
+    },
+    {
+      "title": "a name written with a look-alike digit is not the same as one without it when the digit ends the word",
+      "existing": [
+        {"name":"Leite","status":"pending","category":"Laticínios"}
+      ],
+      "input": "l3it3",
+      "outcomes": ["created"],
+      "final": [
+        {"name":"Leite","status":"pending","category":"Laticínios"},
+        {"name":"l3it3","status":"pending","category":"Outros"}
+      ]
+    },
+    {
+      "title": "a supplement number at the end of the word keeps the name as typed",
+      "existing": [
+        {"name":"Vitamina D3","status":"pending","category":"Outros"}
+      ],
+      "input": "vitamina d3, omega3",
+      "outcomes": ["duplicate","created"],
+      "final": [
+        {"name":"Vitamina D3","status":"pending","category":"Outros"},
+        {"name":"omega3","status":"pending","category":"Outros"}
       ]
     },
     {
